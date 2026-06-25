@@ -993,9 +993,17 @@ function MachineCard({ machine, state, profileToday, now, onClick, lang, dir }) 
 
 function YoneticiMode({ data, onBack, lang, dir }) {
   const now = useNow(2000);
-  const { machines, plan, machineStates, log, refresh, orders } = data;
+  const { machines, plan, machineStates, log, refresh, orders, setPolling } = data;
   const [tab, setTab] = useState("durum");
   const todayIso = isoDate(now);
+
+  // Tanımlar ve Plan sekmelerinde form/girdi düzenlemesi var; arka plan
+  // yenilemesi (4s) bu sekmelerde yerel state'i ezip yazılanı kaybettirebilir.
+  // Sadece "durum" salt-okunur olduğu için orada canlı kalmasında sakınca yok.
+  useEffect(() => {
+    setPolling(tab === "durum");
+    return () => setPolling(true);
+  }, [tab, setPolling]);
 
   if (!machines) return <LoadingScreen lang={lang} />;
 
