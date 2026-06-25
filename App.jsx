@@ -129,6 +129,32 @@ const STRINGS = {
   routingMissingFull: { tr: "Bu ürün için rota/süre tanımı yok — termin hesaplanamıyor (Ürün Süreleri verisine ekleyin)", en: "No routing/timing defined for this product — due date can't be calculated (add it to product routing data)", ar: "لا يوجد مسار/توقيت محدد لهذا المنتج — لا يمكن حساب الموعد (أضفه إلى بيانات المسار)" },
   daysMargin: { tr: "Termine {n} gün payı var", en: "{n} days margin to due date", ar: "هامش {n} يوم حتى الموعد" },
   daysOverdue: { tr: "Termini {n} gün geçiyor", en: "{n} days past due date", ar: "تأخر {n} يوم عن الموعد" },
+  productModels: { tr: "Ürün Modelleri", en: "Product Models", ar: "موديلات المنتج" },
+  productModelsNote: { tr: "Hangi ER kodu hangi dolgu tipinde — üretim rotasını bu belirler. Bu liste salt okunur; değiştirmek için bana söyleyin.", en: "Which ER code belongs to which fill type — this determines the production route. Read-only; ask me to change it.", ar: "أي رمز ER ينتمي إلى أي نوع حشو — هذا يحدد مسار الإنتاج. للقراءة فقط؛ اطلب منا التغيير." },
+  modelsCount: { tr: "model", en: "models", ar: "موديل" },
+  todaysPlan: { tr: "Bugünün Planı", en: "Today's Plan", ar: "خطة اليوم" },
+  noPlanToday: { tr: "Bugün için bu makineye planlanmış bir iş yok. Yöneticiye sorun.", en: "No work planned for this machine today. Ask your manager.", ar: "لا يوجد عمل مخطط لهذه الماكينة اليوم. اسأل المدير." },
+  startProduction: { tr: "Üretimi Başlat", en: "Start Production", ar: "بدء الإنتاج" },
+  producingProfile: { tr: "Üretilen Profil", en: "Profile Being Produced", ar: "الملف الشخصي قيد الإنتاج" },
+  productionPlan: { tr: "Üretim Planı", en: "Production Plan", ar: "خطة الإنتاج" },
+  holiday: { tr: "TATİL", en: "HOLIDAY", ar: "عطلة" },
+  planSavedMsg: { tr: "Plan güncellendi", en: "Plan updated", ar: "تم تحديث الخطة" },
+  addWeek: { tr: "+1 Hafta Göster", en: "Show +1 Week", ar: "إظهار +أسبوع" },
+  planNote: { tr: "Her hücreye o gün o makinede üretilecek profil/iş tipini seçin. Seçim otomatik kaydedilir.", en: "Select the profile/job for that machine on that day in each cell. Saves automatically.", ar: "اختر نوع الملف الشخصي/العمل لتلك الماكينة في ذلك اليوم في كل خلية. يُحفظ تلقائيًا." },
+  departmentMachines: { tr: "Makineler", en: "Machines", ar: "الماكينات" },
+  departmentProducts: { tr: "Ürün/Profil Listesi", en: "Product/Profile List", ar: "قائمة المنتجات/الملفات" },
+  newProductPlaceholder: { tr: "Yeni ürün/profil adı", en: "New product/profile name", ar: "اسم منتج/ملف جديد" },
+  orders: { tr: "Siparişler", en: "Orders", ar: "الطلبات" },
+  orderProduct: { tr: "Ürün", en: "Product", ar: "المنتج" },
+  orderCustomer: { tr: "Müşteri", en: "Customer", ar: "العميل" },
+  orderQty: { tr: "Miktar", en: "Quantity", ar: "الكمية" },
+  orderDue: { tr: "Teslim Tarihi", en: "Due Date", ar: "تاريخ التسليم" },
+  orderStatus: { tr: "Durum", en: "Status", ar: "الحالة" },
+  orderPending: { tr: "Bekliyor", en: "Pending", ar: "قيد الانتظار" },
+  orderDelivered: { tr: "Teslim Edildi", en: "Delivered", ar: "تم التسليم" },
+  markDelivered: { tr: "Teslim Edildi İşaretle", en: "Mark as Delivered", ar: "وضع علامة تم التسليم" },
+  newOrderProduct: { tr: "Ürün seçin", en: "Select product", ar: "اختر المنتج" },
+  selectProduct: { tr: "Ürün seçin...", en: "Select a product...", ar: "اختر منتجًا..." },
 };
 
 function t(key, lang, vars) {
@@ -162,42 +188,100 @@ function useLanguage() {
 
 // =================================================================
 // ERDOOR AHŞAP KOMPOZİT KAPI — gerçek üretim akışı
-// Kaynak: ERDOOR Üretim Prosesi ve Teknik Bilgiler sunumu
-// Üç paralel/ardışık bölüm: (1) Kompozit Profil Üretimi (Geri Dönüşüm
-// + Mikser + Extruder), (2) Kereste & Kanat Üretimi, (3) Laminasyon
-// & Sevkiyat. Kanat hattı kapıyı oluşturan ana hat olduğu için
-// rotalar oradan başlıyor; profil/laminasyon ayrı kapasite havuzları
-// olarak da makine listesinde yer alıyor.
+// Kaynak: ERDOOR Üretim Prosesi ve Teknik Bilgiler sunumu + gerçek
+// extruder planlama tablosu. Üç bölüm var: Extruder, Laminasyon, Deck.
+// Her bölümün kendi makineleri ve kendi ürün/profil kataloğu var.
+// Her makine için günlük takvim (hangi makine bugün ne üretiyor)
+// tutulur. Ayrıca ayrı bir Sipariş takibi vardır (müşteri, miktar,
+// teslim tarihi, teslim durumu) — bu, takvimden bağımsız çalışır.
 // =================================================================
 
-const DEFAULT_MACHINES = [
-  // --- Kompozit Profil Üretim Bölümü ---
-  { code: "MK-01", name: "Geri Dönüşüm (Kırma/Öğütme)", capacityHrPerDay: 16 },
-  { code: "MK-02", name: "Mikser (Hammadde Karışım)", capacityHrPerDay: 16 },
-  { code: "MK-03", name: "Extruder Hatları (9 hat toplam)", capacityHrPerDay: 144 }, // 9 hat x 16 saat
-  // --- Kereste & Kanat Üretim Bölümü ---
-  { code: "MK-04", name: "Kereste Kurutma Fırını", capacityHrPerDay: 24 }, // 7-10 gün süren proses, sürekli çalışır
-  { code: "MK-05", name: "Çoklu Dilimleme / Budak Kesme", capacityHrPerDay: 8 },
-  { code: "MK-06", name: "Fingerjoint Hattı", capacityHrPerDay: 8 },
-  { code: "MK-07", name: "Rabıta Makinesi (Seren Bitirme)", capacityHrPerDay: 8 },
-  { code: "MK-08", name: "Seren Çakım (Kanat İskelet)", capacityHrPerDay: 8 },
-  { code: "MK-09", name: "PVC Levha Vakum Presi", capacityHrPerDay: 8 },
-  { code: "MK-10", name: "CNC (Model/Cam Yeri İşleme)", capacityHrPerDay: 8 },
-  { code: "MK-11", name: "Soğuk Pres Hattı (9 pres)", capacityHrPerDay: 8 },
-  { code: "MK-12", name: "Sıcak Pres", capacityHrPerDay: 8 },
-  { code: "MK-13", name: "Ebatlama Makinesi", capacityHrPerDay: 8 },
-  { code: "MK-14", name: "Kenar Bantlama Hattı", capacityHrPerDay: 8 },
-  { code: "MK-15", name: "Kilit/Rozet Delme İstasyonu", capacityHrPerDay: 8 },
-  // --- Laminasyon & Sevkiyat ---
-  { code: "MK-16", name: "Folyo Dilimleme", capacityHrPerDay: 8 },
-  { code: "MK-17", name: "Laminasyon Hattı (Kasa/Pervaz Kaplama)", capacityHrPerDay: 8 },
-  { code: "MK-18", name: "Kasa Ebatlama (45° Kesim)", capacityHrPerDay: 8 },
-  { code: "MK-19", name: "Kalite Kontrol & Paketleme", capacityHrPerDay: 8 },
+const DEFAULT_DEPARTMENTS = [
+  {
+    id: "extruder",
+    name: "Extruder (Kompozit Profil)",
+    machines: [
+      { code: "MK-EX1", name: "1 Nolu Extruder" },
+      { code: "MK-EX2", name: "2 Nolu Extruder" },
+      { code: "MK-EX3", name: "3 Nolu Extruder" },
+      { code: "MK-EX4", name: "4 Nolu Extruder" },
+      { code: "MK-EX5", name: "5 Nolu Extruder" },
+      { code: "MK-EX6", name: "6 Nolu Extruder" },
+      { code: "MK-EX7", name: "7 Nolu Extruder" },
+      { code: "MK-EX8", name: "8 Nolu Extruder" },
+      { code: "MK-EX9", name: "9 Nolu Extruder" },
+    ],
+    products: [
+      "PERVAZ 35*80", "PERVAZ 50*80", "PERVAZ 80*80", "PERVAZ 35*100", "PERVAZ 35*150",
+      "KASA 70 mm", "KASA 100 mm", "KASA 120 mm", "KASA 140 mm", "KASA 160 mm", "KASA 200 mm", "KASA 220 mm",
+      "K.SEREN", "KOMPOZİT U PROFİLİ", "CAM ÇITASI", "BİNİ ÇITASI",
+    ],
+  },
+  {
+    id: "laminasyon",
+    name: "Laminasyon (Kasa/Pervaz Kaplama)",
+    machines: [
+      { code: "MK-FOL", name: "Folyo Dilimleme" },
+      { code: "MK-LAM1", name: "Laminasyon Hattı 1" },
+      { code: "MK-LAM2", name: "Laminasyon Hattı 2" },
+      { code: "MK-KE", name: "Kasa Ebatlama (45° Kesim)" },
+    ],
+    products: [
+      "PERVAZ 35*80", "PERVAZ 50*80", "PERVAZ 80*80", "PERVAZ 35*100", "PERVAZ 35*150",
+      "KASA 70 mm", "KASA 100 mm", "KASA 120 mm", "KASA 140 mm", "KASA 160 mm", "KASA 200 mm", "KASA 220 mm",
+    ],
+  },
+  {
+    id: "deck",
+    name: "Deck (Zemin Döşeme Profili)",
+    machines: [
+      { code: "MK-DECK1", name: "Deck Extruder Hattı 1" },
+      { code: "MK-DECK2", name: "Deck Extruder Hattı 2" },
+      { code: "MK-DECKFIR", name: "Deck Fırçalama" },
+      { code: "MK-DECKKES", name: "Deck Boy Kesim" },
+    ],
+    products: [
+      "DECK 140x26 Fındık Kahve", "DECK 140x26 Antrasit", "DECK 140x26 Krem",
+      "DECK 145x22 Fındık Kahve", "DECK 145x22 Antrasit", "DECK 145x22 Krem",
+    ],
+  },
 ];
 
-// ER Serisi model kataloğu — dolgu tipine göre 5 üretim grubuna ayrıldı,
-// çünkü PDF'deki üretim prosesi de modelleri bu şekilde ayırıyor:
-// model kodu görünüm/ölçü farkı yaratıyor, üretim akışını dolgu tipi belirliyor.
+// Kanat (kapı) üretim bölümü — Excel'e Aktar ve makine durumu için
+// hâlâ izlenir ama günlük profil takvimine bağlı değil, sipariş bazlı
+// kalıyor (kapı modelleri burada işlenir).
+const KANAT_MACHINES = [
+  { code: "MK-RC", name: "Geri Dönüşüm (Kırma/Öğütme)" },
+  { code: "MK-MX", name: "Mikser (Hammadde Karışım)" },
+  { code: "MK-KUR", name: "Kereste Kurutma Fırını" },
+  { code: "MK-DIL", name: "Çoklu Dilimleme / Budak Kesme" },
+  { code: "MK-FJ", name: "Fingerjoint Hattı" },
+  { code: "MK-RAB", name: "Rabıta Makinesi (Seren Bitirme)" },
+  { code: "MK-SER", name: "Seren Çakım (Kanat İskelet)" },
+  { code: "MK-PVC", name: "PVC Levha Vakum Presi" },
+  { code: "MK-CNC", name: "CNC (Model/Cam Yeri İşleme)" },
+  { code: "MK-SP", name: "Soğuk Pres Hattı (9 pres)" },
+  { code: "MK-HP", name: "Sıcak Pres" },
+  { code: "MK-EB", name: "Ebatlama Makinesi" },
+  { code: "MK-KB", name: "Kenar Bantlama Hattı" },
+  { code: "MK-KIL", name: "Kilit/Rozet Delme İstasyonu" },
+  { code: "MK-KAL", name: "Kalite Kontrol & Paketleme" },
+];
+
+// Tüm makineler tek bir düz liste olarak da gerekiyor (Usta Modu makine
+// seçimi, anlık durum ekranı, Excel raporu — departman ayrımına
+// bakmadan tüm fabrikayı gösterir).
+function allMachinesFrom(departments) {
+  return [
+    ...departments.flatMap((d) => d.machines.map((m) => ({ ...m, departmentId: d.id }))),
+    ...KANAT_MACHINES.map((m) => ({ ...m, departmentId: "kanat" })),
+  ];
+}
+
+const DEFAULT_MACHINES = allMachinesFrom(DEFAULT_DEPARTMENTS);
+
+// ER Serisi kapı model kataloğu — Kanat üretiminde kullanılan modeller,
+// dolgu tipine göre referans gruplaması (Tanımlar sayfasında gösterilir).
 const ER_MODEL_CATALOG = {
   petek: ["ER100", "ER101", "ER102", "ER103", "ER200", "ER201", "ER250", "ER260", "ER261",
           "ER280", "ER300", "ER301", "ER330", "ER400", "ER500", "ER510", "ER511", "ER520"],
@@ -217,91 +301,53 @@ const DOLGU_LABELS = {
   yangin: "Yangına Dayanıklı Kapı (30 dk Sertifikalı)",
 };
 
+// Tüm bölümlerin tüm ürünleri tek listede — sipariş girerken "hangi
+// ürün" seçimi buradan yapılır (Extruder/Laminasyon/Deck profilleri +
+// Kanat'taki ER kapı modelleri).
+function allProductsFrom(departments) {
+  const fromDepts = departments.flatMap((d) => d.products);
+  const erModels = Object.values(ER_MODEL_CATALOG).flat();
+  return [...new Set([...fromDepts, ...erModels])];
+}
+
+// Sipariş durumu sabitleri
+const ORDER_STATUS = { PENDING: "bekliyor", DELIVERED: "teslim_edildi" };
+
 const DEFAULT_ORDERS = [
-  { code: "SIP-101", product: "ER100", customer: "Akpınar İnşaat", qty: 240, dueDate: "2026-06-29" },
-  { code: "SIP-102", product: "ER600", customer: "Boran Yapı Market", qty: 90, dueDate: "2026-06-26" },
-  { code: "SIP-103", product: "ER-PWR-1001", customer: "Meriç AVM Projesi", qty: 60, dueDate: "2026-07-03" },
-  { code: "SIP-104", product: "ER1004", customer: "Yıldız Hırdavat", qty: 150, dueDate: "2026-07-05" },
-  { code: "SIP-105", product: "ER2000", customer: "Doğa Yapı Market", qty: 35, dueDate: "2026-07-08" },
+  { id: "SIP-101", urun: "ER100", musteri: "Akpınar İnşaat", miktar: 240, teslimTarihi: "2026-06-29", durum: ORDER_STATUS.PENDING },
+  { id: "SIP-102", urun: "KASA 100 mm", musteri: "Boran Yapı Market", miktar: 500, teslimTarihi: "2026-06-26", durum: ORDER_STATUS.PENDING },
+  { id: "SIP-103", urun: "DECK 140x26 Antrasit", musteri: "Meriç AVM Projesi", miktar: 300, teslimTarihi: "2026-07-03", durum: ORDER_STATUS.PENDING },
 ];
 
-// Dolgu tipine göre rota — kanat üretiminin gerçek akışına dayanır:
-// Seren çakım+dolgu → PVC vakum pres → (model ise) CNC → Pres (soğuk/sıcak)
-// → Ebatlama → Kenar bantlama → Kilit/rozet delme → Kalite&Paketleme.
-// Süreler (dk/adet) PDF'de verilmediği için akışa göre mantıklı tahminlerle
-// dolduruldu — gerçek ölçümlerle güncellenmesi önerilir.
-function buildRoutingSteps(type) {
-  const base = [
-    { machine: "MK-08", minutes: 6 },   // Seren çakım + iç dolgu
-    { machine: "MK-09", minutes: 10 },  // PVC levha vakum presi
-  ];
-  if (type !== "okal" && type !== "melamin") {
-    base.push({ machine: "MK-10", minutes: 8 }); // CNC model/cam yeri (okal ve melaminde genelde düz model)
-  }
-  if (type === "yangin") {
-    base.push({ machine: "MK-12", minutes: 25 }); // Sıcak pres — yangın kapısı için tercih
-  } else {
-    base.push({ machine: "MK-11", minutes: 18 }); // Soğuk pres (yaz 3 sa / kış 8 sa bekleme dahil değil, aktif iş yükü)
-  }
-  base.push({ machine: "MK-13", minutes: 5 });   // Ebatlama
-  if (type !== "yangin") {
-    base.push({ machine: "MK-14", minutes: 7 }); // Kenar bantlama (yangın kapısında fitil farklı uygulanıyor)
-  }
-  base.push({ machine: "MK-15", minutes: 4 });   // Kilit/rozet delme
-  base.push({ machine: "MK-19", minutes: 6 });   // Kalite kontrol & paketleme
-  return base;
+// Usta Modu makine seçim ekranında bölüm başlıkları için.
+const DEPARTMENT_GROUPS = [
+  { id: "extruder", label: (lang) => ({ tr: "Extruder", en: "Extruder", ar: "البثق" }[lang] || "Extruder") },
+  { id: "laminasyon", label: (lang) => ({ tr: "Laminasyon", en: "Lamination", ar: "التصفيح" }[lang] || "Laminasyon") },
+  { id: "deck", label: (lang) => ({ tr: "Deck", en: "Deck", ar: "ديك" }[lang] || "Deck") },
+  { id: "kanat", label: (lang) => ({ tr: "Kanat (Kapı) Üretimi", en: "Door Leaf Production", ar: "إنتاج ورقة الباب" }[lang] || "Kanat Üretimi") },
+];
+
+// ---------------- Takvim/Plan yardımcıları ----------------
+function isoDate(d) {
+  return d.toISOString().slice(0, 10);
 }
-
-const DEFAULT_ROUTINGS = Object.entries(ER_MODEL_CATALOG).flatMap(([type, models]) =>
-  models.map((product) => ({ product, steps: buildRoutingSteps(type) }))
-);
-
-// ---------------- Termin hesaplama (Excel'deki mantığın aynısı) ----------------
-// Bir sipariş için: rota üzerindeki her makinede gereken toplam saat hesaplanır.
-// En çok zaman alan (darboğaz) makine, günlük net kapasitesiyle birlikte
-// gerçek bitiş tarihini belirler (hafta sonları atlanarak iş günü sayılır).
-function addWorkdays(startDate, days) {
-  const d = new Date(startDate);
-  let remaining = Math.ceil(days);
-  while (remaining > 0) {
-    d.setDate(d.getDate() + 1);
-    const dow = d.getDay(); // 0 = Pazar, 6 = Cumartesi
-    if (dow !== 0 && dow !== 6) remaining -= 1;
-  }
-  return d;
+function isWeekend(d) {
+  const dow = new Date(d).getDay();
+  return dow === 0 || dow === 6;
 }
-
-function calcOrderFeasibility(order, routings, machines, startDate = new Date()) {
-  const routing = (routings || []).find((r) => r.product === order.product);
-  if (!routing || !order.qty) return null;
-
-  let bottleneckDays = 0;
-  let bottleneckMachine = null;
-  const perMachine = [];
-
-  for (const step of routing.steps) {
-    const machine = machines.find((m) => m.code === step.machine);
-    const capacity = machine?.capacityHrPerDay || 7; // varsayılan 7 sa/gün
-    const totalHours = (order.qty * step.minutes) / 60;
-    const daysNeeded = totalHours / capacity;
-    perMachine.push({ machine: step.machine, totalHours, daysNeeded });
-    if (daysNeeded > bottleneckDays) {
-      bottleneckDays = daysNeeded;
-      bottleneckMachine = step.machine;
-    }
-  }
-
-  const finishDate = addWorkdays(startDate, bottleneckDays);
-  let status = "uygun";
-  let diffDays = null;
-  if (order.dueDate) {
-    const due = new Date(order.dueDate);
-    diffDays = Math.round((due - finishDate) / 86400000);
-    if (diffDays < 0) status = "gecikme";
-    else if (diffDays <= 2) status = "sinirda";
-  }
-
-  return { finishDate, bottleneckMachine, bottleneckDays, diffDays, status, perMachine };
+function addDays(d, n) {
+  const r = new Date(d);
+  r.setDate(r.getDate() + n);
+  return r;
+}
+function fmtPlanDate(iso, lang) {
+  const d = new Date(iso + "T00:00:00");
+  const locale = lang === "ar" ? "ar" : lang === "en" ? "en-US" : "tr-TR";
+  return d.toLocaleDateString(locale, { day: "2-digit", month: "short", weekday: "short" });
+}
+// Plan key formatı: "plan:YYYY-MM-DD:MAKINEKODU" -> { profile: string }
+function planKey(dateIso, machineCode) {
+  return `plan:${dateIso}:${machineCode}`;
 }
 
 
@@ -417,13 +463,15 @@ function FontImports() {
 
 // =================================================================
 // VERİ KATMANI — tüm uygulamanın paylaştığı state
-// Storage keys: "machines", "orders", "machine-state:<code>", "log"
+// Storage keys: "machines", "plan" (tüm takvim tek nesnede), 
+// "machine-state:<code>", "log"
 // =================================================================
 
 function useSharedData() {
-  const [machines, setMachines] = useState(null);
+  const [departments, setDepartments] = useState(null);
+  const [machines, setMachines] = useState(null); // derived flat list, kept for backward-compat use sites
   const [orders, setOrders] = useState(null);
-  const [routings, setRoutings] = useState(null);
+  const [plan, setPlanState] = useState({}); // { "YYYY-MM-DD": { MAKINEKODU: "profil" } }
   const [machineStates, setMachineStates] = useState({});
   const [log, setLog] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -441,20 +489,22 @@ function useSharedData() {
     isRefreshing.current = true;
     try {
       const versionAtStart = writeVersion.current;
-      const [m, o, rt, l] = await Promise.all([
-        loadShared("machines", DEFAULT_MACHINES),
+      const [dep, ord, p, l] = await Promise.all([
+        loadShared("departments", DEFAULT_DEPARTMENTS),
         loadShared("orders", DEFAULT_ORDERS),
-        loadShared("routings", DEFAULT_ROUTINGS),
+        loadShared("plan", {}),
         loadShared("log", []),
       ]);
+      const m = allMachinesFrom(dep);
       const stateEntries = await Promise.all(
         m.map((mach) => loadShared(`machine-state:${mach.code}`, { status: "idle" }).then((s) => [mach.code, s]))
       );
       const states = Object.fromEntries(stateEntries);
 
+      setDepartments(dep);
       setMachines(m);
-      setOrders(o);
-      setRoutings(rt);
+      setOrders(ord);
+      setPlanState(p);
       // Merge: keep any machine state that changed locally during this refresh
       // (i.e. a write started after we began reading) instead of the stale read.
       setMachineStates((prev) => {
@@ -500,16 +550,55 @@ function useSharedData() {
     await saveShared("log", newLog);
   }
 
-  async function updateMachines(newMachines) {
-    setMachines(newMachines);
-    await saveShared("machines", newMachines);
+  // Bölüm + makine listesini güncelle (ekleme/çıkarma dahil).
+  async function updateDepartments(newDepartments) {
+    setDepartments(newDepartments);
+    setMachines(allMachinesFrom(newDepartments));
+    await saveShared("departments", newDepartments);
   }
+
+  const ordersRef = useRef(orders);
+  useEffect(() => { ordersRef.current = orders; }, [orders]);
+
   async function updateOrders(newOrders) {
+    ordersRef.current = newOrders;
     setOrders(newOrders);
     await saveShared("orders", newOrders);
   }
+  async function addOrder(order) {
+    const newOrders = [...(ordersRef.current || []), order];
+    await updateOrders(newOrders);
+  }
+  async function removeOrder(orderId) {
+    const newOrders = (ordersRef.current || []).filter((o) => o.id !== orderId);
+    await updateOrders(newOrders);
+  }
+  async function markOrderDelivered(orderId, delivered) {
+    const newOrders = (ordersRef.current || []).map((o) =>
+      o.id === orderId ? { ...o, durum: delivered ? ORDER_STATUS.DELIVERED : ORDER_STATUS.PENDING } : o
+    );
+    await updateOrders(newOrders);
+  }
 
-  return { machines, orders, routings, machineStates, log, loading, refresh, setMachineState, appendLog, updateMachines, updateOrders, setPolling };
+  const planRef = useRef(plan);
+  useEffect(() => { planRef.current = plan; }, [plan]);
+
+  // Tek bir gün/makine hücresini günceller (Yönetici takvimde bir hücre düzenlediğinde).
+  async function setPlanCell(dateIso, machineCode, profile) {
+    const day = { ...(planRef.current[dateIso] || {}) };
+    if (profile) day[machineCode] = profile;
+    else delete day[machineCode];
+    const newPlan = { ...planRef.current, [dateIso]: day };
+    planRef.current = newPlan;
+    setPlanState(newPlan);
+    await saveShared("plan", newPlan);
+  }
+
+  return {
+    departments, machines, orders, plan, machineStates, log, loading,
+    refresh, setMachineState, appendLog, updateDepartments, setPlanCell, setPolling,
+    addOrder, removeOrder, markOrderDelivered, updateOrders,
+  };
 }
 
 // =================================================================
@@ -518,7 +607,7 @@ function useSharedData() {
 
 function UstaMode({ data, onBack, lang, dir }) {
   const now = useNow();
-  const { machines, orders, machineStates, setMachineState, appendLog, setPolling } = data;
+  const { machines, plan, machineStates, setMachineState, appendLog, setPolling } = data;
   const [selectedMachine, setSelectedMachine] = useState(null);
   const [confirmingStop, setConfirmingStop] = useState(false);
   const [toast, setToast] = useState(null);
@@ -542,13 +631,15 @@ function UstaMode({ data, onBack, lang, dir }) {
 
   const state = selectedMachine ? machineStates[selectedMachine.code] || { status: "idle" } : null;
   const backIcon = dir === "rtl" ? { transform: "rotate(180deg)" } : {};
+  const todayIso = isoDate(now);
+  const todaysProfile = selectedMachine ? (plan[todayIso] || {})[selectedMachine.code] : null;
 
   async function pickMachine(m) {
     setSelectedMachine(m);
   }
 
-  async function pickOrder(order) {
-    const newState = { status: "run", orderCode: order.code, startedAt: Date.now(), produced: 0 };
+  async function startProduction() {
+    const newState = { status: "run", profile: todaysProfile || "—", startedAt: Date.now(), produced: 0 };
     await setMachineState(selectedMachine.code, newState);
   }
 
@@ -558,13 +649,12 @@ function UstaMode({ data, onBack, lang, dir }) {
   }
 
   async function confirmStop() {
-    const order = orders.find((o) => o.code === state.orderCode);
     await appendLog({
       time: Date.now(), type: "üretim", machine: selectedMachine.code,
-      label: `${state.produced} adet · ${state.orderCode}`,
-      detail: { qty: state.produced, order: state.orderCode, durationMs: Date.now() - state.startedAt },
+      label: `${state.produced} adet · ${state.profile}`,
+      detail: { qty: state.produced, profile: state.profile, durationMs: Date.now() - state.startedAt },
     });
-    await setMachineState(selectedMachine.code, { status: "down_pending", prevOrder: state.orderCode, prevProduced: state.produced, startedAt: Date.now() });
+    await setMachineState(selectedMachine.code, { status: "down_pending", prevProfile: state.profile, prevProduced: state.produced, startedAt: Date.now() });
     setConfirmingStop(false);
     showToast(`${state.produced} ${t("unitsSaved", lang)}`);
   }
@@ -603,41 +693,60 @@ function UstaMode({ data, onBack, lang, dir }) {
           <div style={{ fontFamily: "'Archivo', sans-serif", fontWeight: 800, fontSize: 26, color: COLORS.text, margin: "4px 0 22px" }}>
             {t("whichMachine", lang)}
           </div>
-          <div style={{ display: "grid", gap: 12 }}>
-            {machines.map((m) => {
-              const st = machineStates[m.code] || { status: "idle" };
-              const dot = st.status === "run" ? COLORS.accentRun : st.status === "down_pending" ? COLORS.accentWarn : COLORS.accentIdle;
-              return (
-                <BigButton key={m.code} onClick={() => pickMachine(m)} style={{ padding: "20px", display: "flex", alignItems: "center", justifyContent: "space-between" }}>
-                  <span style={{ display: "flex", alignItems: "center", gap: 12 }}>
-                    <span style={{ width: 9, height: 9, borderRadius: 99, background: dot, flexShrink: 0 }} />
-                    <span style={{ display: "flex", flexDirection: "column", alignItems: dir === "rtl" ? "flex-end" : "flex-start" }}>
-                      <span style={{ fontFamily: "'Archivo', sans-serif", fontSize: 18 }}>{m.code}</span>
-                      <span style={{ fontFamily: "'Inter', sans-serif", fontWeight: 400, fontSize: 13, color: COLORS.textDim }}>{m.name}</span>
-                    </span>
-                  </span>
-                  <ChevronLeft size={20} style={{ transform: dir === "rtl" ? "none" : "rotate(180deg)", color: COLORS.textDim }} />
-                </BigButton>
-              );
-            })}
-          </div>
+          {DEPARTMENT_GROUPS.map((group) => {
+            const groupMachines = machines.filter((m) => m.departmentId === group.id);
+            if (groupMachines.length === 0) return null;
+            return (
+              <div key={group.id} style={{ marginBottom: 22 }}>
+                <div style={{ fontFamily: "'IBM Plex Mono', monospace", fontSize: 11, color: COLORS.textFaint, letterSpacing: 1.2, textTransform: "uppercase", marginBottom: 10 }}>
+                  {group.label(lang)}
+                </div>
+                <div style={{ display: "grid", gap: 12 }}>
+                  {groupMachines.map((m) => {
+                    const st = machineStates[m.code] || { status: "idle" };
+                    const dot = st.status === "run" ? COLORS.accentRun : st.status === "down_pending" ? COLORS.accentWarn : COLORS.accentIdle;
+                    const profileToday = (plan[todayIso] || {})[m.code];
+                    return (
+                      <BigButton key={m.code} onClick={() => pickMachine(m)} style={{ padding: "20px", display: "flex", alignItems: "center", justifyContent: "space-between" }}>
+                        <span style={{ display: "flex", alignItems: "center", gap: 12 }}>
+                          <span style={{ width: 9, height: 9, borderRadius: 99, background: dot, flexShrink: 0 }} />
+                          <span style={{ display: "flex", flexDirection: "column", alignItems: dir === "rtl" ? "flex-end" : "flex-start" }}>
+                            <span style={{ fontFamily: "'Archivo', sans-serif", fontSize: 18 }}>{m.code}</span>
+                            <span style={{ fontFamily: "'Inter', sans-serif", fontWeight: 400, fontSize: 13, color: COLORS.textDim }}>{m.name}</span>
+                            {profileToday && (
+                              <span style={{ fontFamily: "'IBM Plex Mono', monospace", fontSize: 11, color: COLORS.accentWarn, marginTop: 2 }}>{profileToday}</span>
+                            )}
+                          </span>
+                        </span>
+                        <ChevronLeft size={20} style={{ transform: dir === "rtl" ? "none" : "rotate(180deg)", color: COLORS.textDim }} />
+                      </BigButton>
+                    );
+                  })}
+                </div>
+              </div>
+            );
+          })}
         </div>
       )}
 
       {selectedMachine && state.status === "idle" && (
         <div style={{ padding: "24px 20px" }}>
           <div style={{ fontFamily: "'Archivo', sans-serif", fontWeight: 800, fontSize: 22, color: COLORS.text, marginBottom: 18 }}>
-            {t("whichOrder", lang)}
+            {t("todaysPlan", lang)}
           </div>
-          <div style={{ display: "grid", gap: 12 }}>
-            {orders.map((o) => (
-              <BigButton key={o.code} onClick={() => pickOrder(o)} style={{ padding: 20, textAlign: dir === "rtl" ? "right" : "left" }}>
-                <div style={{ fontFamily: "'IBM Plex Mono', monospace", fontSize: 13, color: COLORS.accentWarn, marginBottom: 4 }}>{o.code}</div>
-                <div style={{ fontFamily: "'Archivo', sans-serif", fontSize: 16, fontWeight: 700 }}>{o.product}</div>
-                <div style={{ fontFamily: "'Inter', sans-serif", fontSize: 13, color: COLORS.textDim, marginTop: 4 }}>{o.customer} · {o.qty} {t("units", lang)}</div>
-              </BigButton>
-            ))}
-          </div>
+          {todaysProfile ? (
+            <div style={{ background: COLORS.bgPanel, border: `1px solid ${COLORS.border}`, borderRadius: 16, padding: 22, marginBottom: 18 }}>
+              <div style={{ fontFamily: "'IBM Plex Mono', monospace", fontSize: 12, color: COLORS.textFaint, marginBottom: 4 }}>{fmtPlanDate(todayIso, lang)}</div>
+              <div style={{ fontFamily: "'Archivo', sans-serif", fontWeight: 800, fontSize: 22, color: COLORS.accentWarn }}>{todaysProfile}</div>
+            </div>
+          ) : (
+            <div style={{ background: COLORS.accentStopDim, border: `1px solid ${COLORS.accentStop}40`, borderRadius: 16, padding: 22, marginBottom: 18 }}>
+              <div style={{ fontFamily: "'Inter', sans-serif", fontSize: 14, color: COLORS.text }}>{t("noPlanToday", lang)}</div>
+            </div>
+          )}
+          <BigButton onClick={startProduction} variant="run" style={{ padding: "20px 0", fontSize: 18, display: "flex", alignItems: "center", justifyContent: "center", gap: 10 }}>
+            <Play size={20} fill="currentColor" /> {t("startProduction", lang)}
+          </BigButton>
         </div>
       )}
 
@@ -654,9 +763,9 @@ function UstaMode({ data, onBack, lang, dir }) {
           </div>
 
           <div style={{ background: COLORS.bgPanel, border: `1px solid ${COLORS.border}`, borderRadius: 14, padding: "16px 18px" }}>
-            <div style={{ fontFamily: "'IBM Plex Mono', monospace", fontSize: 12, color: COLORS.textDim }}>{state.orderCode}</div>
+            <div style={{ fontFamily: "'IBM Plex Mono', monospace", fontSize: 12, color: COLORS.textDim }}>{t("producingProfile", lang)}</div>
             <div style={{ fontFamily: "'Archivo', sans-serif", fontWeight: 700, fontSize: 16, color: COLORS.text }}>
-              {orders.find((o) => o.code === state.orderCode)?.product}
+              {state.profile}
             </div>
           </div>
 
@@ -717,7 +826,7 @@ function UstaMode({ data, onBack, lang, dir }) {
               {t("confirmStopTitle", lang)}
             </div>
             <div style={{ fontFamily: "'Inter', sans-serif", fontSize: 14, color: COLORS.textDim, marginBottom: 18 }}>
-              {state.orderCode} {t("confirmStopFor", lang)} <strong style={{ color: COLORS.text }}>{state.produced} {t("units", lang)}</strong> {t("unitsWillBeSaved", lang)}
+              {state.profile} {t("confirmStopFor", lang)} <strong style={{ color: COLORS.text }}>{state.produced} {t("units", lang)}</strong> {t("unitsWillBeSaved", lang)}
             </div>
             <div style={{ display: "flex", gap: 10 }}>
               <BigButton onClick={() => setConfirmingStop(false)} variant="ghost" style={{ flex: 1, padding: "16px 0" }}>{t("cancel", lang)}</BigButton>
@@ -736,69 +845,58 @@ function UstaMode({ data, onBack, lang, dir }) {
 // EXCEL'E AKTAR — anlık sistem verisini .xlsx rapor olarak indirir
 // =================================================================
 
-function exportToExcel({ machines, orders, routings, machineStates, log }) {
+function exportToExcel({ machines, plan, machineStates, log, orders }) {
   const wb = XLSX.utils.book_new();
   const now = new Date();
+  const todayIso = isoDate(now);
 
   // Sayfa 1: Anlık Makine Durumu
   const statusRows = machines.map((m) => {
     const st = machineStates[m.code] || { status: "idle" };
-    const order = st.orderCode ? orders.find((o) => o.code === st.orderCode) : null;
     const elapsedMin = st.startedAt ? Math.round((Date.now() - st.startedAt) / 60000) : "";
     return {
       "Makine Kodu": m.code,
       "Makine Adı": m.name,
-      "Net Günlük Kapasite (saat)": m.capacityHrPerDay,
       "Durum": st.status === "run" ? "Üretimde" : st.status === "down_pending" ? "Duruşta" : "Boşta",
-      "Sipariş": st.orderCode || "",
-      "Ürün": order ? order.product : "",
+      "Bugünkü Plan": (plan[todayIso] || {})[m.code] || "",
       "Üretilen Adet": st.status === "run" ? (st.produced || 0) : "",
-      "Hedef Adet": order ? order.qty : "",
       "Geçen Süre (dk)": elapsedMin,
-      "Termin": order ? order.dueDate : "",
     };
   });
   const wsStatus = XLSX.utils.json_to_sheet(statusRows);
-  wsStatus["!cols"] = [{ wch: 12 }, { wch: 24 }, { wch: 20 }, { wch: 12 }, { wch: 10 }, { wch: 26 }, { wch: 14 }, { wch: 12 }, { wch: 14 }, { wch: 12 }];
+  wsStatus["!cols"] = [{ wch: 12 }, { wch: 30 }, { wch: 12 }, { wch: 18 }, { wch: 14 }, { wch: 14 }];
   XLSX.utils.book_append_sheet(wb, wsStatus, "Anlık Durum");
 
-  // Sayfa 2: Siparişler (otomatik termin hesabıyla)
-  const orderRows = orders.map((o) => {
-    const feas = calcOrderFeasibility(o, routings, machines);
-    const statusLabel = feas ? { uygun: "Uygun", sinirda: "Sınırda", gecikme: "Gecikme Riski" }[feas.status] : "Rota tanımı yok";
-    return {
-      "Sipariş No": o.code, "Ürün": o.product, "Müşteri": o.customer,
-      "Miktar": o.qty, "Termin": o.dueDate,
-      "Tahmini Bitiş (hesaplanan)": feas ? feas.finishDate.toLocaleDateString("tr-TR") : "",
-      "Darboğaz Makine": feas ? feas.bottleneckMachine : "",
-      "Durum": statusLabel,
-    };
+  // Sayfa 2: Üretim Planı (Takvim) — tarih satırları, makine sütunları,
+  // tıpkı gerçek extruder planlama tablonuzdaki format.
+  const planDates = Object.keys(plan).sort();
+  const planRows = planDates.map((dateIso) => {
+    const row = { "Tarih": new Date(dateIso + "T00:00:00").toLocaleDateString("tr-TR", { day: "2-digit", month: "long", year: "numeric", weekday: "long" }) };
+    const isHoliday = isWeekend(dateIso);
+    machines.forEach((m) => {
+      row[m.code] = isHoliday ? "TATİL" : (plan[dateIso][m.code] || "");
+    });
+    return row;
   });
+  const wsPlan = XLSX.utils.json_to_sheet(planRows);
+  wsPlan["!cols"] = [{ wch: 28 }, ...machines.map(() => ({ wch: 14 }))];
+  XLSX.utils.book_append_sheet(wb, wsPlan, "Üretim Planı");
+
+  // Sayfa 3: Siparişler
+  const orderRows = (orders || []).map((o) => ({
+    "Sipariş No": o.id, "Ürün": o.urun, "Müşteri": o.musteri,
+    "Miktar": o.miktar, "Teslim Tarihi": o.teslimTarihi,
+    "Durum": o.durum === ORDER_STATUS.DELIVERED ? "Teslim Edildi" : "Bekliyor",
+  }));
   const wsOrders = XLSX.utils.json_to_sheet(orderRows);
-  wsOrders["!cols"] = [{ wch: 12 }, { wch: 28 }, { wch: 22 }, { wch: 10 }, { wch: 12 }, { wch: 20 }, { wch: 16 }, { wch: 16 }];
+  wsOrders["!cols"] = [{ wch: 14 }, { wch: 24 }, { wch: 22 }, { wch: 10 }, { wch: 14 }, { wch: 14 }];
   XLSX.utils.book_append_sheet(wb, wsOrders, "Siparişler");
 
-  // Sayfa 3: Makineler ve Kapasite
-  const machineRows = machines.map((m) => ({
-    "Makine Kodu": m.code, "Makine Adı": m.name, "Net Günlük Kapasite (saat)": m.capacityHrPerDay,
-  }));
+  // Sayfa 4: Makineler
+  const machineRows = machines.map((m) => ({ "Makine Kodu": m.code, "Makine Adı": m.name }));
   const wsMachines = XLSX.utils.json_to_sheet(machineRows);
-  wsMachines["!cols"] = [{ wch: 12 }, { wch: 26 }, { wch: 22 }];
+  wsMachines["!cols"] = [{ wch: 12 }, { wch: 32 }];
   XLSX.utils.book_append_sheet(wb, wsMachines, "Makineler");
-
-  // Sayfa 4: Ürün Rotaları / Süreleri
-  const routingRows = [];
-  (routings || []).forEach((r) => {
-    r.steps.forEach((s, i) => {
-      routingRows.push({
-        "Ürün": r.product, "Sıra": i + 1, "Makine Kodu": s.machine,
-        "Birim Süre (dk/adet)": s.minutes,
-      });
-    });
-  });
-  const wsRouting = XLSX.utils.json_to_sheet(routingRows);
-  wsRouting["!cols"] = [{ wch: 28 }, { wch: 6 }, { wch: 12 }, { wch: 18 }];
-  XLSX.utils.book_append_sheet(wb, wsRouting, "Ürün Süreleri");
 
   // Sayfa 5: Hareket Geçmişi (log)
   const logRows = log.map((l) => ({
@@ -840,25 +938,9 @@ function ProgressBar({ value, max, color, lang }) {
   );
 }
 
-function computeRisk(machine, state, order, now, lang) {
-  if (state.status !== "run" || !order || !machine.capacityHrPerDay) return null;
-  const elapsedHr = (now - state.startedAt) / 3600000;
-  if (elapsedHr < 0.05) return null;
-  const rate = state.produced / elapsedHr; // units per hour
-  if (!rate) return null;
-  const remaining = order.qty - state.produced;
-  const hoursNeeded = remaining / rate;
-  const daysNeeded = hoursNeeded / machine.capacityHrPerDay;
-  if (!order.dueDate) return null;
-  const daysLeft = (new Date(order.dueDate) - now) / 86400000;
-  if (daysNeeded > daysLeft) return { label: t("dueRiskBadge", lang), color: COLORS.accentWarn };
-  return null;
-}
-
-function MachineCard({ machine, state, order, now, onClick, lang, dir }) {
+function MachineCard({ machine, state, profileToday, now, onClick, lang, dir }) {
   const meta = statusMeta(state.status, lang);
   const elapsed = state.startedAt ? now - state.startedAt : null;
-  const risk = computeRisk(machine, state, order, now, lang);
 
   return (
     <button onClick={onClick} style={{
@@ -877,20 +959,14 @@ function MachineCard({ machine, state, order, now, onClick, lang, dir }) {
         </div>
       </div>
 
-      {state.status === "run" && order && (
+      {state.status === "run" && (
         <>
-          <div style={{ fontFamily: "'IBM Plex Mono', monospace", fontSize: 12, color: COLORS.accentWarn, marginBottom: 3 }}>{order.code}</div>
-          <div style={{ fontFamily: "'Inter', sans-serif", fontSize: 14, fontWeight: 600, color: COLORS.text, marginBottom: 12 }}>{order.product}</div>
-          <ProgressBar value={state.produced} max={order.qty} color={COLORS.accentRun} lang={lang} />
-          <div style={{ display: "flex", justifyContent: "space-between", marginTop: 12, alignItems: "center" }}>
+          <div style={{ fontFamily: "'Inter', sans-serif", fontSize: 14, fontWeight: 600, color: COLORS.text, marginBottom: 8 }}>{state.profile}</div>
+          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+            <span style={{ fontFamily: "'IBM Plex Mono', monospace", fontSize: 13, color: COLORS.accentRun }}>{state.produced || 0} {t("units", lang)}</span>
             <span style={{ fontFamily: "'Inter', sans-serif", fontSize: 12, color: COLORS.textFaint }}>
-              {fmtDurationShort(elapsed)} {t("workingFor", lang)} · {t("due", lang)} {fmtDateShort(order.dueDate)}
+              {fmtDurationShort(elapsed)} {t("workingFor", lang)}
             </span>
-            {risk && (
-              <span style={{ fontFamily: "'IBM Plex Mono', monospace", fontSize: 10.5, fontWeight: 700, color: risk.color, background: COLORS.accentWarnDim, padding: "3px 8px", borderRadius: 6 }}>
-                {risk.label}
-              </span>
-            )}
           </div>
         </>
       )}
@@ -902,7 +978,14 @@ function MachineCard({ machine, state, order, now, onClick, lang, dir }) {
       )}
 
       {state.status === "idle" && (
-        <div style={{ fontFamily: "'Inter', sans-serif", fontSize: 13, color: COLORS.textFaint }}>{t("noAssignedOrder", lang)}</div>
+        profileToday ? (
+          <div style={{ fontFamily: "'Inter', sans-serif", fontSize: 13, color: COLORS.textDim }}>
+            <span style={{ color: COLORS.textFaint }}>{t("todaysPlan", lang)}: </span>
+            <span style={{ fontFamily: "'IBM Plex Mono', monospace", color: COLORS.accentWarn }}>{profileToday}</span>
+          </div>
+        ) : (
+          <div style={{ fontFamily: "'Inter', sans-serif", fontSize: 13, color: COLORS.textFaint }}>{t("noAssignedOrder", lang)}</div>
+        )
       )}
     </button>
   );
@@ -910,8 +993,9 @@ function MachineCard({ machine, state, order, now, onClick, lang, dir }) {
 
 function YoneticiMode({ data, onBack, lang, dir }) {
   const now = useNow(2000);
-  const { machines, orders, routings, machineStates, log, refresh } = data;
+  const { machines, plan, machineStates, log, refresh, orders } = data;
   const [tab, setTab] = useState("durum");
+  const todayIso = isoDate(now);
 
   if (!machines) return <LoadingScreen lang={lang} />;
 
@@ -941,7 +1025,7 @@ function YoneticiMode({ data, onBack, lang, dir }) {
         </button>
         <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
           <button
-            onClick={() => exportToExcel({ machines, orders, routings, machineStates, log })}
+            onClick={() => exportToExcel({ machines, plan, machineStates, log, orders })}
             style={{
               display: "flex", alignItems: "center", gap: 6, background: COLORS.accentRunDim,
               border: `1px solid ${COLORS.accentRun}50`, color: COLORS.accentRun, cursor: "pointer",
@@ -960,6 +1044,7 @@ function YoneticiMode({ data, onBack, lang, dir }) {
       <div style={{ padding: "16px 20px 0", display: "flex", gap: 8 }}>
         {[
           { id: "durum", label: t("status", lang) },
+          { id: "plan", label: t("productionPlan", lang) },
           { id: "ayarlar", label: t("settings", lang) },
         ].map((tabItem) => (
           <button key={tabItem.id} onClick={() => setTab(tabItem.id)} style={{
@@ -998,59 +1083,13 @@ function YoneticiMode({ data, onBack, lang, dir }) {
 
           <div>
             <div style={{ fontFamily: "'IBM Plex Mono', monospace", fontSize: 11, color: COLORS.textFaint, letterSpacing: 1.5, textTransform: "uppercase", marginBottom: 12 }}>
-              {t("ordersDueStatus", lang)}
-            </div>
-            <div style={{ display: "grid", gap: 10 }}>
-              {orders.map((o) => {
-                const feas = calcOrderFeasibility(o, routings, machines);
-                const hasRouting = !!(routings || []).find((r) => r.product === o.product);
-                const meta = feas ? {
-                  uygun: { color: COLORS.accentRun, label: t("uygun", lang) },
-                  sinirda: { color: COLORS.accentWarn, label: t("sinirda", lang) },
-                  gecikme: { color: COLORS.accentStop, label: t("gecikme", lang) },
-                }[feas.status] : null;
-                return (
-                  <div key={o.code} style={{
-                    background: COLORS.bgPanel, border: `1px solid ${meta && feas.status === "gecikme" ? COLORS.accentStop + "50" : COLORS.border}`,
-                    borderRadius: 12, padding: "12px 16px", display: "flex", alignItems: "center", justifyContent: "space-between", gap: 12, flexWrap: "wrap",
-                  }}>
-                    <div>
-                      <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
-                        <span style={{ fontFamily: "'IBM Plex Mono', monospace", fontSize: 12, color: COLORS.accentWarn }}>{o.code}</span>
-                        <span style={{ fontFamily: "'Inter', sans-serif", fontSize: 13.5, fontWeight: 600, color: COLORS.text }}>{o.product}</span>
-                      </div>
-                      <div style={{ fontFamily: "'Inter', sans-serif", fontSize: 12, color: COLORS.textFaint, marginTop: 2 }}>
-                        {o.customer} · {o.qty} {t("units", lang)} · {t("due", lang)} {fmtDateShort(o.dueDate)}
-                      </div>
-                    </div>
-                    {!hasRouting && (
-                      <span style={{ fontFamily: "'Inter', sans-serif", fontSize: 11.5, color: COLORS.textFaint }}>{t("routingMissing", lang)}</span>
-                    )}
-                    {meta && (
-                      <div style={{ textAlign: dir === "rtl" ? "left" : "right" }}>
-                        <span style={{ fontFamily: "'IBM Plex Mono', monospace", fontSize: 10.5, fontWeight: 700, color: meta.color, background: meta.color + "20", padding: "3px 8px", borderRadius: 6 }}>
-                          {meta.label}
-                        </span>
-                        <div style={{ fontFamily: "'Inter', sans-serif", fontSize: 11.5, color: COLORS.textFaint, marginTop: 4 }}>
-                          {t("estFinish", lang)} {feas.finishDate.toLocaleDateString("tr-TR", { day: "2-digit", month: "short" })} · {feas.bottleneckMachine} {t("bottleneck", lang)}
-                        </div>
-                      </div>
-                    )}
-                  </div>
-                );
-              })}
-            </div>
-          </div>
-
-          <div>
-            <div style={{ fontFamily: "'IBM Plex Mono', monospace", fontSize: 11, color: COLORS.textFaint, letterSpacing: 1.5, textTransform: "uppercase", marginBottom: 12 }}>
               {t("machines", lang)}
             </div>
             <div style={{ display: "grid", gap: 12, gridTemplateColumns: "repeat(auto-fill, minmax(270px, 1fr))" }}>
               {machines.map((m) => {
                 const st = machineStates[m.code] || { status: "idle" };
-                const order = st.orderCode ? orders.find((o) => o.code === st.orderCode) : null;
-                return <MachineCard key={m.code} machine={m} state={st} order={order} now={now} onClick={() => {}} lang={lang} dir={dir} />;
+                const profileToday = (plan[todayIso] || {})[m.code];
+                return <MachineCard key={m.code} machine={m} state={st} profileToday={profileToday} now={now} onClick={() => {}} lang={lang} dir={dir} />;
               })}
             </div>
           </div>
@@ -1100,132 +1139,380 @@ function YoneticiMode({ data, onBack, lang, dir }) {
         </div>
       )}
 
+      {tab === "plan" && <PlanTakvimi data={data} lang={lang} dir={dir} />}
+
       {tab === "ayarlar" && <TanimlarPanel data={data} lang={lang} dir={dir} />}
     </div>
   );
 }
 
-function TanimlarPanel({ data, lang, dir }) {
-  const { machines, orders, routings, updateMachines, updateOrders } = data;
-  const [localMachines, setLocalMachines] = useState(machines);
-  const [localOrders, setLocalOrders] = useState(orders);
+function PlanTakvimi({ data, lang, dir }) {
+  const { departments, plan, setPlanCell } = data;
+  const [activeDept, setActiveDept] = useState(departments?.[0]?.id || "extruder");
+  const [daysToShow, setDaysToShow] = useState(14);
   const [savedMsg, setSavedMsg] = useState(null);
+  const today = new Date();
+  today.setHours(0, 0, 0, 0);
 
-  useEffect(() => { setLocalMachines(machines); }, [machines]);
-  useEffect(() => { setLocalOrders(orders); }, [orders]);
+  if (!departments) return null;
+  const dept = departments.find((d) => d.id === activeDept) || departments[0];
+  const dates = Array.from({ length: daysToShow }, (_, i) => isoDate(addDays(today, i)));
+
+  async function handleCellChange(dateIso, machineCode, value) {
+    await setPlanCell(dateIso, machineCode, value);
+    setSavedMsg(t("planSavedMsg", lang));
+    setTimeout(() => setSavedMsg(null), 1200);
+  }
+
+  return (
+    <div style={{ padding: "18px 20px 60px" }}>
+      <SavedToast text={savedMsg} />
+      <div style={{ fontFamily: "'Archivo', sans-serif", fontWeight: 700, fontSize: 16, color: COLORS.text, marginBottom: 4 }}>
+        {t("productionPlan", lang)}
+      </div>
+      <div style={{ fontFamily: "'Inter', sans-serif", fontSize: 12, color: COLORS.textFaint, marginBottom: 14 }}>
+        {t("planNote", lang)}
+      </div>
+
+      <div style={{ display: "flex", gap: 8, marginBottom: 16, flexWrap: "wrap" }}>
+        {departments.map((d) => (
+          <button key={d.id} onClick={() => setActiveDept(d.id)} style={{
+            padding: "7px 14px", borderRadius: 10, border: `1px solid ${activeDept === d.id ? COLORS.accentRun : COLORS.border}`,
+            background: activeDept === d.id ? COLORS.accentRunDim : "transparent",
+            color: activeDept === d.id ? COLORS.accentRun : COLORS.textDim,
+            fontFamily: "'Inter', sans-serif", fontSize: 12.5, fontWeight: 600, cursor: "pointer",
+          }}>
+            {d.name}
+          </button>
+        ))}
+      </div>
+
+      <div style={{ overflowX: "auto", border: `1px solid ${COLORS.border}`, borderRadius: 12 }}>
+        <table style={{ borderCollapse: "collapse", width: "100%", fontFamily: "'Inter', sans-serif", fontSize: 12.5 }}>
+          <thead>
+            <tr>
+              <th style={{
+                position: "sticky", left: 0, background: COLORS.bgPanel, color: COLORS.textDim,
+                padding: "10px 14px", textAlign: dir === "rtl" ? "right" : "left", borderBottom: `1px solid ${COLORS.border}`,
+                borderRight: `1px solid ${COLORS.border}`, whiteSpace: "nowrap", zIndex: 2,
+              }}>
+                {/* date column header */}
+              </th>
+              {dept.machines.map((m) => (
+                <th key={m.code} style={{
+                  background: COLORS.bgPanel, color: COLORS.text, padding: "10px 10px",
+                  borderBottom: `1px solid ${COLORS.border}`, fontFamily: "'IBM Plex Mono', monospace",
+                  fontSize: 11.5, whiteSpace: "nowrap", minWidth: 140,
+                }}>
+                  {m.code}
+                </th>
+              ))}
+            </tr>
+          </thead>
+          <tbody>
+            {dates.map((dateIso) => {
+              const holiday = isWeekend(dateIso);
+              const isToday = dateIso === isoDate(today);
+              return (
+                <tr key={dateIso} style={{ background: isToday ? COLORS.accentRunDim : "transparent" }}>
+                  <td style={{
+                    position: "sticky", left: 0, background: holiday ? "#26241c" : (isToday ? COLORS.accentRunDim : COLORS.bgPanel),
+                    color: holiday ? COLORS.accentWarn : COLORS.textDim, padding: "8px 14px", whiteSpace: "nowrap",
+                    borderBottom: `1px solid ${COLORS.border}`, borderRight: `1px solid ${COLORS.border}`,
+                    fontFamily: "'IBM Plex Mono', monospace", fontSize: 11.5, zIndex: 1,
+                  }}>
+                    {fmtPlanDate(dateIso, lang)}
+                  </td>
+                  {dept.machines.map((m) => (
+                    <td key={m.code} style={{ borderBottom: `1px solid ${COLORS.border}`, padding: 2 }}>
+                      {holiday ? (
+                        <div style={{ textAlign: "center", color: COLORS.accentWarn, fontFamily: "'IBM Plex Mono', monospace", fontSize: 10.5, fontWeight: 700, padding: "8px 0" }}>
+                          {t("holiday", lang)}
+                        </div>
+                      ) : (
+                        <select
+                          value={(plan[dateIso] || {})[m.code] || ""}
+                          onChange={(e) => handleCellChange(dateIso, m.code, e.target.value)}
+                          style={{
+                            width: "100%", background: "transparent", border: "none", outline: "none",
+                            color: COLORS.text, fontFamily: "'Inter', sans-serif", fontSize: 12, padding: "8px 6px",
+                            textAlign: "center", cursor: "pointer",
+                          }}
+                        >
+                          <option value="" style={{ background: COLORS.bgPanel }}>—</option>
+                          {dept.products.map((p) => (
+                            <option key={p} value={p} style={{ background: COLORS.bgPanel }}>{p}</option>
+                          ))}
+                        </select>
+                      )}
+                    </td>
+                  ))}
+                </tr>
+              );
+            })}
+          </tbody>
+        </table>
+      </div>
+
+      <button
+        onClick={() => setDaysToShow((d) => d + 7)}
+        style={{
+          marginTop: 14, display: "flex", alignItems: "center", gap: 6, background: COLORS.bgRaised,
+          border: `1px solid ${COLORS.border}`, color: COLORS.text, padding: "9px 14px", borderRadius: 10,
+          fontFamily: "'Inter', sans-serif", fontSize: 13, cursor: "pointer",
+        }}
+      >
+        <Plus size={14} /> {t("addWeek", lang)}
+      </button>
+    </div>
+  );
+}
+
+
+function TanimlarPanel({ data, lang, dir }) {
+  const { departments, updateDepartments, orders, addOrder, removeOrder, markOrderDelivered } = data;
+  const [localDepartments, setLocalDepartments] = useState(departments);
+  const [activeDept, setActiveDept] = useState(departments?.[0]?.id || "extruder");
+  const [savedMsg, setSavedMsg] = useState(null);
+  const [newProductText, setNewProductText] = useState("");
+  const [newOrder, setNewOrder] = useState({ urun: "", musteri: "", miktar: "", teslimTarihi: "" });
+
+  useEffect(() => { setLocalDepartments(departments); }, [departments]);
 
   function flashSaved() {
     setSavedMsg(t("saved", lang));
     setTimeout(() => setSavedMsg(null), 1500);
   }
 
-  async function saveMachines(list) {
-    setLocalMachines(list);
-    await updateMachines(list);
+  async function saveDepartments(list) {
+    setLocalDepartments(list);
+    await updateDepartments(list);
     flashSaved();
   }
-  async function saveOrders(list) {
-    setLocalOrders(list);
-    await updateOrders(list);
-    flashSaved();
+
+  if (!localDepartments) return null;
+  const dept = localDepartments.find((d) => d.id === activeDept) || localDepartments[0];
+  const deptIndex = localDepartments.findIndex((d) => d.id === dept.id);
+
+  function updateDeptField(updater) {
+    const list = [...localDepartments];
+    list[deptIndex] = updater(list[deptIndex]);
+    saveDepartments(list);
+  }
+
+  function addMachine() {
+    updateDeptField((d) => ({
+      ...d,
+      machines: [...d.machines, { code: `MK-${d.id.toUpperCase().slice(0, 3)}${d.machines.length + 1}`, name: t("newMachine", lang) }],
+    }));
+  }
+  function removeMachine(idx) {
+    updateDeptField((d) => ({ ...d, machines: d.machines.filter((_, i) => i !== idx) }));
+  }
+  function editMachine(idx, field, value) {
+    const list = [...localDepartments];
+    const machines = [...list[deptIndex].machines];
+    machines[idx] = { ...machines[idx], [field]: value };
+    list[deptIndex] = { ...list[deptIndex], machines };
+    setLocalDepartments(list); // local only while typing
+  }
+  function commitMachine() {
+    saveDepartments(localDepartments);
+  }
+
+  function addProduct() {
+    const name = newProductText.trim();
+    if (!name) return;
+    updateDeptField((d) => ({ ...d, products: [...d.products, name] }));
+    setNewProductText("");
+  }
+  function removeProduct(product) {
+    updateDeptField((d) => ({ ...d, products: d.products.filter((p) => p !== product) }));
+  }
+
+  // Sipariş ürün seçenekleri: tüm bölümlerin ürünleri + ER kapı modelleri.
+  const allOrderProducts = allProductsFrom(localDepartments);
+
+  async function submitNewOrder() {
+    if (!newOrder.urun || !newOrder.miktar) return;
+    const id = `SIP-${Date.now().toString().slice(-6)}`;
+    await addOrder({
+      id, urun: newOrder.urun, musteri: newOrder.musteri || "—",
+      miktar: parseInt(newOrder.miktar) || 0, teslimTarihi: newOrder.teslimTarihi || "",
+      durum: ORDER_STATUS.PENDING,
+    });
+    setNewOrder({ urun: "", musteri: "", miktar: "", teslimTarihi: "" });
   }
 
   return (
-    <div dir={dir} style={{ maxWidth: 800, margin: "0 auto", padding: "18px 20px 60px", display: "grid", gap: 28 }}>
+    <div dir={dir} style={{ maxWidth: 900, margin: "0 auto", padding: "18px 20px 60px", display: "grid", gap: 32 }}>
       <SavedToast text={savedMsg} />
 
+      {/* ---- Bölüm sekmeleri: Makineler + Ürünler ---- */}
       <div>
-        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 12 }}>
-          <div style={{ fontFamily: "'Archivo', sans-serif", fontWeight: 700, fontSize: 16, color: COLORS.text }}>{t("machines", lang)}</div>
-          <button
-            onClick={() => saveMachines([...localMachines, { code: `MK-0${localMachines.length + 1}`, name: t("newMachine", lang), capacityHrPerDay: 7 }])}
-            style={{ display: "flex", alignItems: "center", gap: 6, background: COLORS.bgRaised, border: `1px solid ${COLORS.border}`, color: COLORS.text, padding: "8px 12px", borderRadius: 10, fontFamily: "'Inter', sans-serif", fontSize: 13, cursor: "pointer" }}
-          >
-            <Plus size={14} /> {t("add", lang)}
-          </button>
-        </div>
-        <div style={{ display: "grid", gap: 8 }}>
-          {localMachines.map((m, i) => (
-            <div key={i} style={{ display: "grid", gridTemplateColumns: "90px 1fr 110px 36px", gap: 8, alignItems: "center", background: COLORS.bgPanel, border: `1px solid ${COLORS.border}`, borderRadius: 10, padding: 10 }}>
-              <input value={m.code} onChange={(e) => { const l = [...localMachines]; l[i] = { ...l[i], code: e.target.value }; setLocalMachines(l); }} onBlur={() => saveMachines(localMachines)} style={inputStyle} />
-              <input value={m.name} onChange={(e) => { const l = [...localMachines]; l[i] = { ...l[i], name: e.target.value }; setLocalMachines(l); }} onBlur={() => saveMachines(localMachines)} style={inputStyle} />
-              <input type="number" step="0.1" value={m.capacityHrPerDay} onChange={(e) => { const l = [...localMachines]; l[i] = { ...l[i], capacityHrPerDay: parseFloat(e.target.value) || 0 }; setLocalMachines(l); }} onBlur={() => saveMachines(localMachines)} style={inputStyle} title={t("machineCol", lang)} />
-              <button onClick={() => saveMachines(localMachines.filter((_, idx) => idx !== i))} style={{ background: "none", border: "none", color: COLORS.accentStop, cursor: "pointer", display: "flex", justifyContent: "center" }}>
-                <Trash2 size={16} />
-              </button>
-            </div>
+        <div style={{ display: "flex", gap: 8, marginBottom: 16, flexWrap: "wrap" }}>
+          {localDepartments.map((d) => (
+            <button key={d.id} onClick={() => setActiveDept(d.id)} style={{
+              padding: "7px 14px", borderRadius: 10, border: `1px solid ${activeDept === d.id ? COLORS.accentRun : COLORS.border}`,
+              background: activeDept === d.id ? COLORS.accentRunDim : "transparent",
+              color: activeDept === d.id ? COLORS.accentRun : COLORS.textDim,
+              fontFamily: "'Inter', sans-serif", fontSize: 12.5, fontWeight: 600, cursor: "pointer",
+            }}>
+              {d.name}
+            </button>
           ))}
         </div>
-        <div style={{ fontFamily: "'Inter', sans-serif", fontSize: 11.5, color: COLORS.textFaint, marginTop: 6 }}>{t("machineCol", lang)}</div>
-      </div>
 
-      <div>
-        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 12 }}>
-          <div style={{ fontFamily: "'Archivo', sans-serif", fontWeight: 700, fontSize: 16, color: COLORS.text }}>{t("ordersDueStatus", lang).split(" ·")[0]}</div>
-          <button
-            onClick={() => saveOrders([...localOrders, { code: `SIP-00${localOrders.length + 1}`, product: t("newProduct", lang), customer: t("customer", lang), qty: 100, dueDate: "" }])}
-            style={{ display: "flex", alignItems: "center", gap: 6, background: COLORS.bgRaised, border: `1px solid ${COLORS.border}`, color: COLORS.text, padding: "8px 12px", borderRadius: 10, fontFamily: "'Inter', sans-serif", fontSize: 13, cursor: "pointer" }}
-          >
-            <Plus size={14} /> {t("add", lang)}
-          </button>
-        </div>
-        <div style={{ display: "grid", gap: 8 }}>
-          {localOrders.map((o, i) => {
-            const feas = calcOrderFeasibility(o, routings, localMachines);
-            return (
-              <div key={i} style={{ display: "grid", gap: 6 }}>
-                <div style={{ display: "grid", gridTemplateColumns: "90px 1fr 110px 70px 110px 36px", gap: 8, alignItems: "center", background: COLORS.bgPanel, border: `1px solid ${COLORS.border}`, borderRadius: 10, padding: 10 }}>
-                  <input value={o.code} onChange={(e) => { const l = [...localOrders]; l[i] = { ...l[i], code: e.target.value }; setLocalOrders(l); }} onBlur={() => saveOrders(localOrders)} style={inputStyle} />
-                  <input value={o.product} onChange={(e) => { const l = [...localOrders]; l[i] = { ...l[i], product: e.target.value }; setLocalOrders(l); }} onBlur={() => saveOrders(localOrders)} style={inputStyle} />
-                  <input value={o.customer} onChange={(e) => { const l = [...localOrders]; l[i] = { ...l[i], customer: e.target.value }; setLocalOrders(l); }} onBlur={() => saveOrders(localOrders)} style={inputStyle} />
-                  <input type="number" value={o.qty} onChange={(e) => { const l = [...localOrders]; l[i] = { ...l[i], qty: parseInt(e.target.value) || 0 }; setLocalOrders(l); }} onBlur={() => saveOrders(localOrders)} style={inputStyle} />
-                  <input type="date" value={o.dueDate} onChange={(e) => { const l = [...localOrders]; l[i] = { ...l[i], dueDate: e.target.value }; setLocalOrders(l); }} onBlur={() => saveOrders(localOrders)} style={inputStyle} />
-                  <button onClick={() => saveOrders(localOrders.filter((_, idx) => idx !== i))} style={{ background: "none", border: "none", color: COLORS.accentStop, cursor: "pointer", display: "flex", justifyContent: "center" }}>
-                    <Trash2 size={16} />
+        <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 20 }}>
+          {/* Makineler */}
+          <div>
+            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 10 }}>
+              <div style={{ fontFamily: "'Archivo', sans-serif", fontWeight: 700, fontSize: 14, color: COLORS.text }}>{t("departmentMachines", lang)}</div>
+              <button onClick={addMachine} style={{ display: "flex", alignItems: "center", gap: 4, background: COLORS.bgRaised, border: `1px solid ${COLORS.border}`, color: COLORS.text, padding: "6px 10px", borderRadius: 8, fontFamily: "'Inter', sans-serif", fontSize: 12, cursor: "pointer" }}>
+                <Plus size={12} /> {t("add", lang)}
+              </button>
+            </div>
+            <div style={{ display: "grid", gap: 6 }}>
+              {dept.machines.map((m, i) => (
+                <div key={i} style={{ display: "grid", gridTemplateColumns: "80px 1fr 30px", gap: 6, alignItems: "center", background: COLORS.bgPanel, border: `1px solid ${COLORS.border}`, borderRadius: 9, padding: 8 }}>
+                  <input value={m.code} onChange={(e) => editMachine(i, "code", e.target.value)} onBlur={commitMachine} style={{ ...inputStyle, fontSize: 11.5 }} />
+                  <input value={m.name} onChange={(e) => editMachine(i, "name", e.target.value)} onBlur={commitMachine} style={{ ...inputStyle, fontSize: 12 }} />
+                  <button onClick={() => removeMachine(i)} style={{ background: "none", border: "none", color: COLORS.accentStop, cursor: "pointer", display: "flex", justifyContent: "center" }}>
+                    <Trash2 size={14} />
                   </button>
                 </div>
-                <FeasibilityRow feasibility={feas} hasRouting={!!(routings || []).find((r) => r.product === o.product)} lang={lang} />
+              ))}
+            </div>
+          </div>
+
+          {/* Ürün/Profil Listesi */}
+          <div>
+            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 10 }}>
+              <div style={{ fontFamily: "'Archivo', sans-serif", fontWeight: 700, fontSize: 14, color: COLORS.text }}>{t("departmentProducts", lang)}</div>
+            </div>
+            <div style={{ display: "flex", gap: 6, marginBottom: 10 }}>
+              <input
+                value={newProductText} onChange={(e) => setNewProductText(e.target.value)}
+                onKeyDown={(e) => { if (e.key === "Enter") addProduct(); }}
+                placeholder={t("newProductPlaceholder", lang)}
+                style={{ ...inputStyle, flex: 1 }}
+              />
+              <button onClick={addProduct} style={{ display: "flex", alignItems: "center", gap: 4, background: COLORS.accentRunDim, border: `1px solid ${COLORS.accentRun}50`, color: COLORS.accentRun, padding: "0 12px", borderRadius: 8, cursor: "pointer" }}>
+                <Plus size={14} />
+              </button>
+            </div>
+            <div style={{ display: "flex", flexWrap: "wrap", gap: 6, maxHeight: 280, overflowY: "auto" }}>
+              {dept.products.map((p) => (
+                <span key={p} style={{
+                  display: "flex", alignItems: "center", gap: 6,
+                  fontFamily: "'IBM Plex Mono', monospace", fontSize: 11.5, color: COLORS.textDim,
+                  background: COLORS.bgRaised, border: `1px solid ${COLORS.border}`, padding: "4px 6px 4px 9px", borderRadius: 7,
+                }}>
+                  {p}
+                  <button onClick={() => removeProduct(p)} style={{ background: "none", border: "none", color: COLORS.textFaint, cursor: "pointer", display: "flex", padding: 0 }}>
+                    <X size={12} />
+                  </button>
+                </span>
+              ))}
+            </div>
+          </div>
+        </div>
+      </div>
+
+      {/* ---- Siparişler ---- */}
+      <div>
+        <div style={{ fontFamily: "'Archivo', sans-serif", fontWeight: 700, fontSize: 16, color: COLORS.text, marginBottom: 12 }}>
+          {t("orders", lang)}
+        </div>
+
+        <div style={{ display: "grid", gridTemplateColumns: "1.4fr 1fr 90px 130px 40px", gap: 8, marginBottom: 12 }}>
+          <select value={newOrder.urun} onChange={(e) => setNewOrder({ ...newOrder, urun: e.target.value })} style={inputStyle}>
+            <option value="">{t("selectProduct", lang)}</option>
+            {allOrderProducts.map((p) => <option key={p} value={p}>{p}</option>)}
+          </select>
+          <input value={newOrder.musteri} onChange={(e) => setNewOrder({ ...newOrder, musteri: e.target.value })} placeholder={t("orderCustomer", lang)} style={inputStyle} />
+          <input type="number" value={newOrder.miktar} onChange={(e) => setNewOrder({ ...newOrder, miktar: e.target.value })} placeholder={t("orderQty", lang)} style={inputStyle} />
+          <input type="date" value={newOrder.teslimTarihi} onChange={(e) => setNewOrder({ ...newOrder, teslimTarihi: e.target.value })} style={inputStyle} />
+          <button onClick={submitNewOrder} style={{ display: "flex", alignItems: "center", justifyContent: "center", background: COLORS.accentRunDim, border: `1px solid ${COLORS.accentRun}50`, color: COLORS.accentRun, borderRadius: 8, cursor: "pointer" }}>
+            <Plus size={16} />
+          </button>
+        </div>
+
+        <div style={{ display: "grid", gap: 8 }}>
+          {(orders || []).map((o) => {
+            const delivered = o.durum === ORDER_STATUS.DELIVERED;
+            return (
+              <div key={o.id} style={{
+                display: "flex", alignItems: "center", justifyContent: "space-between", gap: 12, flexWrap: "wrap",
+                background: COLORS.bgPanel, border: `1px solid ${delivered ? COLORS.accentRun + "40" : COLORS.border}`,
+                borderRadius: 12, padding: "12px 16px",
+              }}>
+                <div>
+                  <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+                    <span style={{ fontFamily: "'IBM Plex Mono', monospace", fontSize: 12, color: COLORS.accentWarn }}>{o.id}</span>
+                    <span style={{ fontFamily: "'Inter', sans-serif", fontSize: 13.5, fontWeight: 600, color: COLORS.text }}>{o.urun}</span>
+                  </div>
+                  <div style={{ fontFamily: "'Inter', sans-serif", fontSize: 12, color: COLORS.textFaint, marginTop: 2 }}>
+                    {o.musteri} · {o.miktar} {t("units", lang)} {o.teslimTarihi && `· ${t("due", lang)} ${fmtDateShort(o.teslimTarihi)}`}
+                  </div>
+                </div>
+                <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+                  <button
+                    onClick={() => markOrderDelivered(o.id, !delivered)}
+                    style={{
+                      display: "flex", alignItems: "center", gap: 6, padding: "6px 12px", borderRadius: 8,
+                      border: `1px solid ${delivered ? COLORS.accentRun : COLORS.border}`,
+                      background: delivered ? COLORS.accentRunDim : "transparent",
+                      color: delivered ? COLORS.accentRun : COLORS.textDim,
+                      fontFamily: "'IBM Plex Mono', monospace", fontSize: 11, fontWeight: 700, cursor: "pointer",
+                    }}
+                  >
+                    {delivered && <Check size={12} />}
+                    {delivered ? t("orderDelivered", lang) : t("orderPending", lang)}
+                  </button>
+                  <button onClick={() => removeOrder(o.id)} style={{ background: "none", border: "none", color: COLORS.accentStop, cursor: "pointer", display: "flex" }}>
+                    <Trash2 size={15} />
+                  </button>
+                </div>
               </div>
             );
           })}
         </div>
-        <div style={{ fontFamily: "'Inter', sans-serif", fontSize: 11.5, color: COLORS.textFaint, marginTop: 6 }}>{t("orderCols", lang)}</div>
       </div>
-    </div>
-  );
-}
 
-function FeasibilityRow({ feasibility, hasRouting, lang }) {
-  if (!hasRouting) {
-    return (
-      <div style={{ display: "flex", alignItems: "center", gap: 8, padding: "2px 4px 4px", fontFamily: "'Inter', sans-serif", fontSize: 12, color: COLORS.textFaint }}>
-        <AlertTriangle size={12} /> {t("routingMissingFull", lang)}
+      {/* ---- ER Kapı Model Kataloğu (referans) ---- */}
+      <div>
+        <div style={{ fontFamily: "'Archivo', sans-serif", fontWeight: 700, fontSize: 16, color: COLORS.text, marginBottom: 6 }}>
+          {t("productModels", lang)}
+        </div>
+        <div style={{ fontFamily: "'Inter', sans-serif", fontSize: 12, color: COLORS.textFaint, marginBottom: 14 }}>
+          {t("productModelsNote", lang)}
+        </div>
+        <div style={{ display: "grid", gap: 12 }}>
+          {Object.entries(ER_MODEL_CATALOG).map(([type, models]) => (
+            <div key={type} style={{ background: COLORS.bgPanel, border: `1px solid ${COLORS.border}`, borderRadius: 12, padding: "14px 16px" }}>
+              <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 10 }}>
+                <span style={{ fontFamily: "'Inter', sans-serif", fontSize: 13.5, fontWeight: 700, color: COLORS.text }}>
+                  {DOLGU_LABELS[type]}
+                </span>
+                <span style={{ fontFamily: "'IBM Plex Mono', monospace", fontSize: 11, color: COLORS.textFaint }}>
+                  {models.length} {t("modelsCount", lang)}
+                </span>
+              </div>
+              <div style={{ display: "flex", flexWrap: "wrap", gap: 6 }}>
+                {models.map((m) => (
+                  <span key={m} style={{
+                    fontFamily: "'IBM Plex Mono', monospace", fontSize: 11.5, color: COLORS.textDim,
+                    background: COLORS.bgRaised, border: `1px solid ${COLORS.border}`, padding: "4px 9px", borderRadius: 7,
+                  }}>
+                    {m}
+                  </span>
+                ))}
+              </div>
+            </div>
+          ))}
+        </div>
       </div>
-    );
-  }
-  if (!feasibility) return null;
-  const { finishDate, bottleneckMachine, diffDays, status } = feasibility;
-  const meta = {
-    uygun: { color: COLORS.accentRun, label: t("uygun", lang) },
-    sinirda: { color: COLORS.accentWarn, label: t("sinirda", lang) },
-    gecikme: { color: COLORS.accentStop, label: t("gecikme", lang) },
-  }[status];
-  const finishStr = finishDate.toLocaleDateString("tr-TR", { day: "2-digit", month: "short" });
-  return (
-    <div style={{ display: "flex", alignItems: "center", gap: 10, padding: "2px 4px 4px", flexWrap: "wrap" }}>
-      <span style={{
-        fontFamily: "'IBM Plex Mono', monospace", fontSize: 10.5, fontWeight: 700, color: meta.color,
-        background: meta.color + "20", padding: "3px 8px", borderRadius: 6,
-      }}>
-        {meta.label}
-      </span>
-      <span style={{ fontFamily: "'Inter', sans-serif", fontSize: 12, color: COLORS.textFaint }}>
-        {t("estFinish", lang)}: <strong style={{ color: COLORS.textDim }}>{finishStr}</strong>
-        {" · "}{t("bottleneck", lang)}: <strong style={{ color: COLORS.textDim }}>{bottleneckMachine}</strong>
-        {diffDays !== null && (
-          <> {" · "}{diffDays >= 0 ? t("daysMargin", lang, { n: diffDays }) : t("daysOverdue", lang, { n: Math.abs(diffDays) })}</>
-        )}
-      </span>
     </div>
   );
 }
