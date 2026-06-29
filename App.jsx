@@ -155,6 +155,10 @@ const STRINGS = {
   markDelivered: { tr: "Teslim Edildi İşaretle", en: "Mark as Delivered", ar: "وضع علامة تم التسليم" },
   newOrderProduct: { tr: "Ürün seçin", en: "Select product", ar: "اختر المنتج" },
   selectProduct: { tr: "Ürün seçin...", en: "Select a product...", ar: "اختر منتجًا..." },
+  linkToOrder: { tr: "Hangi sipariş için? (opsiyonel)", en: "For which order? (optional)", ar: "لأي طلب؟ (اختياري)" },
+  noOrderLink: { tr: "Sipariş bağlama (genel üretim)", en: "No order link (general production)", ar: "بدون ربط بطلب (إنتاج عام)" },
+  noMatchingOrders: { tr: "Bu ürün için bekleyen sipariş yok. Önce Tanımlar'dan sipariş ekleyin.", en: "No pending orders for this product. Add one from Settings first.", ar: "لا توجد طلبات معلقة لهذا المنتج. أضف طلبًا من الإعدادات أولاً." },
+  producingForOrder: { tr: "Sipariş için üretiliyor", en: "Producing for order", ar: "قيد الإنتاج للطلب" },
 };
 
 function t(key, lang, vars) {
@@ -348,6 +352,13 @@ function fmtPlanDate(iso, lang) {
 // Plan key formatı: "plan:YYYY-MM-DD:MAKINEKODU" -> { profile: string }
 function planKey(dateIso, machineCode) {
   return `plan:${dateIso}:${machineCode}`;
+}
+// Hücre değeri eski formatta düz string (sadece profil) olabilir veya
+// yeni formatta {profile, orderId} objesi olabilir — ikisini de okur.
+function normalizeCell(cell) {
+  if (!cell) return null;
+  if (typeof cell === "string") return { profile: cell, orderId: null };
+  return cell;
 }
 
 
@@ -584,9 +595,10 @@ function useSharedData() {
   useEffect(() => { planRef.current = plan; }, [plan]);
 
   // Tek bir gün/makine hücresini günceller (Yönetici takvimde bir hücre düzenlediğinde).
-  async function setPlanCell(dateIso, machineCode, profile) {
+  // cellValue: null/"" -> hücreyi temizle, ya da { profile, orderId } objesi.
+  async function setPlanCell(dateIso, machineCode, cellValue) {
     const day = { ...(planRef.current[dateIso] || {}) };
-    if (profile) day[machineCode] = profile;
+    if (cellValue && cellValue.profile) day[machineCode] = cellValue;
     else delete day[machineCode];
     const newPlan = { ...planRef.current, [dateIso]: day };
     planRef.current = newPlan;
@@ -632,14 +644,18 @@ function UstaMode({ data, onBack, lang, dir }) {
   const state = selectedMachine ? machineStates[selectedMachine.code] || { status: "idle" } : null;
   const backIcon = dir === "rtl" ? { transform: "rotate(180deg)" } : {};
   const todayIso = isoDate(now);
-  const todaysProfile = selectedMachine ? (plan[todayIso] || {})[selectedMachine.code] : null;
+  const todaysCell = selectedMachine ? normalizeCell((plan[todayIso] || {})[selectedMachine.code]) : null;
+  const linkedOrder = todaysCell?.orderId ? (data.orders || []).find((o) => o.id === todaysCell.orderId) : null;
 
   async function pickMachine(m) {
     setSelectedMachine(m);
   }
 
   async function startProduction() {
-    const newState = { status: "run", profile: todaysProfile || "—", startedAt: Date.now(), produced: 0 };
+    const newState = {
+      status: "run", profile: todaysCell?.profile || "—", orderId: todaysCell?.orderId || null,
+      startedAt: Date.now(), produced: 0,
+    };
     await setMachineState(selectedMachine.code, newState);
   }
 
@@ -651,8 +667,8 @@ function UstaMode({ data, onBack, lang, dir }) {
   async function confirmStop() {
     await appendLog({
       time: Date.now(), type: "üretim", machine: selectedMachine.code,
-      label: `${state.produced} adet · ${state.profile}`,
-      detail: { qty: state.produced, profile: state.profile, durationMs: Date.now() - state.startedAt },
+      label: state.orderId ? `${state.produced} adet · ${state.profile} · ${state.orderId}` : `${state.produced} adet · ${state.profile}`,
+      detail: { qty: state.produced, profile: state.profile, orderId: state.orderId || null, durationMs: Date.now() - state.startedAt },
     });
     await setMachineState(selectedMachine.code, { status: "down_pending", prevProfile: state.profile, prevProduced: state.produced, startedAt: Date.now() });
     setConfirmingStop(false);
@@ -705,7 +721,7 @@ function UstaMode({ data, onBack, lang, dir }) {
                   {groupMachines.map((m) => {
                     const st = machineStates[m.code] || { status: "idle" };
                     const dot = st.status === "run" ? COLORS.accentRun : st.status === "down_pending" ? COLORS.accentWarn : COLORS.accentIdle;
-                    const profileToday = (plan[todayIso] || {})[m.code];
+                    const profileToday = normalizeCell((plan[todayIso] || {})[m.code])?.profile;
                     return (
                       <BigButton key={m.code} onClick={() => pickMachine(m)} style={{ padding: "20px", display: "flex", alignItems: "center", justifyContent: "space-between" }}>
                         <span style={{ display: "flex", alignItems: "center", gap: 12 }}>
@@ -734,10 +750,15 @@ function UstaMode({ data, onBack, lang, dir }) {
           <div style={{ fontFamily: "'Archivo', sans-serif", fontWeight: 800, fontSize: 22, color: COLORS.text, marginBottom: 18 }}>
             {t("todaysPlan", lang)}
           </div>
-          {todaysProfile ? (
+          {todaysCell ? (
             <div style={{ background: COLORS.bgPanel, border: `1px solid ${COLORS.border}`, borderRadius: 16, padding: 22, marginBottom: 18 }}>
               <div style={{ fontFamily: "'IBM Plex Mono', monospace", fontSize: 12, color: COLORS.textFaint, marginBottom: 4 }}>{fmtPlanDate(todayIso, lang)}</div>
-              <div style={{ fontFamily: "'Archivo', sans-serif", fontWeight: 800, fontSize: 22, color: COLORS.accentWarn }}>{todaysProfile}</div>
+              <div style={{ fontFamily: "'Archivo', sans-serif", fontWeight: 800, fontSize: 22, color: COLORS.accentWarn }}>{todaysCell.profile}</div>
+              {linkedOrder && (
+                <div style={{ fontFamily: "'Inter', sans-serif", fontSize: 13, color: COLORS.textDim, marginTop: 8 }}>
+                  {t("producingForOrder", lang)}: <span style={{ fontFamily: "'IBM Plex Mono', monospace", color: COLORS.text }}>{linkedOrder.id}</span> · {linkedOrder.musteri} · {linkedOrder.miktar} {t("units", lang)}
+                </div>
+              )}
             </div>
           ) : (
             <div style={{ background: COLORS.accentStopDim, border: `1px solid ${COLORS.accentStop}40`, borderRadius: 16, padding: 22, marginBottom: 18 }}>
@@ -961,7 +982,12 @@ function MachineCard({ machine, state, profileToday, now, onClick, lang, dir }) 
 
       {state.status === "run" && (
         <>
-          <div style={{ fontFamily: "'Inter', sans-serif", fontSize: 14, fontWeight: 600, color: COLORS.text, marginBottom: 8 }}>{state.profile}</div>
+          <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 8 }}>
+            <span style={{ fontFamily: "'Inter', sans-serif", fontSize: 14, fontWeight: 600, color: COLORS.text }}>{state.profile}</span>
+            {state.orderId && (
+              <span style={{ fontFamily: "'IBM Plex Mono', monospace", fontSize: 11, color: COLORS.accentWarn }}>{state.orderId}</span>
+            )}
+          </div>
           <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
             <span style={{ fontFamily: "'IBM Plex Mono', monospace", fontSize: 13, color: COLORS.accentRun }}>{state.produced || 0} {t("units", lang)}</span>
             <span style={{ fontFamily: "'Inter', sans-serif", fontSize: 12, color: COLORS.textFaint }}>
@@ -1096,7 +1122,7 @@ function YoneticiMode({ data, onBack, lang, dir }) {
             <div style={{ display: "grid", gap: 12, gridTemplateColumns: "repeat(auto-fill, minmax(270px, 1fr))" }}>
               {machines.map((m) => {
                 const st = machineStates[m.code] || { status: "idle" };
-                const profileToday = (plan[todayIso] || {})[m.code];
+                const profileToday = normalizeCell((plan[todayIso] || {})[m.code])?.profile;
                 return <MachineCard key={m.code} machine={m} state={st} profileToday={profileToday} now={now} onClick={() => {}} lang={lang} dir={dir} />;
               })}
             </div>
@@ -1155,21 +1181,30 @@ function YoneticiMode({ data, onBack, lang, dir }) {
 }
 
 function PlanTakvimi({ data, lang, dir }) {
-  const { departments, plan, setPlanCell } = data;
+  const { departments, plan, setPlanCell, orders, setPolling } = data;
   const [activeDept, setActiveDept] = useState(departments?.[0]?.id || "extruder");
   const [daysToShow, setDaysToShow] = useState(14);
   const [savedMsg, setSavedMsg] = useState(null);
+  const [editingCell, setEditingCell] = useState(null); // { dateIso, machine }
   const today = new Date();
   today.setHours(0, 0, 0, 0);
+
+  // Hücre düzenleme modalı açıkken arka plan yenilemesi durur — aksi halde
+  // 4 saniyelik otomatik yenileme, seçim yapılırken ekranı eski veriyle ezebilir.
+  useEffect(() => {
+    setPolling(!editingCell);
+    return () => setPolling(true);
+  }, [editingCell, setPolling]);
 
   if (!departments) return null;
   const dept = departments.find((d) => d.id === activeDept) || departments[0];
   const dates = Array.from({ length: daysToShow }, (_, i) => isoDate(addDays(today, i)));
 
-  async function handleCellChange(dateIso, machineCode, value) {
-    await setPlanCell(dateIso, machineCode, value);
+  async function handleCellSave(dateIso, machineCode, cellValue) {
+    await setPlanCell(dateIso, machineCode, cellValue);
     setSavedMsg(t("planSavedMsg", lang));
     setTimeout(() => setSavedMsg(null), 1200);
+    setEditingCell(null);
   }
 
   return (
@@ -1231,30 +1266,36 @@ function PlanTakvimi({ data, lang, dir }) {
                   }}>
                     {fmtPlanDate(dateIso, lang)}
                   </td>
-                  {dept.machines.map((m) => (
-                    <td key={m.code} style={{ borderBottom: `1px solid ${COLORS.border}`, padding: 2 }}>
-                      {holiday ? (
-                        <div style={{ textAlign: "center", color: COLORS.accentWarn, fontFamily: "'IBM Plex Mono', monospace", fontSize: 10.5, fontWeight: 700, padding: "8px 0" }}>
-                          {t("holiday", lang)}
-                        </div>
-                      ) : (
-                        <select
-                          value={(plan[dateIso] || {})[m.code] || ""}
-                          onChange={(e) => handleCellChange(dateIso, m.code, e.target.value)}
-                          style={{
-                            width: "100%", background: "transparent", border: "none", outline: "none",
-                            color: COLORS.text, fontFamily: "'Inter', sans-serif", fontSize: 12, padding: "8px 6px",
-                            textAlign: "center", cursor: "pointer",
-                          }}
-                        >
-                          <option value="" style={{ background: COLORS.bgPanel }}>—</option>
-                          {dept.products.map((p) => (
-                            <option key={p} value={p} style={{ background: COLORS.bgPanel }}>{p}</option>
-                          ))}
-                        </select>
-                      )}
-                    </td>
-                  ))}
+                  {dept.machines.map((m) => {
+                    const cell = normalizeCell((plan[dateIso] || {})[m.code]);
+                    const linkedOrder = cell?.orderId ? (orders || []).find((o) => o.id === cell.orderId) : null;
+                    return (
+                      <td key={m.code} style={{ borderBottom: `1px solid ${COLORS.border}`, padding: 2 }}>
+                        {holiday ? (
+                          <div style={{ textAlign: "center", color: COLORS.accentWarn, fontFamily: "'IBM Plex Mono', monospace", fontSize: 10.5, fontWeight: 700, padding: "8px 0" }}>
+                            {t("holiday", lang)}
+                          </div>
+                        ) : (
+                          <button
+                            onClick={() => setEditingCell({ dateIso, machine: m })}
+                            style={{
+                              width: "100%", background: "transparent", border: "none", outline: "none",
+                              color: cell ? COLORS.text : COLORS.textFaint, fontFamily: "'Inter', sans-serif", fontSize: 12,
+                              padding: "8px 6px", textAlign: "center", cursor: "pointer", display: "flex",
+                              flexDirection: "column", alignItems: "center", gap: 2,
+                            }}
+                          >
+                            <span>{cell?.profile || "—"}</span>
+                            {linkedOrder && (
+                              <span style={{ fontFamily: "'IBM Plex Mono', monospace", fontSize: 10, color: COLORS.accentWarn }}>
+                                {linkedOrder.id}
+                              </span>
+                            )}
+                          </button>
+                        )}
+                      </td>
+                    );
+                  })}
                 </tr>
               );
             })}
@@ -1272,6 +1313,79 @@ function PlanTakvimi({ data, lang, dir }) {
       >
         <Plus size={14} /> {t("addWeek", lang)}
       </button>
+
+      {editingCell && (
+        <PlanCellEditor
+          dept={dept}
+          dateIso={editingCell.dateIso}
+          machine={editingCell.machine}
+          currentCell={normalizeCell((plan[editingCell.dateIso] || {})[editingCell.machine.code])}
+          orders={orders || []}
+          lang={lang}
+          onSave={(cellValue) => handleCellSave(editingCell.dateIso, editingCell.machine.code, cellValue)}
+          onClose={() => setEditingCell(null)}
+        />
+      )}
+    </div>
+  );
+}
+
+function PlanCellEditor({ dept, dateIso, machine, currentCell, orders, lang, onSave, onClose }) {
+  const [profile, setProfile] = useState(currentCell?.profile || "");
+  const [orderId, setOrderId] = useState(currentCell?.orderId || "");
+
+  // Sadece bu ürüne uygun ve henüz teslim edilmemiş siparişler önerilir.
+  const matchingOrders = orders.filter((o) => o.urun === profile && o.durum !== ORDER_STATUS.DELIVERED);
+
+  return (
+    <div onClick={onClose} style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,0.6)", display: "flex", alignItems: "flex-end", justifyContent: "center", zIndex: 60 }}>
+      <div onClick={(e) => e.stopPropagation()} style={{
+        background: COLORS.bgPanel, borderTop: `1px solid ${COLORS.border}`, borderRadius: "20px 20px 0 0",
+        padding: "24px 22px 30px", width: "100%", maxWidth: 480,
+      }}>
+        <div style={{ fontFamily: "'Archivo', sans-serif", fontWeight: 800, fontSize: 18, color: COLORS.text, marginBottom: 4 }}>
+          {machine.code} · {fmtPlanDate(dateIso, lang)}
+        </div>
+        <div style={{ fontFamily: "'Inter', sans-serif", fontSize: 13, color: COLORS.textFaint, marginBottom: 18 }}>
+          {machine.name}
+        </div>
+
+        <div style={{ fontFamily: "'Inter', sans-serif", fontSize: 13, color: COLORS.textDim, marginBottom: 8 }}>
+          {t("departmentProducts", lang)}
+        </div>
+        <select
+          value={profile}
+          onChange={(e) => { setProfile(e.target.value); setOrderId(""); }}
+          style={{ ...inputStyle, marginBottom: 18, padding: "12px 10px" }}
+        >
+          <option value="">—</option>
+          {dept.products.map((p) => <option key={p} value={p}>{p}</option>)}
+        </select>
+
+        {profile && (
+          <>
+            <div style={{ fontFamily: "'Inter', sans-serif", fontSize: 13, color: COLORS.textDim, marginBottom: 8 }}>
+              {t("linkToOrder", lang)}
+            </div>
+            <select value={orderId} onChange={(e) => setOrderId(e.target.value)} style={{ ...inputStyle, marginBottom: 18, padding: "12px 10px" }}>
+              <option value="">{t("noOrderLink", lang)}</option>
+              {matchingOrders.map((o) => (
+                <option key={o.id} value={o.id}>{o.id} · {o.musteri} · {o.miktar} {t("units", lang)}</option>
+              ))}
+            </select>
+            {matchingOrders.length === 0 && (
+              <div style={{ fontFamily: "'Inter', sans-serif", fontSize: 11.5, color: COLORS.textFaint, marginTop: -10, marginBottom: 18 }}>
+                {t("noMatchingOrders", lang)}
+              </div>
+            )}
+          </>
+        )}
+
+        <div style={{ display: "flex", gap: 10 }}>
+          <BigButton onClick={onClose} variant="ghost" style={{ flex: 1, padding: "14px 0" }}>{t("cancel", lang)}</BigButton>
+          <BigButton onClick={() => onSave(profile ? { profile, orderId: orderId || null } : null)} variant="run" style={{ flex: 1, padding: "14px 0" }}>{t("saved", lang)}</BigButton>
+        </div>
+      </div>
     </div>
   );
 }
