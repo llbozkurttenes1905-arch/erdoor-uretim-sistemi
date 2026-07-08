@@ -159,10 +159,17 @@ const STRINGS = {
   noOrderLink: { tr: "Sipariş bağlama (genel üretim)", en: "No order link (general production)", ar: "بدون ربط بطلب (إنتاج عام)" },
   noMatchingOrders: { tr: "Bu ürün için bekleyen sipariş yok. Önce Tanımlar'dan sipariş ekleyin.", en: "No pending orders for this product. Add one from Settings first.", ar: "لا توجد طلبات معلقة لهذا المنتج. أضف طلبًا من الإعدادات أولاً." },
   producingForOrder: { tr: "Sipariş için üretiliyor", en: "Producing for order", ar: "قيد الإنتاج للطلب" },
-  orderMachine: { tr: "Atanan Makine", en: "Assigned Machine", ar: "الماكينة المخصصة" },
-  selectMachineForOrder: { tr: "Makine seçin (opsiyonel)", en: "Select machine (optional)", ar: "اختر الماكينة (اختياري)" },
-  noMachineAssigned: { tr: "Makine atanmadı", en: "No machine assigned", ar: "لم يتم تعيين ماكينة" },
-  machineAssignedTo: { tr: "üretiyor", en: "producing", ar: "ينتج" },
+  stages: { tr: "Üretim Aşamaları", en: "Production Stages", ar: "مراحل الإنتاج" },
+  addStage: { tr: "Aşama Ekle", en: "Add Stage", ar: "إضافة مرحلة" },
+  stagePickMachine: { tr: "Makine seçin...", en: "Select machine...", ar: "اختر ماكينة..." },
+  stageWaiting: { tr: "Bekliyor", en: "Waiting", ar: "قيد الانتظار" },
+  stageRunning: { tr: "Üretimde", en: "In Production", ar: "قيد الإنتاج" },
+  stageDone: { tr: "Tamamlandı", en: "Completed", ar: "مكتمل" },
+  stageOutputQty: { tr: "Çıkan adet", en: "Output qty", ar: "الكمية المنتجة" },
+  noStagesYet: { tr: "Henüz aşama eklenmedi — aşağıdan makine seçip ekleyin", en: "No stages yet — add a machine below", ar: "لم تُضف مراحل بعد — أضف ماكينة أدناه" },
+  currentStageLabel: { tr: "Şu an", en: "Currently at", ar: "حاليًا في" },
+  allStagesDoneLabel: { tr: "Tüm aşamalar tamamlandı", en: "All stages completed", ar: "اكتملت جميع المراحل" },
+  stageOf: { tr: "aşama", en: "of stages", ar: "مرحلة" },
 };
 
 function t(key, lang, vars) {
@@ -321,10 +328,37 @@ function allProductsFrom(departments) {
 // Sipariş durumu sabitleri
 const ORDER_STATUS = { PENDING: "bekliyor", DELIVERED: "teslim_edildi" };
 
+const STAGE_STATUS = { WAITING: "bekliyor", RUNNING: "uretimde", DONE: "tamamlandi" };
+
 const DEFAULT_ORDERS = [
-  { id: "SIP-101", urun: "ER100", musteri: "Akpınar İnşaat", miktar: 240, teslimTarihi: "2026-06-29", durum: ORDER_STATUS.PENDING, makine: "MK-SER" },
-  { id: "SIP-102", urun: "KASA 100 mm", musteri: "Boran Yapı Market", miktar: 500, teslimTarihi: "2026-06-26", durum: ORDER_STATUS.PENDING, makine: "MK-EX1" },
-  { id: "SIP-103", urun: "DECK 140x26 Antrasit", musteri: "Meriç AVM Projesi", miktar: 300, teslimTarihi: "2026-07-03", durum: ORDER_STATUS.PENDING, makine: "MK-DECK1" },
+  {
+    id: "SIP-101", urun: "ER100", musteri: "Akpınar İnşaat", miktar: 240, teslimTarihi: "2026-06-29", durum: ORDER_STATUS.PENDING,
+    asamalar: [
+      { id: "AS1", makine: "MK-RC", durum: STAGE_STATUS.DONE, cikan: 240 },
+      { id: "AS2", makine: "MK-MX", durum: STAGE_STATUS.DONE, cikan: 240 },
+      { id: "AS3", makine: "MK-KUR", durum: STAGE_STATUS.DONE, cikan: 240 },
+      { id: "AS4", makine: "MK-SER", durum: STAGE_STATUS.RUNNING, cikan: 150 },
+      { id: "AS5", makine: "MK-CNC", durum: STAGE_STATUS.WAITING, cikan: 0 },
+      { id: "AS6", makine: "MK-KAL", durum: STAGE_STATUS.WAITING, cikan: 0 },
+    ],
+  },
+  {
+    id: "SIP-102", urun: "KASA 100 mm", musteri: "Boran Yapı Market", miktar: 500, teslimTarihi: "2026-06-26", durum: ORDER_STATUS.PENDING,
+    asamalar: [
+      { id: "AS1", makine: "MK-EX2", durum: STAGE_STATUS.DONE, cikan: 500 },
+      { id: "AS2", makine: "MK-FOL", durum: STAGE_STATUS.DONE, cikan: 500 },
+      { id: "AS3", makine: "MK-LAM1", durum: STAGE_STATUS.RUNNING, cikan: 320 },
+      { id: "AS4", makine: "MK-KE", durum: STAGE_STATUS.WAITING, cikan: 0 },
+    ],
+  },
+  {
+    id: "SIP-103", urun: "DECK 140x26 Antrasit", musteri: "Meriç AVM Projesi", miktar: 300, teslimTarihi: "2026-07-03", durum: ORDER_STATUS.PENDING,
+    asamalar: [
+      { id: "AS1", makine: "MK-DECK1", durum: STAGE_STATUS.DONE, cikan: 300 },
+      { id: "AS2", makine: "MK-DECKFIR", durum: STAGE_STATUS.RUNNING, cikan: 180 },
+      { id: "AS3", makine: "MK-DECKKES", durum: STAGE_STATUS.WAITING, cikan: 0 },
+    ],
+  },
 ];
 
 // Usta Modu makine seçim ekranında bölüm başlıkları için.
@@ -594,9 +628,27 @@ function useSharedData() {
     );
     await updateOrders(newOrders);
   }
-  async function assignOrderMachine(orderId, machineCode) {
+  async function addOrderStage(orderId, machineCode) {
+    if (!machineCode) return;
+    const newOrders = (ordersRef.current || []).map((o) => {
+      if (o.id !== orderId) return o;
+      const stages = o.asamalar || [];
+      const newStage = { id: `AS${Date.now().toString().slice(-6)}`, makine: machineCode, durum: STAGE_STATUS.WAITING, cikan: 0 };
+      return { ...o, asamalar: [...stages, newStage] };
+    });
+    await updateOrders(newOrders);
+  }
+  async function removeOrderStage(orderId, stageId) {
     const newOrders = (ordersRef.current || []).map((o) =>
-      o.id === orderId ? { ...o, makine: machineCode || null } : o
+      o.id === orderId ? { ...o, asamalar: (o.asamalar || []).filter((s) => s.id !== stageId) } : o
+    );
+    await updateOrders(newOrders);
+  }
+  async function updateOrderStage(orderId, stageId, patch) {
+    const newOrders = (ordersRef.current || []).map((o) =>
+      o.id === orderId
+        ? { ...o, asamalar: (o.asamalar || []).map((s) => (s.id === stageId ? { ...s, ...patch } : s)) }
+        : o
     );
     await updateOrders(newOrders);
   }
@@ -619,7 +671,7 @@ function useSharedData() {
   return {
     departments, machines, orders, plan, machineStates, log, loading,
     refresh, setMachineState, appendLog, updateDepartments, setPlanCell, setPolling,
-    addOrder, removeOrder, markOrderDelivered, assignOrderMachine, updateOrders,
+    addOrder, removeOrder, markOrderDelivered, addOrderStage, removeOrderStage, updateOrderStage, updateOrders,
   };
 }
 
@@ -914,15 +966,37 @@ function exportToExcel({ machines, plan, machineStates, log, orders }) {
   XLSX.utils.book_append_sheet(wb, wsPlan, "Üretim Planı");
 
   // Sayfa 3: Siparişler
-  const orderRows = (orders || []).map((o) => ({
-    "Sipariş No": o.id, "Ürün": o.urun, "Müşteri": o.musteri,
-    "Miktar": o.miktar, "Teslim Tarihi": o.teslimTarihi,
-    "Atanan Makine": o.makine || "",
-    "Durum": o.durum === ORDER_STATUS.DELIVERED ? "Teslim Edildi" : "Bekliyor",
-  }));
+  const orderRows = (orders || []).map((o) => {
+    const stages = o.asamalar || [];
+    const doneCount = stages.filter((s) => s.durum === STAGE_STATUS.DONE).length;
+    const active = stages.find((s) => s.durum === STAGE_STATUS.RUNNING) || stages.find((s) => s.durum === STAGE_STATUS.WAITING);
+    return {
+      "Sipariş No": o.id, "Ürün": o.urun, "Müşteri": o.musteri,
+      "Miktar": o.miktar, "Teslim Tarihi": o.teslimTarihi,
+      "Aşama İlerlemesi": stages.length ? `${doneCount}/${stages.length}` : "",
+      "Şu Anki Aşama": active ? active.makine : (stages.length ? "Tamamlandı" : ""),
+      "Durum": o.durum === ORDER_STATUS.DELIVERED ? "Teslim Edildi" : "Bekliyor",
+    };
+  });
   const wsOrders = XLSX.utils.json_to_sheet(orderRows);
-  wsOrders["!cols"] = [{ wch: 14 }, { wch: 24 }, { wch: 22 }, { wch: 10 }, { wch: 14 }, { wch: 14 }, { wch: 14 }];
+  wsOrders["!cols"] = [{ wch: 14 }, { wch: 24 }, { wch: 22 }, { wch: 10 }, { wch: 14 }, { wch: 14 }, { wch: 16 }, { wch: 14 }];
   XLSX.utils.book_append_sheet(wb, wsOrders, "Siparişler");
+
+  // Sayfa 3b: Sipariş Aşamaları (detay) — her siparişin her aşaması ayrı satır.
+  const stageRows = (orders || []).flatMap((o) =>
+    (o.asamalar || []).map((s, idx) => {
+      const mach = machines.find((m) => m.code === s.makine);
+      return {
+        "Sipariş No": o.id, "Ürün": o.urun, "Aşama Sırası": idx + 1,
+        "Makine Kodu": s.makine, "Makine Adı": mach ? mach.name : "",
+        "Durum": s.durum === STAGE_STATUS.DONE ? "Tamamlandı" : s.durum === STAGE_STATUS.RUNNING ? "Üretimde" : "Bekliyor",
+        "Çıkan Adet": s.cikan, "Sipariş Miktarı": o.miktar,
+      };
+    })
+  );
+  const wsStages = XLSX.utils.json_to_sheet(stageRows);
+  wsStages["!cols"] = [{ wch: 14 }, { wch: 22 }, { wch: 12 }, { wch: 12 }, { wch: 26 }, { wch: 12 }, { wch: 12 }, { wch: 14 }];
+  XLSX.utils.book_append_sheet(wb, wsStages, "Sipariş Aşamaları");
 
   // Sayfa 4: Makineler
   const machineRows = machines.map((m) => ({ "Makine Kodu": m.code, "Makine Adı": m.name }));
@@ -1403,12 +1477,13 @@ function PlanCellEditor({ dept, dateIso, machine, currentCell, orders, lang, onS
 
 
 function TanimlarPanel({ data, lang, dir }) {
-  const { departments, updateDepartments, orders, addOrder, removeOrder, markOrderDelivered, assignOrderMachine } = data;
+  const { departments, updateDepartments, orders, addOrder, removeOrder, markOrderDelivered, addOrderStage, removeOrderStage, updateOrderStage } = data;
   const [localDepartments, setLocalDepartments] = useState(departments);
   const [activeDept, setActiveDept] = useState(departments?.[0]?.id || "extruder");
   const [savedMsg, setSavedMsg] = useState(null);
   const [newProductText, setNewProductText] = useState("");
-  const [newOrder, setNewOrder] = useState({ urun: "", musteri: "", miktar: "", teslimTarihi: "", makine: "" });
+  const [newOrder, setNewOrder] = useState({ urun: "", musteri: "", miktar: "", teslimTarihi: "" });
+  const [stagePickers, setStagePickers] = useState({}); // orderId -> selected machine code (draft, before "Ekle")
 
   useEffect(() => { setLocalDepartments(departments); }, [departments]);
 
@@ -1474,9 +1549,16 @@ function TanimlarPanel({ data, lang, dir }) {
     await addOrder({
       id, urun: newOrder.urun, musteri: newOrder.musteri || "—",
       miktar: parseInt(newOrder.miktar) || 0, teslimTarihi: newOrder.teslimTarihi || "",
-      durum: ORDER_STATUS.PENDING, makine: newOrder.makine || null,
+      durum: ORDER_STATUS.PENDING, asamalar: [],
     });
-    setNewOrder({ urun: "", musteri: "", miktar: "", teslimTarihi: "", makine: "" });
+    setNewOrder({ urun: "", musteri: "", miktar: "", teslimTarihi: "" });
+  }
+
+  function cycleStageStatus(orderId, stage) {
+    const next = stage.durum === STAGE_STATUS.WAITING ? STAGE_STATUS.RUNNING
+      : stage.durum === STAGE_STATUS.RUNNING ? STAGE_STATUS.DONE
+      : STAGE_STATUS.WAITING;
+    updateOrderStage(orderId, stage.id, { durum: next });
   }
 
   return (
@@ -1560,22 +1642,10 @@ function TanimlarPanel({ data, lang, dir }) {
           {t("orders", lang)}
         </div>
 
-        <div style={{ display: "grid", gridTemplateColumns: "1.2fr 1fr 1fr 90px 130px 40px", gap: 8, marginBottom: 12 }}>
+        <div style={{ display: "grid", gridTemplateColumns: "1.4fr 1fr 90px 130px 40px", gap: 8, marginBottom: 12 }}>
           <select value={newOrder.urun} onChange={(e) => setNewOrder({ ...newOrder, urun: e.target.value })} style={inputStyle}>
             <option value="">{t("selectProduct", lang)}</option>
             {allOrderProducts.map((p) => <option key={p} value={p}>{p}</option>)}
-          </select>
-          <select value={newOrder.makine} onChange={(e) => setNewOrder({ ...newOrder, makine: e.target.value })} style={inputStyle}>
-            <option value="">{t("selectMachineForOrder", lang)}</option>
-            {DEPARTMENT_GROUPS.map((grp) => {
-              const opts = allOrderMachines.filter((m) => m.departmentId === grp.id);
-              if (opts.length === 0) return null;
-              return (
-                <optgroup key={grp.id} label={grp.label(lang)}>
-                  {opts.map((m) => <option key={m.code} value={m.code}>{m.code} · {m.name}</option>)}
-                </optgroup>
-              );
-            })}
           </select>
           <input value={newOrder.musteri} onChange={(e) => setNewOrder({ ...newOrder, musteri: e.target.value })} placeholder={t("orderCustomer", lang)} style={inputStyle} />
           <input type="number" value={newOrder.miktar} onChange={(e) => setNewOrder({ ...newOrder, miktar: e.target.value })} placeholder={t("orderQty", lang)} style={inputStyle} />
@@ -1585,37 +1655,101 @@ function TanimlarPanel({ data, lang, dir }) {
           </button>
         </div>
 
-        <div style={{ display: "grid", gap: 8 }}>
+        <div style={{ display: "grid", gap: 10 }}>
           {(orders || []).map((o) => {
             const delivered = o.durum === ORDER_STATUS.DELIVERED;
+            const stages = o.asamalar || [];
+            const doneCount = stages.filter((s) => s.durum === STAGE_STATUS.DONE).length;
+            const activeStage = stages.find((s) => s.durum === STAGE_STATUS.RUNNING) || stages.find((s) => s.durum === STAGE_STATUS.WAITING);
+            const activeMachine = activeStage ? allOrderMachines.find((m) => m.code === activeStage.makine) : null;
+            const draftMachine = stagePickers[o.id] || "";
             return (
               <div key={o.id} style={{
-                display: "flex", alignItems: "center", justifyContent: "space-between", gap: 12, flexWrap: "wrap",
                 background: COLORS.bgPanel, border: `1px solid ${delivered ? COLORS.accentRun + "40" : COLORS.border}`,
                 borderRadius: 12, padding: "12px 16px",
               }}>
-                <div>
-                  <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
-                    <span style={{ fontFamily: "'IBM Plex Mono', monospace", fontSize: 12, color: COLORS.accentWarn }}>{o.id}</span>
-                    <span style={{ fontFamily: "'Inter', sans-serif", fontSize: 13.5, fontWeight: 600, color: COLORS.text }}>{o.urun}</span>
+                <div style={{ display: "flex", alignItems: "flex-start", justifyContent: "space-between", gap: 12, flexWrap: "wrap" }}>
+                  <div>
+                    <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+                      <span style={{ fontFamily: "'IBM Plex Mono', monospace", fontSize: 12, color: COLORS.accentWarn }}>{o.id}</span>
+                      <span style={{ fontFamily: "'Inter', sans-serif", fontSize: 13.5, fontWeight: 600, color: COLORS.text }}>{o.urun}</span>
+                    </div>
+                    <div style={{ fontFamily: "'Inter', sans-serif", fontSize: 12, color: COLORS.textFaint, marginTop: 2 }}>
+                      {o.musteri} · {o.miktar} {t("units", lang)} {o.teslimTarihi && `· ${t("due", lang)} ${fmtDateShort(o.teslimTarihi)}`}
+                    </div>
+                    <div style={{ fontFamily: "'Inter', sans-serif", fontSize: 12, color: COLORS.textDim, marginTop: 4 }}>
+                      {stages.length === 0
+                        ? t("noStagesYet", lang)
+                        : activeStage
+                        ? <>{doneCount}/{stages.length} {t("stageOf", lang)} · <span style={{ color: COLORS.accentWarn }}>{t("currentStageLabel", lang)}</span> {activeStage.makine} {activeMachine ? `(${activeMachine.name})` : ""} · {activeStage.cikan}/{o.miktar} {t("units", lang)}</>
+                        : <span style={{ color: COLORS.accentRun }}>{t("allStagesDoneLabel", lang)}</span>}
+                    </div>
                   </div>
-                  <div style={{ fontFamily: "'Inter', sans-serif", fontSize: 12, color: COLORS.textFaint, marginTop: 2 }}>
-                    {o.musteri} · {o.miktar} {t("units", lang)} {o.teslimTarihi && `· ${t("due", lang)} ${fmtDateShort(o.teslimTarihi)}`}
-                  </div>
-                  <div style={{ display: "flex", alignItems: "center", gap: 6, marginTop: 6 }}>
-                    <span style={{ fontFamily: "'Inter', sans-serif", fontSize: 11, color: COLORS.textFaint }}>{t("orderMachine", lang)}:</span>
-                    <select
-                      value={o.makine || ""}
-                      onChange={(e) => assignOrderMachine(o.id, e.target.value)}
+                  <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+                    <button
+                      onClick={() => markOrderDelivered(o.id, !delivered)}
                       style={{
-                        background: o.makine ? COLORS.accentRunDim : COLORS.bgRaised,
-                        border: `1px solid ${o.makine ? COLORS.accentRun + "50" : COLORS.border}`,
-                        color: o.makine ? COLORS.accentRun : COLORS.textFaint,
-                        fontFamily: "'IBM Plex Mono', monospace", fontSize: 11, borderRadius: 6,
-                        padding: "3px 6px", cursor: "pointer", outline: "none",
+                        display: "flex", alignItems: "center", gap: 6, padding: "6px 12px", borderRadius: 8,
+                        border: `1px solid ${delivered ? COLORS.accentRun : COLORS.border}`,
+                        background: delivered ? COLORS.accentRunDim : "transparent",
+                        color: delivered ? COLORS.accentRun : COLORS.textDim,
+                        fontFamily: "'IBM Plex Mono', monospace", fontSize: 11, fontWeight: 700, cursor: "pointer",
                       }}
                     >
-                      <option value="">{t("noMachineAssigned", lang)}</option>
+                      {delivered && <Check size={12} />}
+                      {delivered ? t("orderDelivered", lang) : t("orderPending", lang)}
+                    </button>
+                    <button onClick={() => removeOrder(o.id)} style={{ background: "none", border: "none", color: COLORS.accentStop, cursor: "pointer", display: "flex" }}>
+                      <Trash2 size={15} />
+                    </button>
+                  </div>
+                </div>
+
+                {/* ---- Aşama takibi ---- */}
+                <div style={{ marginTop: 10, paddingTop: 10, borderTop: `1px solid ${COLORS.border}` }}>
+                  {stages.length > 0 && (
+                    <div style={{ display: "grid", gap: 6, marginBottom: 8 }}>
+                      {stages.map((s, idx) => {
+                        const mach = allOrderMachines.find((m) => m.code === s.makine);
+                        const statusColor = s.durum === STAGE_STATUS.DONE ? COLORS.accentRun : s.durum === STAGE_STATUS.RUNNING ? COLORS.accentWarn : COLORS.textFaint;
+                        const statusLabel = s.durum === STAGE_STATUS.DONE ? t("stageDone", lang) : s.durum === STAGE_STATUS.RUNNING ? t("stageRunning", lang) : t("stageWaiting", lang);
+                        return (
+                          <div key={s.id} style={{ display: "grid", gridTemplateColumns: "20px 1fr 100px 90px 24px", gap: 8, alignItems: "center" }}>
+                            <span style={{ fontFamily: "'IBM Plex Mono', monospace", fontSize: 10.5, color: COLORS.textFaint, textAlign: "center" }}>{idx + 1}</span>
+                            <span style={{ fontFamily: "'IBM Plex Mono', monospace", fontSize: 11.5, color: COLORS.text }}>
+                              {s.makine} <span style={{ color: COLORS.textFaint }}>{mach ? `· ${mach.name}` : ""}</span>
+                            </span>
+                            <button
+                              onClick={() => cycleStageStatus(o.id, s)}
+                              style={{
+                                fontFamily: "'IBM Plex Mono', monospace", fontSize: 10.5, fontWeight: 700, cursor: "pointer",
+                                border: `1px solid ${statusColor}50`, background: statusColor + "20", color: statusColor,
+                                borderRadius: 6, padding: "3px 6px",
+                              }}
+                            >
+                              {statusLabel}
+                            </button>
+                            <input
+                              type="number" value={s.cikan}
+                              onChange={(e) => updateOrderStage(o.id, s.id, { cikan: Math.max(0, parseInt(e.target.value) || 0) })}
+                              placeholder={t("stageOutputQty", lang)}
+                              style={{ ...inputStyle, fontSize: 11, padding: "4px 6px" }}
+                            />
+                            <button onClick={() => removeOrderStage(o.id, s.id)} style={{ background: "none", border: "none", color: COLORS.accentStop, cursor: "pointer", display: "flex", justifyContent: "center" }}>
+                              <X size={13} />
+                            </button>
+                          </div>
+                        );
+                      })}
+                    </div>
+                  )}
+                  <div style={{ display: "flex", gap: 6 }}>
+                    <select
+                      value={draftMachine}
+                      onChange={(e) => setStagePickers({ ...stagePickers, [o.id]: e.target.value })}
+                      style={{ ...inputStyle, fontSize: 11.5, flex: 1 }}
+                    >
+                      <option value="">{t("stagePickMachine", lang)}</option>
                       {DEPARTMENT_GROUPS.map((grp) => {
                         const opts = allOrderMachines.filter((m) => m.departmentId === grp.id);
                         if (opts.length === 0) return null;
@@ -1626,25 +1760,13 @@ function TanimlarPanel({ data, lang, dir }) {
                         );
                       })}
                     </select>
+                    <button
+                      onClick={() => { if (draftMachine) { addOrderStage(o.id, draftMachine); setStagePickers({ ...stagePickers, [o.id]: "" }); } }}
+                      style={{ display: "flex", alignItems: "center", gap: 4, background: COLORS.accentRunDim, border: `1px solid ${COLORS.accentRun}50`, color: COLORS.accentRun, padding: "0 12px", borderRadius: 8, cursor: "pointer", fontFamily: "'Inter', sans-serif", fontSize: 11.5, fontWeight: 600 }}
+                    >
+                      <Plus size={12} /> {t("addStage", lang)}
+                    </button>
                   </div>
-                </div>
-                <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
-                  <button
-                    onClick={() => markOrderDelivered(o.id, !delivered)}
-                    style={{
-                      display: "flex", alignItems: "center", gap: 6, padding: "6px 12px", borderRadius: 8,
-                      border: `1px solid ${delivered ? COLORS.accentRun : COLORS.border}`,
-                      background: delivered ? COLORS.accentRunDim : "transparent",
-                      color: delivered ? COLORS.accentRun : COLORS.textDim,
-                      fontFamily: "'IBM Plex Mono', monospace", fontSize: 11, fontWeight: 700, cursor: "pointer",
-                    }}
-                  >
-                    {delivered && <Check size={12} />}
-                    {delivered ? t("orderDelivered", lang) : t("orderPending", lang)}
-                  </button>
-                  <button onClick={() => removeOrder(o.id)} style={{ background: "none", border: "none", color: COLORS.accentStop, cursor: "pointer", display: "flex" }}>
-                    <Trash2 size={15} />
-                  </button>
                 </div>
               </div>
             );
