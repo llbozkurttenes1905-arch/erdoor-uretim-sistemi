@@ -170,6 +170,11 @@ const STRINGS = {
   currentStageLabel: { tr: "Şu an", en: "Currently at", ar: "حاليًا في" },
   allStagesDoneLabel: { tr: "Tüm aşamalar tamamlandı", en: "All stages completed", ar: "اكتملت جميع المراحل" },
   stageOf: { tr: "aşama", en: "of stages", ar: "مرحلة" },
+  myOrdersOnMachine: { tr: "Bu Makinede Sıradaki Siparişler", en: "Orders Queued on This Machine", ar: "الطلبات في الانتظار على هذه الماكينة" },
+  noOrdersOnMachine: { tr: "Bu makine için sırada bekleyen sipariş yok. Genel üretim planına bakılıyor.", en: "No orders queued for this machine. Falling back to the general production plan.", ar: "لا توجد طلبات في الانتظار لهذه الماكينة. يتم عرض خطة الإنتاج العامة." },
+  stageProgress: { tr: "aşama", en: "stage", ar: "مرحلة" },
+  workingOnOrder: { tr: "Çalışılan Sipariş", en: "Working On Order", ar: "الطلب قيد العمل" },
+  outOf: { tr: "/", en: "of", ar: "من" },
 };
 
 function t(key, lang, vars) {
@@ -329,6 +334,13 @@ function allProductsFrom(departments) {
 const ORDER_STATUS = { PENDING: "bekliyor", DELIVERED: "teslim_edildi" };
 
 const STAGE_STATUS = { WAITING: "bekliyor", RUNNING: "uretimde", DONE: "tamamlandi" };
+
+// Bir siparişin "şu an sırada olan" aşaması: ilk tamamlanmamış aşama.
+// Usta Modu'nda bir makine seçildiğinde, o makineye sırası gelmiş siparişler
+// bu fonksiyonla bulunur (önceki aşamalar bitmeden sıradaki aşama gösterilmez).
+function currentOrderStage(order) {
+  return (order.asamalar || []).find((s) => s.durum !== STAGE_STATUS.DONE) || null;
+}
 
 const DEFAULT_ORDERS = [
   {
@@ -681,8 +693,9 @@ function useSharedData() {
 
 function UstaMode({ data, onBack, lang, dir }) {
   const now = useNow();
-  const { machines, plan, machineStates, setMachineState, appendLog, setPolling } = data;
+  const { machines, plan, machineStates, setMachineState, appendLog, setPolling, orders, updateOrderStage } = data;
   const [selectedMachine, setSelectedMachine] = useState(null);
+  const [selectedOrderId, setSelectedOrderId] = useState(null);
   const [confirmingStop, setConfirmingStop] = useState(false);
   const [toast, setToast] = useState(null);
   const toastTimer = useRef(null);
@@ -709,16 +722,40 @@ function UstaMode({ data, onBack, lang, dir }) {
   const todaysCell = selectedMachine ? normalizeCell((plan[todayIso] || {})[selectedMachine.code]) : null;
   const linkedOrder = todaysCell?.orderId ? (data.orders || []).find((o) => o.id === todaysCell.orderId) : null;
 
+  // Bu makinede sırası gelmiş (bir önceki aşamaları tamamlanmış, bu makinedeki
+  // aşaması henüz bitmemiş) siparişler — usta birden çok sipariş arasından seçer.
+  const machineOrders = selectedMachine
+    ? (orders || [])
+        .filter((o) => o.durum !== ORDER_STATUS.DELIVERED)
+        .map((o) => ({ order: o, stage: currentOrderStage(o) }))
+        .filter((x) => x.stage && x.stage.makine === selectedMachine.code)
+    : [];
+  const selectedEntry = selectedOrderId ? machineOrders.find((x) => x.order.id === selectedOrderId) : null;
+
   async function pickMachine(m) {
     setSelectedMachine(m);
+    setSelectedOrderId(null);
   }
 
   async function startProduction() {
     const newState = {
-      status: "run", profile: todaysCell?.profile || "—", orderId: todaysCell?.orderId || null,
+      status: "run", profile: todaysCell?.profile || "—", orderId: todaysCell?.orderId || null, stageId: null,
       startedAt: Date.now(), produced: 0,
     };
     await setMachineState(selectedMachine.code, newState);
+  }
+
+  async function startProductionForOrder() {
+    if (!selectedEntry) return;
+    const { order, stage } = selectedEntry;
+    const newState = {
+      status: "run", profile: order.urun, orderId: order.id, stageId: stage.id,
+      startedAt: Date.now(), produced: stage.cikan || 0,
+    };
+    await setMachineState(selectedMachine.code, newState);
+    if (stage.durum !== STAGE_STATUS.RUNNING) {
+      await updateOrderStage(order.id, stage.id, { durum: STAGE_STATUS.RUNNING });
+    }
   }
 
   async function adjustProduced(delta) {
@@ -730,10 +767,14 @@ function UstaMode({ data, onBack, lang, dir }) {
     await appendLog({
       time: Date.now(), type: "üretim", machine: selectedMachine.code,
       label: state.orderId ? `${state.produced} adet · ${state.profile} · ${state.orderId}` : `${state.produced} adet · ${state.profile}`,
-      detail: { qty: state.produced, profile: state.profile, orderId: state.orderId || null, durationMs: Date.now() - state.startedAt },
+      detail: { qty: state.produced, profile: state.profile, orderId: state.orderId || null, stageId: state.stageId || null, durationMs: Date.now() - state.startedAt },
     });
+    if (state.orderId && state.stageId) {
+      await updateOrderStage(state.orderId, state.stageId, { cikan: state.produced });
+    }
     await setMachineState(selectedMachine.code, { status: "down_pending", prevProfile: state.profile, prevProduced: state.produced, startedAt: Date.now() });
     setConfirmingStop(false);
+    setSelectedOrderId(null);
     showToast(`${state.produced} ${t("unitsSaved", lang)}`);
   }
 
@@ -754,7 +795,11 @@ function UstaMode({ data, onBack, lang, dir }) {
         padding: "18px 20px", borderBottom: `1px solid ${COLORS.border}`, background: COLORS.bgPanel,
       }}>
         <button
-          onClick={() => (selectedMachine ? setSelectedMachine(null) : onBack())}
+          onClick={() => {
+            if (selectedOrderId) { setSelectedOrderId(null); return; }
+            if (selectedMachine) { setSelectedMachine(null); return; }
+            onBack();
+          }}
           style={{ display: "flex", alignItems: "center", gap: 6, background: "none", border: "none", color: COLORS.textDim, fontFamily: "'Inter', sans-serif", fontSize: 14, cursor: "pointer", padding: 0 }}
         >
           <ChevronLeft size={16} style={backIcon} />
@@ -784,6 +829,10 @@ function UstaMode({ data, onBack, lang, dir }) {
                     const st = machineStates[m.code] || { status: "idle" };
                     const dot = st.status === "run" ? COLORS.accentRun : st.status === "down_pending" ? COLORS.accentWarn : COLORS.accentIdle;
                     const profileToday = normalizeCell((plan[todayIso] || {})[m.code])?.profile;
+                    const pendingCount = (orders || [])
+                      .filter((o) => o.durum !== ORDER_STATUS.DELIVERED)
+                      .map((o) => currentOrderStage(o))
+                      .filter((s) => s && s.makine === m.code).length;
                     return (
                       <BigButton key={m.code} onClick={() => pickMachine(m)} style={{ padding: "20px", display: "flex", alignItems: "center", justifyContent: "space-between" }}>
                         <span style={{ display: "flex", alignItems: "center", gap: 12 }}>
@@ -791,7 +840,9 @@ function UstaMode({ data, onBack, lang, dir }) {
                           <span style={{ display: "flex", flexDirection: "column", alignItems: dir === "rtl" ? "flex-end" : "flex-start" }}>
                             <span style={{ fontFamily: "'Archivo', sans-serif", fontSize: 18 }}>{m.code}</span>
                             <span style={{ fontFamily: "'Inter', sans-serif", fontWeight: 400, fontSize: 13, color: COLORS.textDim }}>{m.name}</span>
-                            {profileToday && (
+                            {pendingCount > 0 ? (
+                              <span style={{ fontFamily: "'IBM Plex Mono', monospace", fontSize: 11, color: COLORS.accentRun, marginTop: 2 }}>{pendingCount} {t("orders", lang)}</span>
+                            ) : profileToday && (
                               <span style={{ fontFamily: "'IBM Plex Mono', monospace", fontSize: 11, color: COLORS.accentWarn, marginTop: 2 }}>{profileToday}</span>
                             )}
                           </span>
@@ -807,10 +858,68 @@ function UstaMode({ data, onBack, lang, dir }) {
         </div>
       )}
 
-      {selectedMachine && state.status === "idle" && (
+      {selectedMachine && state.status === "idle" && machineOrders.length > 0 && !selectedEntry && (
+        <div style={{ padding: "24px 20px" }}>
+          <div style={{ fontFamily: "'Archivo', sans-serif", fontWeight: 800, fontSize: 22, color: COLORS.text, marginBottom: 18 }}>
+            {t("myOrdersOnMachine", lang)}
+          </div>
+          <div style={{ display: "grid", gap: 12 }}>
+            {machineOrders.map(({ order, stage }) => {
+              const stageIdx = (order.asamalar || []).findIndex((s) => s.id === stage.id);
+              return (
+                <BigButton key={order.id} onClick={() => setSelectedOrderId(order.id)} style={{ padding: "18px 20px", display: "flex", alignItems: "center", justifyContent: "space-between" }}>
+                  <span style={{ display: "flex", flexDirection: "column", alignItems: dir === "rtl" ? "flex-end" : "flex-start", gap: 3 }}>
+                    <span style={{ display: "flex", alignItems: "center", gap: 8 }}>
+                      <span style={{ fontFamily: "'IBM Plex Mono', monospace", fontSize: 12, color: COLORS.accentWarn }}>{order.id}</span>
+                      <span style={{ fontFamily: "'Archivo', sans-serif", fontSize: 17 }}>{order.urun}</span>
+                    </span>
+                    <span style={{ fontFamily: "'Inter', sans-serif", fontWeight: 400, fontSize: 12.5, color: COLORS.textDim }}>
+                      {order.musteri} · {stageIdx + 1}/{(order.asamalar || []).length} {t("stageProgress", lang)} · {stage.cikan}/{order.miktar} {t("units", lang)}
+                      {order.teslimTarihi && ` · ${t("due", lang)} ${fmtDateShort(order.teslimTarihi)}`}
+                    </span>
+                  </span>
+                  <ChevronLeft size={20} style={{ transform: dir === "rtl" ? "none" : "rotate(180deg)", color: COLORS.textDim, flexShrink: 0 }} />
+                </BigButton>
+              );
+            })}
+          </div>
+        </div>
+      )}
+
+      {selectedMachine && state.status === "idle" && selectedEntry && (
+        <div style={{ padding: "24px 20px" }}>
+          <div style={{ fontFamily: "'Archivo', sans-serif", fontWeight: 800, fontSize: 22, color: COLORS.text, marginBottom: 18 }}>
+            {t("workingOnOrder", lang)}
+          </div>
+          <div style={{ background: COLORS.bgPanel, border: `1px solid ${COLORS.border}`, borderRadius: 16, padding: 22, marginBottom: 18 }}>
+            <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 4 }}>
+              <span style={{ fontFamily: "'IBM Plex Mono', monospace", fontSize: 12, color: COLORS.accentWarn }}>{selectedEntry.order.id}</span>
+              <span style={{ fontFamily: "'Archivo', sans-serif", fontWeight: 800, fontSize: 22, color: COLORS.text }}>{selectedEntry.order.urun}</span>
+            </div>
+            <div style={{ fontFamily: "'Inter', sans-serif", fontSize: 13, color: COLORS.textDim, marginTop: 6 }}>
+              {selectedEntry.order.musteri} · {selectedEntry.order.miktar} {t("units", lang)}
+              {selectedEntry.order.teslimTarihi && ` · ${t("due", lang)} ${fmtDateShort(selectedEntry.order.teslimTarihi)}`}
+            </div>
+            <div style={{ fontFamily: "'Inter', sans-serif", fontSize: 13, color: COLORS.text, marginTop: 10, paddingTop: 10, borderTop: `1px solid ${COLORS.border}` }}>
+              {((order) => {
+                const idx = (order.asamalar || []).findIndex((s) => s.id === selectedEntry.stage.id);
+                return `${idx + 1}/${(order.asamalar || []).length} ${t("stageProgress", lang)}`;
+              })(selectedEntry.order)} · <span style={{ color: COLORS.accentWarn, fontWeight: 700 }}>{selectedEntry.stage.cikan}/{selectedEntry.order.miktar} {t("units", lang)}</span>
+            </div>
+          </div>
+          <BigButton onClick={startProductionForOrder} variant="run" style={{ padding: "20px 0", fontSize: 18, display: "flex", alignItems: "center", justifyContent: "center", gap: 10 }}>
+            <Play size={20} fill="currentColor" /> {t("startProduction", lang)}
+          </BigButton>
+        </div>
+      )}
+
+      {selectedMachine && state.status === "idle" && machineOrders.length === 0 && (
         <div style={{ padding: "24px 20px" }}>
           <div style={{ fontFamily: "'Archivo', sans-serif", fontWeight: 800, fontSize: 22, color: COLORS.text, marginBottom: 18 }}>
             {t("todaysPlan", lang)}
+          </div>
+          <div style={{ background: COLORS.accentStopDim, border: `1px solid ${COLORS.accentStop}30`, borderRadius: 12, padding: "12px 16px", marginBottom: 14, fontFamily: "'Inter', sans-serif", fontSize: 12.5, color: COLORS.textDim }}>
+            {t("noOrdersOnMachine", lang)}
           </div>
           {todaysCell ? (
             <div style={{ background: COLORS.bgPanel, border: `1px solid ${COLORS.border}`, borderRadius: 16, padding: 22, marginBottom: 18 }}>
@@ -846,7 +955,12 @@ function UstaMode({ data, onBack, lang, dir }) {
           </div>
 
           <div style={{ background: COLORS.bgPanel, border: `1px solid ${COLORS.border}`, borderRadius: 14, padding: "16px 18px" }}>
-            <div style={{ fontFamily: "'IBM Plex Mono', monospace", fontSize: 12, color: COLORS.textDim }}>{t("producingProfile", lang)}</div>
+            <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between" }}>
+              <div style={{ fontFamily: "'IBM Plex Mono', monospace", fontSize: 12, color: COLORS.textDim }}>{t("producingProfile", lang)}</div>
+              {state.orderId && (
+                <span style={{ fontFamily: "'IBM Plex Mono', monospace", fontSize: 11, color: COLORS.accentWarn }}>{state.orderId}</span>
+              )}
+            </div>
             <div style={{ fontFamily: "'Archivo', sans-serif", fontWeight: 700, fontSize: 16, color: COLORS.text }}>
               {state.profile}
             </div>
