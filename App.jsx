@@ -159,6 +159,10 @@ const STRINGS = {
   noOrderLink: { tr: "Sipariş bağlama (genel üretim)", en: "No order link (general production)", ar: "بدون ربط بطلب (إنتاج عام)" },
   noMatchingOrders: { tr: "Bu ürün için bekleyen sipariş yok. Önce Tanımlar'dan sipariş ekleyin.", en: "No pending orders for this product. Add one from Settings first.", ar: "لا توجد طلبات معلقة لهذا المنتج. أضف طلبًا من الإعدادات أولاً." },
   producingForOrder: { tr: "Sipariş için üretiliyor", en: "Producing for order", ar: "قيد الإنتاج للطلب" },
+  orderMachine: { tr: "Atanan Makine", en: "Assigned Machine", ar: "الماكينة المخصصة" },
+  selectMachineForOrder: { tr: "Makine seçin (opsiyonel)", en: "Select machine (optional)", ar: "اختر الماكينة (اختياري)" },
+  noMachineAssigned: { tr: "Makine atanmadı", en: "No machine assigned", ar: "لم يتم تعيين ماكينة" },
+  machineAssignedTo: { tr: "üretiyor", en: "producing", ar: "ينتج" },
 };
 
 function t(key, lang, vars) {
@@ -318,9 +322,9 @@ function allProductsFrom(departments) {
 const ORDER_STATUS = { PENDING: "bekliyor", DELIVERED: "teslim_edildi" };
 
 const DEFAULT_ORDERS = [
-  { id: "SIP-101", urun: "ER100", musteri: "Akpınar İnşaat", miktar: 240, teslimTarihi: "2026-06-29", durum: ORDER_STATUS.PENDING },
-  { id: "SIP-102", urun: "KASA 100 mm", musteri: "Boran Yapı Market", miktar: 500, teslimTarihi: "2026-06-26", durum: ORDER_STATUS.PENDING },
-  { id: "SIP-103", urun: "DECK 140x26 Antrasit", musteri: "Meriç AVM Projesi", miktar: 300, teslimTarihi: "2026-07-03", durum: ORDER_STATUS.PENDING },
+  { id: "SIP-101", urun: "ER100", musteri: "Akpınar İnşaat", miktar: 240, teslimTarihi: "2026-06-29", durum: ORDER_STATUS.PENDING, makine: "MK-SER" },
+  { id: "SIP-102", urun: "KASA 100 mm", musteri: "Boran Yapı Market", miktar: 500, teslimTarihi: "2026-06-26", durum: ORDER_STATUS.PENDING, makine: "MK-EX1" },
+  { id: "SIP-103", urun: "DECK 140x26 Antrasit", musteri: "Meriç AVM Projesi", miktar: 300, teslimTarihi: "2026-07-03", durum: ORDER_STATUS.PENDING, makine: "MK-DECK1" },
 ];
 
 // Usta Modu makine seçim ekranında bölüm başlıkları için.
@@ -590,6 +594,12 @@ function useSharedData() {
     );
     await updateOrders(newOrders);
   }
+  async function assignOrderMachine(orderId, machineCode) {
+    const newOrders = (ordersRef.current || []).map((o) =>
+      o.id === orderId ? { ...o, makine: machineCode || null } : o
+    );
+    await updateOrders(newOrders);
+  }
 
   const planRef = useRef(plan);
   useEffect(() => { planRef.current = plan; }, [plan]);
@@ -609,7 +619,7 @@ function useSharedData() {
   return {
     departments, machines, orders, plan, machineStates, log, loading,
     refresh, setMachineState, appendLog, updateDepartments, setPlanCell, setPolling,
-    addOrder, removeOrder, markOrderDelivered, updateOrders,
+    addOrder, removeOrder, markOrderDelivered, assignOrderMachine, updateOrders,
   };
 }
 
@@ -907,10 +917,11 @@ function exportToExcel({ machines, plan, machineStates, log, orders }) {
   const orderRows = (orders || []).map((o) => ({
     "Sipariş No": o.id, "Ürün": o.urun, "Müşteri": o.musteri,
     "Miktar": o.miktar, "Teslim Tarihi": o.teslimTarihi,
+    "Atanan Makine": o.makine || "",
     "Durum": o.durum === ORDER_STATUS.DELIVERED ? "Teslim Edildi" : "Bekliyor",
   }));
   const wsOrders = XLSX.utils.json_to_sheet(orderRows);
-  wsOrders["!cols"] = [{ wch: 14 }, { wch: 24 }, { wch: 22 }, { wch: 10 }, { wch: 14 }, { wch: 14 }];
+  wsOrders["!cols"] = [{ wch: 14 }, { wch: 24 }, { wch: 22 }, { wch: 10 }, { wch: 14 }, { wch: 14 }, { wch: 14 }];
   XLSX.utils.book_append_sheet(wb, wsOrders, "Siparişler");
 
   // Sayfa 4: Makineler
@@ -1392,12 +1403,12 @@ function PlanCellEditor({ dept, dateIso, machine, currentCell, orders, lang, onS
 
 
 function TanimlarPanel({ data, lang, dir }) {
-  const { departments, updateDepartments, orders, addOrder, removeOrder, markOrderDelivered } = data;
+  const { departments, updateDepartments, orders, addOrder, removeOrder, markOrderDelivered, assignOrderMachine } = data;
   const [localDepartments, setLocalDepartments] = useState(departments);
   const [activeDept, setActiveDept] = useState(departments?.[0]?.id || "extruder");
   const [savedMsg, setSavedMsg] = useState(null);
   const [newProductText, setNewProductText] = useState("");
-  const [newOrder, setNewOrder] = useState({ urun: "", musteri: "", miktar: "", teslimTarihi: "" });
+  const [newOrder, setNewOrder] = useState({ urun: "", musteri: "", miktar: "", teslimTarihi: "", makine: "" });
 
   useEffect(() => { setLocalDepartments(departments); }, [departments]);
 
@@ -1454,6 +1465,8 @@ function TanimlarPanel({ data, lang, dir }) {
 
   // Sipariş ürün seçenekleri: tüm bölümlerin ürünleri + ER kapı modelleri.
   const allOrderProducts = allProductsFrom(localDepartments);
+  // Sipariş makine seçenekleri: tüm bölümlerin makineleri + Kanat makineleri.
+  const allOrderMachines = allMachinesFrom(localDepartments);
 
   async function submitNewOrder() {
     if (!newOrder.urun || !newOrder.miktar) return;
@@ -1461,9 +1474,9 @@ function TanimlarPanel({ data, lang, dir }) {
     await addOrder({
       id, urun: newOrder.urun, musteri: newOrder.musteri || "—",
       miktar: parseInt(newOrder.miktar) || 0, teslimTarihi: newOrder.teslimTarihi || "",
-      durum: ORDER_STATUS.PENDING,
+      durum: ORDER_STATUS.PENDING, makine: newOrder.makine || null,
     });
-    setNewOrder({ urun: "", musteri: "", miktar: "", teslimTarihi: "" });
+    setNewOrder({ urun: "", musteri: "", miktar: "", teslimTarihi: "", makine: "" });
   }
 
   return (
@@ -1547,10 +1560,22 @@ function TanimlarPanel({ data, lang, dir }) {
           {t("orders", lang)}
         </div>
 
-        <div style={{ display: "grid", gridTemplateColumns: "1.4fr 1fr 90px 130px 40px", gap: 8, marginBottom: 12 }}>
+        <div style={{ display: "grid", gridTemplateColumns: "1.2fr 1fr 1fr 90px 130px 40px", gap: 8, marginBottom: 12 }}>
           <select value={newOrder.urun} onChange={(e) => setNewOrder({ ...newOrder, urun: e.target.value })} style={inputStyle}>
             <option value="">{t("selectProduct", lang)}</option>
             {allOrderProducts.map((p) => <option key={p} value={p}>{p}</option>)}
+          </select>
+          <select value={newOrder.makine} onChange={(e) => setNewOrder({ ...newOrder, makine: e.target.value })} style={inputStyle}>
+            <option value="">{t("selectMachineForOrder", lang)}</option>
+            {DEPARTMENT_GROUPS.map((grp) => {
+              const opts = allOrderMachines.filter((m) => m.departmentId === grp.id);
+              if (opts.length === 0) return null;
+              return (
+                <optgroup key={grp.id} label={grp.label(lang)}>
+                  {opts.map((m) => <option key={m.code} value={m.code}>{m.code} · {m.name}</option>)}
+                </optgroup>
+              );
+            })}
           </select>
           <input value={newOrder.musteri} onChange={(e) => setNewOrder({ ...newOrder, musteri: e.target.value })} placeholder={t("orderCustomer", lang)} style={inputStyle} />
           <input type="number" value={newOrder.miktar} onChange={(e) => setNewOrder({ ...newOrder, miktar: e.target.value })} placeholder={t("orderQty", lang)} style={inputStyle} />
@@ -1576,6 +1601,31 @@ function TanimlarPanel({ data, lang, dir }) {
                   </div>
                   <div style={{ fontFamily: "'Inter', sans-serif", fontSize: 12, color: COLORS.textFaint, marginTop: 2 }}>
                     {o.musteri} · {o.miktar} {t("units", lang)} {o.teslimTarihi && `· ${t("due", lang)} ${fmtDateShort(o.teslimTarihi)}`}
+                  </div>
+                  <div style={{ display: "flex", alignItems: "center", gap: 6, marginTop: 6 }}>
+                    <span style={{ fontFamily: "'Inter', sans-serif", fontSize: 11, color: COLORS.textFaint }}>{t("orderMachine", lang)}:</span>
+                    <select
+                      value={o.makine || ""}
+                      onChange={(e) => assignOrderMachine(o.id, e.target.value)}
+                      style={{
+                        background: o.makine ? COLORS.accentRunDim : COLORS.bgRaised,
+                        border: `1px solid ${o.makine ? COLORS.accentRun + "50" : COLORS.border}`,
+                        color: o.makine ? COLORS.accentRun : COLORS.textFaint,
+                        fontFamily: "'IBM Plex Mono', monospace", fontSize: 11, borderRadius: 6,
+                        padding: "3px 6px", cursor: "pointer", outline: "none",
+                      }}
+                    >
+                      <option value="">{t("noMachineAssigned", lang)}</option>
+                      {DEPARTMENT_GROUPS.map((grp) => {
+                        const opts = allOrderMachines.filter((m) => m.departmentId === grp.id);
+                        if (opts.length === 0) return null;
+                        return (
+                          <optgroup key={grp.id} label={grp.label(lang)}>
+                            {opts.map((m) => <option key={m.code} value={m.code}>{m.code} · {m.name}</option>)}
+                          </optgroup>
+                        );
+                      })}
+                    </select>
                   </div>
                 </div>
                 <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
