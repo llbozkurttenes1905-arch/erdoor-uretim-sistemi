@@ -175,6 +175,56 @@ const STRINGS = {
   stageProgress: { tr: "aşama", en: "stage", ar: "مرحلة" },
   workingOnOrder: { tr: "Çalışılan Sipariş", en: "Working On Order", ar: "الطلب قيد العمل" },
   outOf: { tr: "/", en: "of", ar: "من" },
+
+  // ---- Giriş / Güvenlik ----
+  loginTitle: { tr: "Giriş Yap", en: "Sign In", ar: "تسجيل الدخول" },
+  email: { tr: "E-posta", en: "Email", ar: "البريد الإلكتروني" },
+  password: { tr: "Şifre", en: "Password", ar: "كلمة المرور" },
+  fullName: { tr: "Ad Soyad", en: "Full Name", ar: "الاسم الكامل" },
+  signIn: { tr: "Giriş Yap", en: "Sign In", ar: "دخول" },
+  signUp: { tr: "Hesap Oluştur", en: "Create Account", ar: "إنشاء حساب" },
+  noAccountYet: { tr: "Hesabın yok mu? Kayıt ol", en: "No account? Sign up", ar: "ليس لديك حساب؟ سجل" },
+  haveAccount: { tr: "Zaten hesabın var mı? Giriş yap", en: "Already have an account? Sign in", ar: "لديك حساب بالفعل؟ سجل الدخول" },
+  signOut: { tr: "Çıkış Yap", en: "Sign Out", ar: "تسجيل الخروج" },
+  loginError: { tr: "Giriş başarısız — e-posta/şifreyi kontrol edin", en: "Sign in failed — check email/password", ar: "فشل تسجيل الدخول — تحقق من البريد/كلمة المرور" },
+  signUpSuccess: { tr: "Hesap oluşturuldu. Şimdi giriş yapabilirsin.", en: "Account created. You can sign in now.", ar: "تم إنشاء الحساب. يمكنك تسجيل الدخول الآن." },
+  noManagerAccess: { tr: "Bu hesabın yönetici yetkisi yok. Erişim için yöneticinize başvurun.", en: "This account doesn't have manager access. Ask your admin.", ar: "لا يملك هذا الحساب صلاحية المدير." },
+  signedInAs: { tr: "Giriş yapan", en: "Signed in as", ar: "تم تسجيل الدخول باسم" },
+  authenticating: { tr: "Kontrol ediliyor…", en: "Checking…", ar: "جارٍ التحقق…" },
+
+  // ---- Stok / Hammadde ----
+  stok: { tr: "Stok", en: "Stock", ar: "المخزون" },
+  stockItems: { tr: "Hammadde / Stok Kalemleri", en: "Raw Materials / Stock Items", ar: "المواد الخام / عناصر المخزون" },
+  stockItemName: { tr: "Malzeme adı", en: "Material name", ar: "اسم المادة" },
+  stockUnit: { tr: "Birim", en: "Unit", ar: "الوحدة" },
+  stockQty: { tr: "Mevcut Miktar", en: "Current Quantity", ar: "الكمية الحالية" },
+  stockCritical: { tr: "Kritik Seviye", en: "Critical Level", ar: "المستوى الحرج" },
+  stockLow: { tr: "KRİTİK SEVİYE ALTINDA", en: "BELOW CRITICAL LEVEL", ar: "أقل من المستوى الحرج" },
+  addStockItem: { tr: "Malzeme Ekle", en: "Add Material", ar: "إضافة مادة" },
+  adjustStock: { tr: "Miktar Güncelle", en: "Adjust Quantity", ar: "تعديل الكمية" },
+  stockIn: { tr: "Giriş", en: "In", ar: "دخول" },
+  stockOut: { tr: "Çıkış", en: "Out", ar: "خروج" },
+  noStockItems: { tr: "Henüz stok kalemi eklenmedi", en: "No stock items yet", ar: "لم تُضف عناصر مخزون بعد" },
+  stockMovements: { tr: "Son Stok Hareketleri", en: "Recent Stock Movements", ar: "آخر حركات المخزون" },
+
+  // ---- Satın Alma ----
+  purchasing: { tr: "Satın Alma", en: "Purchasing", ar: "المشتريات" },
+  purchaseRequestsTitle: { tr: "Satın Alma Talepleri", en: "Purchase Requests", ar: "طلبات الشراء" },
+  newPurchaseRequest: { tr: "Yeni Talep", en: "New Request", ar: "طلب جديد" },
+  purchaseItem: { tr: "Malzeme", en: "Material", ar: "المادة" },
+  purchaseQty: { tr: "Talep Edilen Miktar", en: "Requested Quantity", ar: "الكمية المطلوبة" },
+  purchaseNote: { tr: "Not (opsiyonel)", en: "Note (optional)", ar: "ملاحظة (اختياري)" },
+  purchaseStatusPending: { tr: "Bekliyor", en: "Pending", ar: "قيد الانتظار" },
+  purchaseStatusApproved: { tr: "Onaylandı", en: "Approved", ar: "موافق عليه" },
+  purchaseStatusOrdered: { tr: "Sipariş Verildi", en: "Ordered", ar: "تم الطلب" },
+  purchaseStatusReceived: { tr: "Teslim Alındı", en: "Received", ar: "تم الاستلام" },
+  approve: { tr: "Onayla", en: "Approve", ar: "موافقة" },
+  markOrdered: { tr: "Sipariş Verildi İşaretle", en: "Mark as Ordered", ar: "وضع علامة تم الطلب" },
+  markReceived: { tr: "Teslim Alındı İşaretle", en: "Mark as Received", ar: "وضع علامة تم الاستلام" },
+  noPurchaseRequests: { tr: "Henüz talep yok", en: "No requests yet", ar: "لا توجد طلبات بعد" },
+  requestedBy: { tr: "Talep eden", en: "Requested by", ar: "طلب بواسطة" },
+  del: { tr: "Sil", en: "Delete", ar: "حذف" },
+  selectStockItem: { tr: "Malzeme seçin...", en: "Select material...", ar: "اختر المادة..." },
 };
 
 function t(key, lang, vars) {
@@ -204,6 +254,150 @@ function useLanguage() {
 
   const dir = LANGUAGES.find((l) => l.code === lang)?.dir || "ltr";
   return { lang, setLang, dir, ready };
+}
+
+// =================================================================
+// KİMLİK DOĞRULAMA (Supabase Auth)
+// Roller: "operator" (varsayılan, yeni kayıt olan herkes), "usta",
+// "yonetici", "admin". Yönetici Modu'na sadece yonetici/admin girebilir.
+// Yeni kullanıcı rolünü değiştirmek için Supabase Dashboard > Table
+// Editor > profiles tablosundan "role" alanını elle güncelleyin
+// (ör. "yonetici" veya "admin" yazın).
+// =================================================================
+const MANAGER_ROLES = ["yonetici", "admin"];
+
+function useAuth() {
+  const [session, setSession] = useState(undefined); // undefined = henüz kontrol edilmedi
+  const [profile, setProfile] = useState(null);
+  const [profileLoading, setProfileLoading] = useState(false);
+
+  useEffect(() => {
+    supabase.auth.getSession().then(({ data }) => setSession(data.session ?? null));
+    const { data: sub } = supabase.auth.onAuthStateChange((_event, sess) => setSession(sess));
+    return () => sub.subscription.unsubscribe();
+  }, []);
+
+  useEffect(() => {
+    let cancelled = false;
+    if (!session) { setProfile(null); return; }
+    setProfileLoading(true);
+    supabase
+      .from("profiles")
+      .select("*")
+      .eq("id", session.user.id)
+      .maybeSingle()
+      .then(({ data }) => {
+        if (!cancelled) { setProfile(data); setProfileLoading(false); }
+      });
+    return () => { cancelled = true; };
+  }, [session]);
+
+  async function signIn(email, password) {
+    return supabase.auth.signInWithPassword({ email, password });
+  }
+  async function signUp(email, password, fullName) {
+    return supabase.auth.signUp({ email, password, options: { data: { full_name: fullName } } });
+  }
+  async function signOut() {
+    await supabase.auth.signOut();
+  }
+
+  return {
+    session, profile, signIn, signUp, signOut,
+    loading: session === undefined || (!!session && profileLoading && profile === null),
+  };
+}
+
+function AuthTextField({ label, type = "text", value, onChange }) {
+  return (
+    <div style={{ display: "grid", gap: 6 }}>
+      <label style={{ fontFamily: "'Inter', sans-serif", fontSize: 12.5, color: COLORS.textDim }}>{label}</label>
+      <input
+        type={type}
+        value={value}
+        onChange={(e) => onChange(e.target.value)}
+        style={{
+          background: COLORS.bgRaised, border: `1px solid ${COLORS.border}`, borderRadius: 10,
+          padding: "11px 12px", color: COLORS.text, fontFamily: "'Inter', sans-serif", fontSize: 14,
+          outline: "none",
+        }}
+      />
+    </div>
+  );
+}
+
+function LoginScreen({ lang, dir, setLang, onSignIn, onSignUp }) {
+  const [isSignUp, setIsSignUp] = useState(false);
+  const [email, setEmail] = useState("");
+  const [password, setPassword] = useState("");
+  const [fullName, setFullName] = useState("");
+  const [error, setError] = useState(null);
+  const [info, setInfo] = useState(null);
+  const [busy, setBusy] = useState(false);
+
+  async function handleSubmit(e) {
+    e.preventDefault();
+    setError(null); setInfo(null); setBusy(true);
+    try {
+      if (isSignUp) {
+        const { error: err } = await onSignUp(email, password, fullName);
+        if (err) setError(err.message);
+        else { setInfo(t("signUpSuccess", lang)); setIsSignUp(false); }
+      } else {
+        const { error: err } = await onSignIn(email, password);
+        if (err) setError(t("loginError", lang));
+      }
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  return (
+    <div dir={dir} style={{ minHeight: "100vh", background: COLORS.bg, display: "flex", alignItems: "center", justifyContent: "center", padding: 20 }}>
+      <FontImports />
+      <div style={{ width: "100%", maxWidth: 380 }}>
+        <div style={{ display: "flex", justifyContent: "center", gap: 8, marginBottom: 26 }}>
+          {LANGUAGES.map((l) => (
+            <button key={l.code} onClick={() => setLang(l.code)} style={{
+              padding: "7px 14px", borderRadius: 99, cursor: "pointer",
+              border: `1px solid ${lang === l.code ? COLORS.accentRun : COLORS.border}`,
+              background: lang === l.code ? COLORS.accentRunDim : "transparent",
+              color: lang === l.code ? COLORS.accentRun : COLORS.textDim,
+              fontFamily: "'Inter', sans-serif", fontSize: 13, fontWeight: 600,
+            }}>
+              {l.label}
+            </button>
+          ))}
+        </div>
+        <div style={{ textAlign: "center", marginBottom: 26 }}>
+          <div style={{ fontFamily: "'IBM Plex Mono', monospace", fontSize: 12, color: COLORS.textFaint, letterSpacing: 3, textTransform: "uppercase" }}>
+            {t("appTitle", lang)}
+          </div>
+          <div style={{ fontFamily: "'Archivo', sans-serif", fontWeight: 800, fontSize: 24, color: COLORS.text, marginTop: 6 }}>
+            {isSignUp ? t("signUp", lang) : t("loginTitle", lang)}
+          </div>
+        </div>
+        <form onSubmit={handleSubmit} style={{ display: "grid", gap: 14 }}>
+          {isSignUp && <AuthTextField label={t("fullName", lang)} value={fullName} onChange={setFullName} />}
+          <AuthTextField label={t("email", lang)} type="email" value={email} onChange={setEmail} />
+          <AuthTextField label={t("password", lang)} type="password" value={password} onChange={setPassword} />
+          {error && <div style={{ color: COLORS.accentStop, fontFamily: "'Inter', sans-serif", fontSize: 13 }}>{error}</div>}
+          {info && <div style={{ color: COLORS.accentRun, fontFamily: "'Inter', sans-serif", fontSize: 13 }}>{info}</div>}
+          <BigButton variant="run" disabled={busy} style={{ padding: "14px 20px", justifyContent: "center" }}>
+            {isSignUp ? t("signUp", lang) : t("signIn", lang)}
+          </BigButton>
+        </form>
+        <div style={{ textAlign: "center", marginTop: 18 }}>
+          <button
+            onClick={() => { setIsSignUp((v) => !v); setError(null); setInfo(null); }}
+            style={{ background: "none", border: "none", color: COLORS.textDim, fontFamily: "'Inter', sans-serif", fontSize: 13, cursor: "pointer", textDecoration: "underline" }}
+          >
+            {isSignUp ? t("haveAccount", lang) : t("noAccountYet", lang)}
+          </button>
+        </div>
+      </div>
+    </div>
+  );
 }
 
 // =================================================================
@@ -373,6 +567,33 @@ const DEFAULT_ORDERS = [
   },
 ];
 
+// =================================================================
+// STOK / HAMMADDE + SATIN ALMA — varsayılan veriler ve durum sabitleri
+// =================================================================
+const DEFAULT_STOCK = [
+  { id: "STK-001", name: "PVC Granül", unit: "kg", qty: 2400, criticalLevel: 500 },
+  { id: "STK-002", name: "Cam (4mm Temperli)", unit: "m2", qty: 180, criticalLevel: 50 },
+  { id: "STK-003", name: "Menteşe Seti", unit: "adet", qty: 640, criticalLevel: 100 },
+  { id: "STK-004", name: "Conta (EPDM)", unit: "m", qty: 900, criticalLevel: 200 },
+];
+
+const PURCHASE_STATUS = {
+  PENDING: "bekliyor",
+  APPROVED: "onaylandi",
+  ORDERED: "siparis_verildi",
+  RECEIVED: "teslim_alindi",
+};
+const PURCHASE_STATUS_ORDER = [PURCHASE_STATUS.PENDING, PURCHASE_STATUS.APPROVED, PURCHASE_STATUS.ORDERED, PURCHASE_STATUS.RECEIVED];
+function purchaseStatusLabel(status, lang) {
+  const key = {
+    [PURCHASE_STATUS.PENDING]: "purchaseStatusPending",
+    [PURCHASE_STATUS.APPROVED]: "purchaseStatusApproved",
+    [PURCHASE_STATUS.ORDERED]: "purchaseStatusOrdered",
+    [PURCHASE_STATUS.RECEIVED]: "purchaseStatusReceived",
+  }[status];
+  return key ? t(key, lang) : status;
+}
+
 // Usta Modu makine seçim ekranında bölüm başlıkları için.
 const DEPARTMENT_GROUPS = [
   { id: "extruder", label: (lang) => ({ tr: "Extruder", en: "Extruder", ar: "البثق" }[lang] || "Extruder") },
@@ -535,6 +756,9 @@ function useSharedData() {
   const [plan, setPlanState] = useState({}); // { "YYYY-MM-DD": { MAKINEKODU: "profil" } }
   const [machineStates, setMachineStates] = useState({});
   const [log, setLog] = useState([]);
+  const [stock, setStockState] = useState(null);
+  const [stockMovements, setStockMovements] = useState([]);
+  const [purchaseRequests, setPurchaseRequestsState] = useState(null);
   const [loading, setLoading] = useState(true);
   // Tracks machine codes with a write in flight, plus a version counter,
   // so a slow background refresh() can never overwrite a newer local change.
@@ -550,11 +774,14 @@ function useSharedData() {
     isRefreshing.current = true;
     try {
       const versionAtStart = writeVersion.current;
-      const [dep, ord, p, l] = await Promise.all([
+      const [dep, ord, p, l, sk, skMoves, pr] = await Promise.all([
         loadShared("departments", DEFAULT_DEPARTMENTS),
         loadShared("orders", DEFAULT_ORDERS),
         loadShared("plan", {}),
         loadShared("log", []),
+        loadShared("stock", DEFAULT_STOCK),
+        loadShared("stock-movements", []),
+        loadShared("purchase-requests", []),
       ]);
       const m = allMachinesFrom(dep);
       const stateEntries = await Promise.all(
@@ -578,6 +805,9 @@ function useSharedData() {
         return merged;
       });
       setLog((prev) => (prev.length >= l.length ? prev : l));
+      setStockState(sk);
+      setStockMovements((prev) => (prev.length >= skMoves.length ? prev : skMoves));
+      setPurchaseRequestsState(pr);
       setLoading(false);
     } finally {
       isRefreshing.current = false;
@@ -680,10 +910,81 @@ function useSharedData() {
     await saveShared("plan", newPlan);
   }
 
+  // ---------------- Stok / Hammadde ----------------
+  const stockRef = useRef(stock);
+  useEffect(() => { stockRef.current = stock; }, [stock]);
+  const movesRef = useRef(stockMovements);
+  useEffect(() => { movesRef.current = stockMovements; }, [stockMovements]);
+
+  async function appendStockMovement(entry) {
+    const newMoves = [entry, ...movesRef.current].slice(0, 200);
+    movesRef.current = newMoves;
+    setStockMovements(newMoves);
+    await saveShared("stock-movements", newMoves);
+  }
+
+  async function updateStock(newStock) {
+    stockRef.current = newStock;
+    setStockState(newStock);
+    await saveShared("stock", newStock);
+  }
+  async function addStockItem(item) {
+    const newStock = [...(stockRef.current || []), item];
+    await updateStock(newStock);
+  }
+  async function removeStockItem(id) {
+    const newStock = (stockRef.current || []).filter((s) => s.id !== id);
+    await updateStock(newStock);
+  }
+  // delta pozitifse giriş, negatifse çıkış. Her ayarlama hareket kaydı bırakır.
+  async function adjustStockQty(id, delta, reason) {
+    const current = (stockRef.current || []).find((s) => s.id === id);
+    if (!current) return;
+    const newQty = Math.max(0, (current.qty || 0) + delta);
+    const newStock = (stockRef.current || []).map((s) => (s.id === id ? { ...s, qty: newQty } : s));
+    await updateStock(newStock);
+    await appendStockMovement({
+      time: new Date().toISOString(), itemId: id, itemName: current.name,
+      delta, reason: reason || "", resultingQty: newQty,
+    });
+  }
+
+  // ---------------- Satın Alma ----------------
+  const purchaseRef = useRef(purchaseRequests);
+  useEffect(() => { purchaseRef.current = purchaseRequests; }, [purchaseRequests]);
+
+  async function updatePurchaseRequests(newList) {
+    purchaseRef.current = newList;
+    setPurchaseRequestsState(newList);
+    await saveShared("purchase-requests", newList);
+  }
+  async function addPurchaseRequest(reqItem) {
+    const newList = [reqItem, ...(purchaseRef.current || [])];
+    await updatePurchaseRequests(newList);
+  }
+  async function removePurchaseRequest(id) {
+    const newList = (purchaseRef.current || []).filter((r) => r.id !== id);
+    await updatePurchaseRequests(newList);
+  }
+  // Durumu ilerletir; "teslim_alindi" durumuna geçince ilgili stok kalemine
+  // otomatik giriş yapar (stok kaydı varsa).
+  async function advancePurchaseStatus(id, newStatus) {
+    const reqItem = (purchaseRef.current || []).find((r) => r.id === id);
+    if (!reqItem) return;
+    const newList = (purchaseRef.current || []).map((r) => (r.id === id ? { ...r, status: newStatus } : r));
+    await updatePurchaseRequests(newList);
+    if (newStatus === PURCHASE_STATUS.RECEIVED && reqItem.stockItemId) {
+      await adjustStockQty(reqItem.stockItemId, Number(reqItem.qty) || 0, `Satın alma teslim alındı (${reqItem.id})`);
+    }
+  }
+
   return {
     departments, machines, orders, plan, machineStates, log, loading,
+    stock, stockMovements, purchaseRequests,
     refresh, setMachineState, appendLog, updateDepartments, setPlanCell, setPolling,
     addOrder, removeOrder, markOrderDelivered, addOrderStage, removeOrderStage, updateOrderStage, updateOrders,
+    addStockItem, removeStockItem, adjustStockQty,
+    addPurchaseRequest, removePurchaseRequest, advancePurchaseStatus,
   };
 }
 
@@ -1216,7 +1517,7 @@ function MachineCard({ machine, state, profileToday, now, onClick, lang, dir }) 
   );
 }
 
-function YoneticiMode({ data, onBack, lang, dir }) {
+function YoneticiMode({ data, onBack, lang, dir, profile }) {
   const now = useNow(2000);
   const { machines, plan, machineStates, log, refresh, orders, setPolling } = data;
   const [tab, setTab] = useState("durum");
@@ -1278,6 +1579,8 @@ function YoneticiMode({ data, onBack, lang, dir }) {
         {[
           { id: "durum", label: t("status", lang) },
           { id: "plan", label: t("productionPlan", lang) },
+          { id: "stok", label: t("stok", lang) },
+          { id: "satinalma", label: t("purchasing", lang) },
           { id: "ayarlar", label: t("settings", lang) },
         ].map((tabItem) => (
           <button key={tabItem.id} onClick={() => setTab(tabItem.id)} style={{
@@ -1373,6 +1676,10 @@ function YoneticiMode({ data, onBack, lang, dir }) {
       )}
 
       {tab === "plan" && <PlanTakvimi data={data} lang={lang} dir={dir} />}
+
+      {tab === "stok" && <StokPanel data={data} lang={lang} dir={dir} />}
+
+      {tab === "satinalma" && <SatinAlmaPanel data={data} lang={lang} dir={dir} profile={profile} />}
 
       {tab === "ayarlar" && <TanimlarPanel data={data} lang={lang} dir={dir} />}
     </div>
@@ -1930,6 +2237,229 @@ const inputStyle = {
   color: COLORS.text, fontFamily: "'Inter', sans-serif", fontSize: 13, padding: "8px 10px", width: "100%", outline: "none",
 };
 
+// =================================================================
+// STOK / HAMMADDE PANELİ
+// =================================================================
+function StokPanel({ data, lang, dir }) {
+  const { stock, stockMovements, addStockItem, removeStockItem, adjustStockQty } = data;
+  const [newItem, setNewItem] = useState({ name: "", unit: "", qty: "", criticalLevel: "" });
+  const [adjusting, setAdjusting] = useState(null); // { id, sign }
+  const [adjustAmount, setAdjustAmount] = useState("");
+  const [adjustReason, setAdjustReason] = useState("");
+
+  if (!stock) return <LoadingScreen lang={lang} />;
+
+  function handleAdd() {
+    if (!newItem.name.trim()) return;
+    addStockItem({
+      id: `STK-${Date.now().toString().slice(-6)}`,
+      name: newItem.name.trim(),
+      unit: newItem.unit.trim() || "adet",
+      qty: Number(newItem.qty) || 0,
+      criticalLevel: Number(newItem.criticalLevel) || 0,
+    });
+    setNewItem({ name: "", unit: "", qty: "", criticalLevel: "" });
+  }
+
+  function handleConfirmAdjust() {
+    const amount = Number(adjustAmount);
+    if (!adjusting || !amount) return;
+    adjustStockQty(adjusting.id, adjusting.sign * Math.abs(amount), adjustReason);
+    setAdjusting(null); setAdjustAmount(""); setAdjustReason("");
+  }
+
+  return (
+    <div style={{ maxWidth: 1180, margin: "0 auto", padding: "18px 20px 60px", display: "grid", gap: 22 }}>
+      <div>
+        <div style={{ fontFamily: "'IBM Plex Mono', monospace", fontSize: 11, color: COLORS.textFaint, letterSpacing: 1.5, textTransform: "uppercase", marginBottom: 12 }}>
+          {t("stockItems", lang)}
+        </div>
+        {stock.length === 0 && <div style={{ color: COLORS.textFaint, fontFamily: "'Inter', sans-serif", fontSize: 13 }}>{t("noStockItems", lang)}</div>}
+        <div style={{ display: "grid", gap: 10, gridTemplateColumns: "repeat(auto-fill, minmax(280px, 1fr))" }}>
+          {stock.map((s) => {
+            const low = s.qty <= s.criticalLevel;
+            return (
+              <div key={s.id} style={{
+                background: COLORS.bgPanel, border: `1px solid ${low ? COLORS.accentStop + "60" : COLORS.border}`,
+                borderRadius: 14, padding: "14px 16px",
+              }}>
+                <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start" }}>
+                  <div style={{ fontFamily: "'Archivo', sans-serif", fontWeight: 700, fontSize: 14.5, color: COLORS.text }}>{s.name}</div>
+                  <button onClick={() => removeStockItem(s.id)} style={{ background: "none", border: "none", color: COLORS.textFaint, cursor: "pointer", padding: 0 }}>
+                    <Trash2 size={14} />
+                  </button>
+                </div>
+                <div style={{ display: "flex", alignItems: "baseline", gap: 6, marginTop: 8 }}>
+                  <span style={{ fontFamily: "'IBM Plex Mono', monospace", fontSize: 22, fontWeight: 700, color: low ? COLORS.accentStop : COLORS.text }}>{s.qty}</span>
+                  <span style={{ fontFamily: "'Inter', sans-serif", fontSize: 12.5, color: COLORS.textDim }}>{s.unit}</span>
+                </div>
+                <div style={{ fontFamily: "'Inter', sans-serif", fontSize: 11.5, color: COLORS.textFaint, marginTop: 2 }}>
+                  {t("stockCritical", lang)}: {s.criticalLevel} {s.unit}
+                </div>
+                {low && (
+                  <div style={{ marginTop: 6, fontFamily: "'Inter', sans-serif", fontSize: 11, fontWeight: 700, color: COLORS.accentStop, display: "flex", alignItems: "center", gap: 5 }}>
+                    <AlertTriangle size={12} /> {t("stockLow", lang)}
+                  </div>
+                )}
+                <div style={{ display: "flex", gap: 8, marginTop: 12 }}>
+                  <button onClick={() => setAdjusting({ id: s.id, sign: 1 })} style={{
+                    flex: 1, padding: "7px 0", borderRadius: 8, border: `1px solid ${COLORS.accentRun}50`,
+                    background: COLORS.accentRunDim, color: COLORS.accentRun, fontFamily: "'Inter', sans-serif", fontSize: 12, fontWeight: 600, cursor: "pointer",
+                  }}>
+                    + {t("stockIn", lang)}
+                  </button>
+                  <button onClick={() => setAdjusting({ id: s.id, sign: -1 })} style={{
+                    flex: 1, padding: "7px 0", borderRadius: 8, border: `1px solid ${COLORS.accentStop}50`,
+                    background: COLORS.accentStopDim, color: COLORS.accentStop, fontFamily: "'Inter', sans-serif", fontSize: 12, fontWeight: 600, cursor: "pointer",
+                  }}>
+                    − {t("stockOut", lang)}
+                  </button>
+                </div>
+                {adjusting?.id === s.id && (
+                  <div style={{ marginTop: 10, display: "grid", gap: 6 }}>
+                    <input style={inputStyle} type="number" placeholder={t("stockQty", lang)} value={adjustAmount} onChange={(e) => setAdjustAmount(e.target.value)} />
+                    <input style={inputStyle} placeholder={t("purchaseNote", lang)} value={adjustReason} onChange={(e) => setAdjustReason(e.target.value)} />
+                    <div style={{ display: "flex", gap: 6 }}>
+                      <button onClick={handleConfirmAdjust} style={{ flex: 1, padding: "7px 0", borderRadius: 8, border: "none", background: COLORS.accentRun, color: "#0C1A10", fontWeight: 700, fontSize: 12, cursor: "pointer" }}>{t("saved", lang) === "Kaydedildi" ? t("add", lang) : t("add", lang)}</button>
+                      <button onClick={() => setAdjusting(null)} style={{ flex: 1, padding: "7px 0", borderRadius: 8, border: `1px solid ${COLORS.border}`, background: "transparent", color: COLORS.textDim, fontSize: 12, cursor: "pointer" }}>{t("cancel", lang)}</button>
+                    </div>
+                  </div>
+                )}
+              </div>
+            );
+          })}
+        </div>
+      </div>
+
+      <div style={{ background: COLORS.bgPanel, border: `1px solid ${COLORS.border}`, borderRadius: 16, padding: 18 }}>
+        <div style={{ fontFamily: "'Archivo', sans-serif", fontWeight: 700, fontSize: 15, color: COLORS.text, marginBottom: 14 }}>{t("addStockItem", lang)}</div>
+        <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(140px, 1fr))", gap: 10 }}>
+          <input style={inputStyle} placeholder={t("stockItemName", lang)} value={newItem.name} onChange={(e) => setNewItem({ ...newItem, name: e.target.value })} />
+          <input style={inputStyle} placeholder={t("stockUnit", lang)} value={newItem.unit} onChange={(e) => setNewItem({ ...newItem, unit: e.target.value })} />
+          <input style={inputStyle} type="number" placeholder={t("stockQty", lang)} value={newItem.qty} onChange={(e) => setNewItem({ ...newItem, qty: e.target.value })} />
+          <input style={inputStyle} type="number" placeholder={t("stockCritical", lang)} value={newItem.criticalLevel} onChange={(e) => setNewItem({ ...newItem, criticalLevel: e.target.value })} />
+        </div>
+        <button onClick={handleAdd} style={{ marginTop: 12, padding: "9px 16px", borderRadius: 9, border: "none", background: COLORS.accentRun, color: "#0C1A10", fontWeight: 700, fontSize: 13, cursor: "pointer" }}>
+          {t("add", lang)}
+        </button>
+      </div>
+
+      {stockMovements.length > 0 && (
+        <div style={{ background: COLORS.bgPanel, border: `1px solid ${COLORS.border}`, borderRadius: 16, padding: 18 }}>
+          <div style={{ fontFamily: "'Archivo', sans-serif", fontWeight: 700, fontSize: 15, color: COLORS.text, marginBottom: 14 }}>{t("stockMovements", lang)}</div>
+          <div style={{ display: "grid", gap: 4 }}>
+            {stockMovements.slice(0, 10).map((mv, i) => (
+              <div key={i} style={{ display: "flex", alignItems: "center", gap: 10, padding: "8px 0", borderBottom: i < Math.min(stockMovements.length, 10) - 1 ? `1px solid ${COLORS.border}` : "none" }}>
+                <span style={{ fontFamily: "'IBM Plex Mono', monospace", fontSize: 11.5, color: COLORS.textFaint, width: 42, flexShrink: 0 }}>{fmtClock(mv.time)}</span>
+                <span style={{ fontFamily: "'IBM Plex Mono', monospace", fontSize: 12, color: mv.delta > 0 ? COLORS.accentRun : COLORS.accentStop, width: 60, flexShrink: 0 }}>{mv.delta > 0 ? "+" : ""}{mv.delta}</span>
+                <span style={{ fontFamily: "'Inter', sans-serif", fontSize: 12.5, color: COLORS.textDim }}>{mv.itemName} {mv.reason ? `— ${mv.reason}` : ""}</span>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
+// =================================================================
+// SATIN ALMA PANELİ
+// =================================================================
+function SatinAlmaPanel({ data, lang, dir, profile }) {
+  const { stock, purchaseRequests, addPurchaseRequest, removePurchaseRequest, advancePurchaseStatus } = data;
+  const [form, setForm] = useState({ stockItemId: "", qty: "", note: "" });
+
+  if (!purchaseRequests || !stock) return <LoadingScreen lang={lang} />;
+
+  function handleCreate() {
+    const item = stock.find((s) => s.id === form.stockItemId);
+    if (!item || !form.qty) return;
+    addPurchaseRequest({
+      id: `PO-${Date.now().toString().slice(-6)}`,
+      stockItemId: item.id,
+      itemName: item.name,
+      unit: item.unit,
+      qty: form.qty,
+      note: form.note,
+      status: PURCHASE_STATUS.PENDING,
+      requestedBy: profile?.full_name || profile?.id || "—",
+      date: new Date().toISOString(),
+    });
+    setForm({ stockItemId: "", qty: "", note: "" });
+  }
+
+  function nextStatusAction(reqItem) {
+    const idx = PURCHASE_STATUS_ORDER.indexOf(reqItem.status);
+    if (idx === -1 || idx === PURCHASE_STATUS_ORDER.length - 1) return null;
+    const next = PURCHASE_STATUS_ORDER[idx + 1];
+    const labelKey = next === PURCHASE_STATUS.APPROVED ? "approve" : next === PURCHASE_STATUS.ORDERED ? "markOrdered" : "markReceived";
+    return { next, label: t(labelKey, lang) };
+  }
+
+  return (
+    <div style={{ maxWidth: 1180, margin: "0 auto", padding: "18px 20px 60px", display: "grid", gap: 22 }}>
+      <div style={{ background: COLORS.bgPanel, border: `1px solid ${COLORS.border}`, borderRadius: 16, padding: 18 }}>
+        <div style={{ fontFamily: "'Archivo', sans-serif", fontWeight: 700, fontSize: 15, color: COLORS.text, marginBottom: 14 }}>{t("newPurchaseRequest", lang)}</div>
+        <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(160px, 1fr))", gap: 10 }}>
+          <select style={inputStyle} value={form.stockItemId} onChange={(e) => setForm({ ...form, stockItemId: e.target.value })}>
+            <option value="">{t("selectStockItem", lang)}</option>
+            {stock.map((s) => <option key={s.id} value={s.id}>{s.name} ({s.unit})</option>)}
+          </select>
+          <input style={inputStyle} type="number" placeholder={t("purchaseQty", lang)} value={form.qty} onChange={(e) => setForm({ ...form, qty: e.target.value })} />
+          <input style={inputStyle} placeholder={t("purchaseNote", lang)} value={form.note} onChange={(e) => setForm({ ...form, note: e.target.value })} />
+        </div>
+        <button onClick={handleCreate} style={{ marginTop: 12, padding: "9px 16px", borderRadius: 9, border: "none", background: COLORS.accentRun, color: "#0C1A10", fontWeight: 700, fontSize: 13, cursor: "pointer" }}>
+          {t("add", lang)}
+        </button>
+      </div>
+
+      <div>
+        <div style={{ fontFamily: "'IBM Plex Mono', monospace", fontSize: 11, color: COLORS.textFaint, letterSpacing: 1.5, textTransform: "uppercase", marginBottom: 12 }}>
+          {t("purchaseRequestsTitle", lang)}
+        </div>
+        {purchaseRequests.length === 0 && <div style={{ color: COLORS.textFaint, fontFamily: "'Inter', sans-serif", fontSize: 13 }}>{t("noPurchaseRequests", lang)}</div>}
+        <div style={{ display: "grid", gap: 10 }}>
+          {purchaseRequests.map((r) => {
+            const action = nextStatusAction(r);
+            const statusColor = r.status === PURCHASE_STATUS.RECEIVED ? COLORS.accentRun : r.status === PURCHASE_STATUS.PENDING ? COLORS.accentWarn : "#3DA5E8";
+            return (
+              <div key={r.id} style={{ background: COLORS.bgPanel, border: `1px solid ${COLORS.border}`, borderRadius: 14, padding: "14px 16px", display: "flex", alignItems: "center", justifyContent: "space-between", gap: 12, flexWrap: "wrap" }}>
+                <div>
+                  <div style={{ fontFamily: "'Archivo', sans-serif", fontWeight: 700, fontSize: 14.5, color: COLORS.text }}>
+                    {r.itemName} — {r.qty} {r.unit}
+                  </div>
+                  <div style={{ fontFamily: "'Inter', sans-serif", fontSize: 12, color: COLORS.textFaint, marginTop: 2 }}>
+                    {t("requestedBy", lang)}: {r.requestedBy} {r.note ? `· ${r.note}` : ""}
+                  </div>
+                </div>
+                <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+                  <span style={{
+                    fontFamily: "'Inter', sans-serif", fontSize: 11.5, fontWeight: 700, color: statusColor,
+                    border: `1px solid ${statusColor}50`, borderRadius: 99, padding: "4px 10px",
+                  }}>
+                    {purchaseStatusLabel(r.status, lang)}
+                  </span>
+                  {action && (
+                    <button onClick={() => advancePurchaseStatus(r.id, action.next)} style={{
+                      padding: "7px 12px", borderRadius: 8, border: `1px solid ${COLORS.accentRun}50`,
+                      background: COLORS.accentRunDim, color: COLORS.accentRun, fontFamily: "'Inter', sans-serif", fontSize: 12, fontWeight: 600, cursor: "pointer",
+                    }}>
+                      {action.label}
+                    </button>
+                  )}
+                  <button onClick={() => removePurchaseRequest(r.id)} style={{ background: "none", border: "none", color: COLORS.textFaint, cursor: "pointer", padding: 0 }}>
+                    <Trash2 size={14} />
+                  </button>
+                </div>
+              </div>
+            );
+          })}
+        </div>
+      </div>
+    </div>
+  );
+}
+
 function LoadingScreen({ lang = "tr" }) {
   return (
     <div style={{ minHeight: "100vh", background: COLORS.bg, display: "flex", alignItems: "center", justifyContent: "center" }}>
@@ -1946,7 +2476,8 @@ function LoadingScreen({ lang = "tr" }) {
 // MOD SEÇİM EKRANI
 // =================================================================
 
-function ModeSelect({ onSelect, lang, setLang, dir }) {
+function ModeSelect({ onSelect, lang, setLang, dir, profile, onSignOut }) {
+  const isManager = MANAGER_ROLES.includes(profile?.role);
   return (
     <div dir={dir} style={{ minHeight: "100vh", background: COLORS.bg, display: "flex", alignItems: "center", justifyContent: "center", padding: 20 }}>
       <div style={{ width: "100%", maxWidth: 420 }}>
@@ -1974,6 +2505,11 @@ function ModeSelect({ onSelect, lang, setLang, dir }) {
           <div style={{ fontFamily: "'Archivo', sans-serif", fontWeight: 800, fontSize: 26, color: COLORS.text, marginTop: 6 }}>
             {t("howLogin", lang)}
           </div>
+          {profile && (
+            <div style={{ fontFamily: "'Inter', sans-serif", fontSize: 12.5, color: COLORS.textFaint, marginTop: 8 }}>
+              {t("signedInAs", lang)}: {profile.full_name || profile.id}
+            </div>
+          )}
         </div>
         <div style={{ display: "grid", gap: 14 }}>
           <BigButton onClick={() => onSelect("usta")} style={{ padding: "26px 20px", display: "flex", alignItems: "center", gap: 16 }}>
@@ -1983,16 +2519,30 @@ function ModeSelect({ onSelect, lang, setLang, dir }) {
               <span style={{ fontFamily: "'Inter', sans-serif", fontWeight: 400, fontSize: 13, color: COLORS.textDim }}>{t("operatorModeDesc", lang)}</span>
             </span>
           </BigButton>
-          <BigButton onClick={() => onSelect("yonetici")} style={{ padding: "26px 20px", display: "flex", alignItems: "center", gap: 16 }}>
+          <BigButton
+            onClick={() => isManager && onSelect("yonetici")}
+            disabled={!isManager}
+            style={{ padding: "26px 20px", display: "flex", alignItems: "center", gap: 16 }}
+          >
             <Monitor size={28} color={COLORS.accentWarn} />
             <span style={{ display: "flex", flexDirection: "column", alignItems: dir === "rtl" ? "flex-end" : "flex-start" }}>
               <span style={{ fontSize: 18 }}>{t("managerMode", lang)}</span>
-              <span style={{ fontFamily: "'Inter', sans-serif", fontWeight: 400, fontSize: 13, color: COLORS.textDim }}>{t("managerModeDesc", lang)}</span>
+              <span style={{ fontFamily: "'Inter', sans-serif", fontWeight: 400, fontSize: 13, color: COLORS.textDim }}>
+                {isManager ? t("managerModeDesc", lang) : t("noManagerAccess", lang)}
+              </span>
             </span>
           </BigButton>
         </div>
         <div style={{ textAlign: "center", marginTop: 22, fontFamily: "'Inter', sans-serif", fontSize: 12, color: COLORS.textFaint }}>
           {t("sharedNote", lang)}
+        </div>
+        <div style={{ textAlign: "center", marginTop: 18 }}>
+          <button
+            onClick={onSignOut}
+            style={{ background: "none", border: "none", color: COLORS.textFaint, fontFamily: "'Inter', sans-serif", fontSize: 12.5, cursor: "pointer", textDecoration: "underline" }}
+          >
+            {t("signOut", lang)}
+          </button>
         </div>
       </div>
     </div>
@@ -2007,15 +2557,21 @@ export default function App() {
   const [mode, setMode] = useState(null);
   const data = useSharedData();
   const { lang, setLang, dir, ready } = useLanguage();
+  const auth = useAuth();
 
-  if (!ready) return <LoadingScreen lang={lang} />;
+  if (!ready || auth.loading) return <LoadingScreen lang={lang} />;
+  if (!auth.session) {
+    return <LoginScreen lang={lang} dir={dir} setLang={setLang} onSignIn={auth.signIn} onSignUp={auth.signUp} />;
+  }
 
   return (
     <>
       <FontImports />
-      {mode === null && <ModeSelect onSelect={setMode} lang={lang} setLang={setLang} dir={dir} />}
+      {mode === null && (
+        <ModeSelect onSelect={setMode} lang={lang} setLang={setLang} dir={dir} profile={auth.profile} onSignOut={auth.signOut} />
+      )}
       {mode === "usta" && <UstaMode data={data} onBack={() => setMode(null)} lang={lang} dir={dir} />}
-      {mode === "yonetici" && <YoneticiMode data={data} onBack={() => setMode(null)} lang={lang} dir={dir} />}
+      {mode === "yonetici" && <YoneticiMode data={data} onBack={() => setMode(null)} lang={lang} dir={dir} profile={auth.profile} />}
     </>
   );
 }
