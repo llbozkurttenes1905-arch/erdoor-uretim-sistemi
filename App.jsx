@@ -225,6 +225,29 @@ const STRINGS = {
   requestedBy: { tr: "Talep eden", en: "Requested by", ar: "طلب بواسطة" },
   del: { tr: "Sil", en: "Delete", ar: "حذف" },
   selectStockItem: { tr: "Malzeme seçin...", en: "Select material...", ar: "اختر المادة..." },
+  autoRequestBadge: { tr: "Otomatik (Kritik Seviye)", en: "Automatic (Critical Level)", ar: "تلقائي (المستوى الحرج)" },
+
+  // ---- Ürün Rotaları / Reçeteleri ----
+  routes: { tr: "Rota / Reçete", en: "Routes / Recipes", ar: "المسارات / الوصفات" },
+  routesDesc: { tr: "Her ürünün hangi makinelerden sırayla geçtiğini ve hangi malzemeleri tükettiğini burada bir kere tanımlayın. Yeni sipariş oluşturduğunuzda aşamalar otomatik gelir.", en: "Define once which machines each product passes through and which materials it consumes. New orders will auto-fill their stages from this.", ar: "حدد هنا مرة واحدة المسار والمواد لكل منتج." },
+  routeProduct: { tr: "Ürün", en: "Product", ar: "المنتج" },
+  routeStagesTitle: { tr: "Makine Sırası (Rota)", en: "Machine Sequence (Route)", ar: "تسلسل الآلات" },
+  routeConsumablesTitle: { tr: "Aşama Başına Tüketilen Malzeme", en: "Material Consumed Per Stage", ar: "المواد المستهلكة لكل مرحلة" },
+  addConsumable: { tr: "Malzeme Ekle", en: "Add Material", ar: "إضافة مادة" },
+  qtyPerUnit: { tr: "Birim başına miktar", en: "Qty per unit", ar: "الكمية لكل وحدة" },
+  saveRoute: { tr: "Rotayı Kaydet", en: "Save Route", ar: "حفظ المسار" },
+  noRoutes: { tr: "Henüz rota tanımlanmadı", en: "No routes defined yet", ar: "لم يتم تحديد مسارات بعد" },
+  selectMachine: { tr: "Makine seçin...", en: "Select machine...", ar: "اختر الآلة..." },
+
+  // ---- Sevkiyat ----
+  shipment: { tr: "Sevkiyat", en: "Shipment", ar: "الشحن" },
+  inProductionSection: { tr: "Üretimde", en: "In Production", ar: "قيد الإنتاج" },
+  readyToShipSection: { tr: "Sevkiyata Hazır", en: "Ready to Ship", ar: "جاهز للشحن" },
+  currentLocation: { tr: "Şu an", en: "Currently at", ar: "حاليًا في" },
+  markShipped: { tr: "Teslim Edildi Olarak İşaretle", en: "Mark as Delivered", ar: "وضع علامة تم التسليم" },
+  noOrdersInProduction: { tr: "Üretimde sipariş yok", en: "No orders in production", ar: "لا توجد طلبات قيد الإنتاج" },
+  noOrdersReady: { tr: "Sevkiyata hazır sipariş yok", en: "No orders ready to ship", ar: "لا توجد طلبات جاهزة للشحن" },
+  readyBadge: { tr: "SEVKİYATA HAZIR", en: "READY TO SHIP", ar: "جاهز للشحن" },
 };
 
 function t(key, lang, vars) {
@@ -525,7 +548,9 @@ function allProductsFrom(departments) {
 }
 
 // Sipariş durumu sabitleri
-const ORDER_STATUS = { PENDING: "bekliyor", DELIVERED: "teslim_edildi" };
+// PENDING: üretimde, DELIVERED: sevk edildi/kapandı,
+// READY: tüm aşamalar bitti, sevkiyat bekliyor (otomatik olarak buraya düşer)
+const ORDER_STATUS = { PENDING: "bekliyor", READY: "sevkiyata_hazir", DELIVERED: "teslim_edildi" };
 
 const STAGE_STATUS = { WAITING: "bekliyor", RUNNING: "uretimde", DONE: "tamamlandi" };
 
@@ -575,7 +600,14 @@ const DEFAULT_STOCK = [
   { id: "STK-002", name: "Cam (4mm Temperli)", unit: "m2", qty: 180, criticalLevel: 50 },
   { id: "STK-003", name: "Menteşe Seti", unit: "adet", qty: 640, criticalLevel: 100 },
   { id: "STK-004", name: "Conta (EPDM)", unit: "m", qty: 900, criticalLevel: 200 },
+  { id: "STK-005", name: "Tutkal", unit: "kg", qty: 320, criticalLevel: 80 },
 ];
+
+// Ürün Rotaları / Reçeteleri: her ürünün hangi makinelerden sırayla geçtiği
+// ve her aşamada hangi malzemeden ne kadar tükettiği. Yönetici tarafından
+// "Rota / Reçete" sekmesinden tanımlanır. Yapı:
+// { id, productName, stages: [ { machine: "MK-EX2", consumables: [{ stockItemId, qtyPerUnit }] } ] }
+const DEFAULT_PRODUCT_ROUTES = [];
 
 const PURCHASE_STATUS = {
   PENDING: "bekliyor",
@@ -759,6 +791,7 @@ function useSharedData() {
   const [stock, setStockState] = useState(null);
   const [stockMovements, setStockMovements] = useState([]);
   const [purchaseRequests, setPurchaseRequestsState] = useState(null);
+  const [productRoutes, setProductRoutesState] = useState(null);
   const [loading, setLoading] = useState(true);
   // Tracks machine codes with a write in flight, plus a version counter,
   // so a slow background refresh() can never overwrite a newer local change.
@@ -774,7 +807,7 @@ function useSharedData() {
     isRefreshing.current = true;
     try {
       const versionAtStart = writeVersion.current;
-      const [dep, ord, p, l, sk, skMoves, pr] = await Promise.all([
+      const [dep, ord, p, l, sk, skMoves, pr, routes] = await Promise.all([
         loadShared("departments", DEFAULT_DEPARTMENTS),
         loadShared("orders", DEFAULT_ORDERS),
         loadShared("plan", {}),
@@ -782,6 +815,7 @@ function useSharedData() {
         loadShared("stock", DEFAULT_STOCK),
         loadShared("stock-movements", []),
         loadShared("purchase-requests", []),
+        loadShared("product-routes", DEFAULT_PRODUCT_ROUTES),
       ]);
       const m = allMachinesFrom(dep);
       const stateEntries = await Promise.all(
@@ -808,6 +842,7 @@ function useSharedData() {
       setStockState(sk);
       setStockMovements((prev) => (prev.length >= skMoves.length ? prev : skMoves));
       setPurchaseRequestsState(pr);
+      setProductRoutesState(routes);
       setLoading(false);
     } finally {
       isRefreshing.current = false;
@@ -865,9 +900,13 @@ function useSharedData() {
     await updateOrders(newOrders);
   }
   async function markOrderDelivered(orderId, delivered) {
-    const newOrders = (ordersRef.current || []).map((o) =>
-      o.id === orderId ? { ...o, durum: delivered ? ORDER_STATUS.DELIVERED : ORDER_STATUS.PENDING } : o
-    );
+    const newOrders = (ordersRef.current || []).map((o) => {
+      if (o.id !== orderId) return o;
+      if (delivered) return { ...o, durum: ORDER_STATUS.DELIVERED };
+      const stages = o.asamalar || [];
+      const allDone = stages.length > 0 && stages.every((s) => s.durum === STAGE_STATUS.DONE);
+      return { ...o, durum: allDone ? ORDER_STATUS.READY : ORDER_STATUS.PENDING };
+    });
     await updateOrders(newOrders);
   }
   async function addOrderStage(orderId, machineCode) {
@@ -886,12 +925,48 @@ function useSharedData() {
     );
     await updateOrders(newOrders);
   }
+  // Bir aşamanın üretilen adedini/durumunu günceller. cikan değiştiğinde:
+  // 1) Aşama durumu otomatik türetilir (0 -> bekliyor, miktar'a ulaşınca -> tamamlandı)
+  // 2) Ürünün rotasında bu makine için tanımlı malzemeler otomatik stoktan düşer
+  // 3) Siparişin TÜM aşamaları tamamlandıysa, sipariş otomatik "sevkiyata hazır" olur
   async function updateOrderStage(orderId, stageId, patch) {
-    const newOrders = (ordersRef.current || []).map((o) =>
-      o.id === orderId
-        ? { ...o, asamalar: (o.asamalar || []).map((s) => (s.id === stageId ? { ...s, ...patch } : s)) }
-        : o
-    );
+    const order = (ordersRef.current || []).find((o) => o.id === orderId);
+    if (!order) return;
+    const stage = (order.asamalar || []).find((s) => s.id === stageId);
+    if (!stage) return;
+
+    const prevCikan = stage.cikan || 0;
+    let merged = { ...stage, ...patch };
+
+    if (patch.cikan !== undefined) {
+      const newCikan = Math.max(0, patch.cikan);
+      merged.cikan = newCikan;
+      merged.durum = newCikan <= 0 ? STAGE_STATUS.WAITING
+        : newCikan >= (order.miktar || 0) ? STAGE_STATUS.DONE
+        : STAGE_STATUS.RUNNING;
+
+      const delta = newCikan - prevCikan;
+      if (delta > 0) {
+        const route = (routesRef.current || []).find((r) => r.productName === order.urun);
+        const routeStage = route?.stages?.find((rs) => rs.machine === stage.makine);
+        if (routeStage?.consumables?.length) {
+          for (const c of routeStage.consumables) {
+            const qty = Number(c.qtyPerUnit) || 0;
+            if (qty > 0) {
+              await adjustStockQty(c.stockItemId, -qty * delta, `Otomatik tüketim: ${order.urun} — ${stage.makine} (${order.id})`);
+            }
+          }
+        }
+      }
+    }
+
+    const newOrders = (ordersRef.current || []).map((o) => {
+      if (o.id !== orderId) return o;
+      const stages = (o.asamalar || []).map((s) => (s.id === stageId ? merged : s));
+      const allDone = stages.length > 0 && stages.every((s) => s.durum === STAGE_STATUS.DONE);
+      const durum = allDone && o.durum === ORDER_STATUS.PENDING ? ORDER_STATUS.READY : o.durum;
+      return { ...o, asamalar: stages, durum };
+    });
     await updateOrders(newOrders);
   }
 
@@ -947,6 +1022,28 @@ function useSharedData() {
       time: new Date().toISOString(), itemId: id, itemName: current.name,
       delta, reason: reason || "", resultingQty: newQty,
     });
+
+    // Kritik seviyenin altına düştüyse ve bu malzeme için zaten açık (teslim
+    // alınmamış) bir talep yoksa, otomatik bir satın alma talebi oluştur.
+    const critical = current.criticalLevel || 0;
+    if (newQty <= critical) {
+      const hasOpenRequest = (purchaseRef.current || []).some(
+        (r) => r.stockItemId === id && r.status !== PURCHASE_STATUS.RECEIVED
+      );
+      if (!hasOpenRequest) {
+        const suggestedQty = Math.max(critical * 2 - newQty, critical || 10, 10);
+        await addPurchaseRequest({
+          id: `PO-${Date.now().toString().slice(-6)}`,
+          stockItemId: id, itemName: current.name, unit: current.unit,
+          qty: Math.round(suggestedQty),
+          note: "Kritik seviyenin altına düşüldüğü için otomatik oluşturuldu.",
+          status: PURCHASE_STATUS.PENDING,
+          requestedBy: "Sistem (Otomatik)",
+          date: new Date().toISOString(),
+          auto: true,
+        });
+      }
+    }
   }
 
   // ---------------- Satın Alma ----------------
@@ -978,13 +1075,32 @@ function useSharedData() {
     }
   }
 
+  // ---------------- Ürün Rotaları / Reçeteleri ----------------
+  const routesRef = useRef(productRoutes);
+  useEffect(() => { routesRef.current = productRoutes; }, [productRoutes]);
+
+  async function updateProductRoutes(newRoutes) {
+    routesRef.current = newRoutes;
+    setProductRoutesState(newRoutes);
+    await saveShared("product-routes", newRoutes);
+  }
+  async function addProductRoute(route) {
+    const withoutSameProduct = (routesRef.current || []).filter((r) => r.productName !== route.productName);
+    await updateProductRoutes([...withoutSameProduct, route]);
+  }
+  async function removeProductRoute(id) {
+    const newRoutes = (routesRef.current || []).filter((r) => r.id !== id);
+    await updateProductRoutes(newRoutes);
+  }
+
   return {
     departments, machines, orders, plan, machineStates, log, loading,
-    stock, stockMovements, purchaseRequests,
+    stock, stockMovements, purchaseRequests, productRoutes,
     refresh, setMachineState, appendLog, updateDepartments, setPlanCell, setPolling,
     addOrder, removeOrder, markOrderDelivered, addOrderStage, removeOrderStage, updateOrderStage, updateOrders,
     addStockItem, removeStockItem, adjustStockQty,
     addPurchaseRequest, removePurchaseRequest, advancePurchaseStatus,
+    addProductRoute, removeProductRoute,
   };
 }
 
@@ -1581,6 +1697,8 @@ function YoneticiMode({ data, onBack, lang, dir, profile }) {
           { id: "plan", label: t("productionPlan", lang) },
           { id: "stok", label: t("stok", lang) },
           { id: "satinalma", label: t("purchasing", lang) },
+          { id: "rota", label: t("routes", lang) },
+          { id: "sevkiyat", label: t("shipment", lang) },
           { id: "ayarlar", label: t("settings", lang) },
         ].map((tabItem) => (
           <button key={tabItem.id} onClick={() => setTab(tabItem.id)} style={{
@@ -1680,6 +1798,10 @@ function YoneticiMode({ data, onBack, lang, dir, profile }) {
       {tab === "stok" && <StokPanel data={data} lang={lang} dir={dir} />}
 
       {tab === "satinalma" && <SatinAlmaPanel data={data} lang={lang} dir={dir} profile={profile} />}
+
+      {tab === "rota" && <RotaPanel data={data} lang={lang} dir={dir} />}
+
+      {tab === "sevkiyat" && <SevkiyatPanel data={data} lang={lang} dir={dir} />}
 
       {tab === "ayarlar" && <TanimlarPanel data={data} lang={lang} dir={dir} />}
     </div>
@@ -1898,7 +2020,7 @@ function PlanCellEditor({ dept, dateIso, machine, currentCell, orders, lang, onS
 
 
 function TanimlarPanel({ data, lang, dir }) {
-  const { departments, updateDepartments, orders, addOrder, removeOrder, markOrderDelivered, addOrderStage, removeOrderStage, updateOrderStage } = data;
+  const { departments, updateDepartments, orders, addOrder, removeOrder, markOrderDelivered, addOrderStage, removeOrderStage, updateOrderStage, productRoutes } = data;
   const [localDepartments, setLocalDepartments] = useState(departments);
   const [activeDept, setActiveDept] = useState(departments?.[0]?.id || "extruder");
   const [savedMsg, setSavedMsg] = useState(null);
@@ -1967,10 +2089,15 @@ function TanimlarPanel({ data, lang, dir }) {
   async function submitNewOrder() {
     if (!newOrder.urun || !newOrder.miktar) return;
     const id = `SIP-${Date.now().toString().slice(-6)}`;
+    // Bu ürün için tanımlı bir rota varsa, aşamaları otomatik oluştur.
+    const route = (productRoutes || []).find((r) => r.productName === newOrder.urun);
+    const asamalar = route
+      ? route.stages.map((s, i) => ({ id: `AS${Date.now().toString().slice(-6)}${i}`, makine: s.machine, durum: STAGE_STATUS.WAITING, cikan: 0 }))
+      : [];
     await addOrder({
       id, urun: newOrder.urun, musteri: newOrder.musteri || "—",
       miktar: parseInt(newOrder.miktar) || 0, teslimTarihi: newOrder.teslimTarihi || "",
-      durum: ORDER_STATUS.PENDING, asamalar: [],
+      durum: ORDER_STATUS.PENDING, asamalar,
     });
     setNewOrder({ urun: "", musteri: "", miktar: "", teslimTarihi: "" });
   }
@@ -2430,6 +2557,11 @@ function SatinAlmaPanel({ data, lang, dir, profile }) {
                   </div>
                   <div style={{ fontFamily: "'Inter', sans-serif", fontSize: 12, color: COLORS.textFaint, marginTop: 2 }}>
                     {t("requestedBy", lang)}: {r.requestedBy} {r.note ? `· ${r.note}` : ""}
+                    {r.auto && (
+                      <span style={{ marginLeft: 8, color: COLORS.accentWarn, fontWeight: 700, fontSize: 10.5 }}>
+                        · {t("autoRequestBadge", lang)}
+                      </span>
+                    )}
                   </div>
                 </div>
                 <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
@@ -2450,6 +2582,267 @@ function SatinAlmaPanel({ data, lang, dir, profile }) {
                   <button onClick={() => removePurchaseRequest(r.id)} style={{ background: "none", border: "none", color: COLORS.textFaint, cursor: "pointer", padding: 0 }}>
                     <Trash2 size={14} />
                   </button>
+                </div>
+              </div>
+            );
+          })}
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// =================================================================
+// ROTA / REÇETE PANELİ
+// Her ürün için: hangi makinelerden sırayla geçtiği + hangi malzemeden
+// ne kadar tükettiği burada bir kere tanımlanır. Yeni sipariş açılırken
+// bu rota otomatik olarak aşamalara dönüştürülür.
+// =================================================================
+function RotaPanel({ data, lang, dir }) {
+  const { departments, stock, productRoutes, addProductRoute, removeProductRoute } = data;
+  const allProducts = departments ? allProductsFrom(departments) : [];
+  const allMachines = departments ? allMachinesFrom(departments) : [];
+
+  const [productName, setProductName] = useState("");
+  const [stageMachines, setStageMachines] = useState([]); // ["MK-EX2", "MK-FOL", ...]
+  const [machinePicker, setMachinePicker] = useState("");
+  const [consumables, setConsumables] = useState([]); // [{ machine, stockItemId, qtyPerUnit }]
+  const [cMachine, setCMachine] = useState("");
+  const [cStock, setCStock] = useState("");
+  const [cQty, setCQty] = useState("");
+
+  if (!productRoutes || !stock) return <LoadingScreen lang={lang} />;
+
+  function addStageToDraft() {
+    if (!machinePicker) return;
+    setStageMachines([...stageMachines, machinePicker]);
+    setMachinePicker("");
+  }
+  function removeStageFromDraft(idx) {
+    setStageMachines(stageMachines.filter((_, i) => i !== idx));
+  }
+  function addConsumableToDraft() {
+    if (!cMachine || !cStock || !cQty) return;
+    setConsumables([...consumables, { machine: cMachine, stockItemId: cStock, qtyPerUnit: Number(cQty) }]);
+    setCMachine(""); setCStock(""); setCQty("");
+  }
+  function removeConsumableFromDraft(idx) {
+    setConsumables(consumables.filter((_, i) => i !== idx));
+  }
+
+  function saveRoute() {
+    if (!productName || stageMachines.length === 0) return;
+    const stages = stageMachines.map((machine) => ({
+      machine,
+      consumables: consumables.filter((c) => c.machine === machine).map(({ stockItemId, qtyPerUnit }) => ({ stockItemId, qtyPerUnit })),
+    }));
+    addProductRoute({ id: `RT-${Date.now().toString().slice(-6)}`, productName, stages });
+    setProductName(""); setStageMachines([]); setConsumables([]);
+  }
+
+  function machineName(code) {
+    return allMachines.find((m) => m.code === code)?.name || code;
+  }
+  function stockName(id) {
+    return stock.find((s) => s.id === id)?.name || id;
+  }
+
+  return (
+    <div dir={dir} style={{ maxWidth: 1000, margin: "0 auto", padding: "18px 20px 60px", display: "grid", gap: 22 }}>
+      <div style={{ fontFamily: "'Inter', sans-serif", fontSize: 13, color: COLORS.textDim, lineHeight: 1.5 }}>
+        {t("routesDesc", lang)}
+      </div>
+
+      {/* Mevcut rotalar */}
+      <div>
+        {(productRoutes || []).length === 0 && <div style={{ color: COLORS.textFaint, fontFamily: "'Inter', sans-serif", fontSize: 13 }}>{t("noRoutes", lang)}</div>}
+        <div style={{ display: "grid", gap: 10 }}>
+          {(productRoutes || []).map((r) => (
+            <div key={r.id} style={{ background: COLORS.bgPanel, border: `1px solid ${COLORS.border}`, borderRadius: 14, padding: "14px 16px" }}>
+              <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+                <div style={{ fontFamily: "'Archivo', sans-serif", fontWeight: 700, fontSize: 15, color: COLORS.text }}>{r.productName}</div>
+                <button onClick={() => removeProductRoute(r.id)} style={{ background: "none", border: "none", color: COLORS.textFaint, cursor: "pointer" }}>
+                  <Trash2 size={14} />
+                </button>
+              </div>
+              <div style={{ display: "flex", alignItems: "center", flexWrap: "wrap", gap: 6, marginTop: 10 }}>
+                {r.stages.map((s, i) => (
+                  <span key={i} style={{ display: "flex", alignItems: "center", gap: 6 }}>
+                    <span style={{
+                      fontFamily: "'IBM Plex Mono', monospace", fontSize: 11.5, color: COLORS.text,
+                      background: COLORS.bgRaised, border: `1px solid ${COLORS.border}`, padding: "4px 9px", borderRadius: 7,
+                    }}>
+                      {machineName(s.machine)}
+                      {s.consumables?.length > 0 && (
+                        <span style={{ color: COLORS.accentWarn, marginLeft: 6 }}>({s.consumables.length})</span>
+                      )}
+                    </span>
+                    {i < r.stages.length - 1 && <span style={{ color: COLORS.textFaint }}>→</span>}
+                  </span>
+                ))}
+              </div>
+              {consumablesSummary(r) && (
+                <div style={{ fontFamily: "'Inter', sans-serif", fontSize: 11.5, color: COLORS.textFaint, marginTop: 8 }}>
+                  {consumablesSummary(r)}
+                </div>
+              )}
+            </div>
+          ))}
+        </div>
+      </div>
+
+      {/* Yeni rota oluştur */}
+      <div style={{ background: COLORS.bgPanel, border: `1px solid ${COLORS.border}`, borderRadius: 16, padding: 18, display: "grid", gap: 18 }}>
+        <div style={{ fontFamily: "'Archivo', sans-serif", fontWeight: 700, fontSize: 15, color: COLORS.text }}>{t("routes", lang)}</div>
+
+        <div>
+          <div style={{ fontFamily: "'Inter', sans-serif", fontSize: 12, color: COLORS.textDim, marginBottom: 6 }}>{t("routeProduct", lang)}</div>
+          <select value={productName} onChange={(e) => setProductName(e.target.value)} style={inputStyle}>
+            <option value="">{t("selectProduct", lang)}</option>
+            {allProducts.map((p) => <option key={p} value={p}>{p}</option>)}
+          </select>
+        </div>
+
+        <div>
+          <div style={{ fontFamily: "'Inter', sans-serif", fontSize: 12, color: COLORS.textDim, marginBottom: 6 }}>{t("routeStagesTitle", lang)}</div>
+          <div style={{ display: "flex", flexWrap: "wrap", gap: 6, marginBottom: 8 }}>
+            {stageMachines.map((m, i) => (
+              <span key={i} style={{ display: "flex", alignItems: "center", gap: 6, fontFamily: "'IBM Plex Mono', monospace", fontSize: 11.5, color: COLORS.text, background: COLORS.bgRaised, border: `1px solid ${COLORS.border}`, padding: "4px 6px 4px 9px", borderRadius: 7 }}>
+                {i + 1}. {machineName(m)}
+                <button onClick={() => removeStageFromDraft(i)} style={{ background: "none", border: "none", color: COLORS.textFaint, cursor: "pointer", display: "flex", padding: 0 }}>
+                  <X size={12} />
+                </button>
+              </span>
+            ))}
+          </div>
+          <div style={{ display: "flex", gap: 8 }}>
+            <select value={machinePicker} onChange={(e) => setMachinePicker(e.target.value)} style={{ ...inputStyle, flex: 1 }}>
+              <option value="">{t("selectMachine", lang)}</option>
+              {allMachines.map((m) => <option key={m.code} value={m.code}>{m.name} ({m.code})</option>)}
+            </select>
+            <button onClick={addStageToDraft} style={{ padding: "0 16px", borderRadius: 8, border: `1px solid ${COLORS.accentRun}50`, background: COLORS.accentRunDim, color: COLORS.accentRun, fontFamily: "'Inter', sans-serif", fontSize: 12.5, fontWeight: 600, cursor: "pointer" }}>
+              {t("addStage", lang)}
+            </button>
+          </div>
+        </div>
+
+        <div>
+          <div style={{ fontFamily: "'Inter', sans-serif", fontSize: 12, color: COLORS.textDim, marginBottom: 6 }}>{t("routeConsumablesTitle", lang)}</div>
+          <div style={{ display: "grid", gap: 6, marginBottom: 8 }}>
+            {consumables.map((c, i) => (
+              <div key={i} style={{ display: "flex", alignItems: "center", gap: 8, fontFamily: "'Inter', sans-serif", fontSize: 12.5, color: COLORS.textDim }}>
+                <span style={{ flex: 1 }}>{machineName(c.machine)} → {stockName(c.stockItemId)} × {c.qtyPerUnit}</span>
+                <button onClick={() => removeConsumableFromDraft(i)} style={{ background: "none", border: "none", color: COLORS.textFaint, cursor: "pointer" }}>
+                  <Trash2 size={13} />
+                </button>
+              </div>
+            ))}
+          </div>
+          <div style={{ display: "grid", gridTemplateColumns: "1.2fr 1.2fr 0.8fr auto", gap: 8 }}>
+            <select value={cMachine} onChange={(e) => setCMachine(e.target.value)} style={inputStyle}>
+              <option value="">{t("selectMachine", lang)}</option>
+              {stageMachines.map((m) => <option key={m} value={m}>{machineName(m)}</option>)}
+            </select>
+            <select value={cStock} onChange={(e) => setCStock(e.target.value)} style={inputStyle}>
+              <option value="">{t("selectStockItem", lang)}</option>
+              {stock.map((s) => <option key={s.id} value={s.id}>{s.name} ({s.unit})</option>)}
+            </select>
+            <input type="number" placeholder={t("qtyPerUnit", lang)} value={cQty} onChange={(e) => setCQty(e.target.value)} style={inputStyle} />
+            <button onClick={addConsumableToDraft} style={{ padding: "0 14px", borderRadius: 8, border: `1px solid ${COLORS.border}`, background: "transparent", color: COLORS.textDim, fontFamily: "'Inter', sans-serif", fontSize: 12, cursor: "pointer" }}>
+              <Plus size={14} />
+            </button>
+          </div>
+        </div>
+
+        <button onClick={saveRoute} style={{ padding: "10px 18px", borderRadius: 9, border: "none", background: COLORS.accentRun, color: "#0C1A10", fontWeight: 700, fontSize: 13.5, cursor: "pointer", justifySelf: "start" }}>
+          {t("saveRoute", lang)}
+        </button>
+      </div>
+    </div>
+  );
+}
+function consumablesSummary(route) {
+  const total = (route.stages || []).reduce((sum, s) => sum + (s.consumables?.length || 0), 0);
+  return total > 0 ? `${total} malzeme tüketim kuralı tanımlı` : "";
+}
+
+// =================================================================
+// SEVKİYAT PANELİ
+// Hangi siparişin hangi makinede olduğunu ve hangilerinin tamamen
+// bitip sevkiyata hazır olduğunu tek ekrandan gösterir.
+// =================================================================
+function SevkiyatPanel({ data, lang, dir }) {
+  const { orders, departments, markOrderDelivered } = data;
+  const allMachines = departments ? allMachinesFrom(departments) : [];
+
+  function machineName(code) {
+    return allMachines.find((m) => m.code === code)?.name || code;
+  }
+
+  const inProduction = (orders || []).filter((o) => o.durum === ORDER_STATUS.PENDING);
+  const ready = (orders || []).filter((o) => o.durum === ORDER_STATUS.READY);
+
+  return (
+    <div dir={dir} style={{ maxWidth: 1000, margin: "0 auto", padding: "18px 20px 60px", display: "grid", gap: 26 }}>
+      <div>
+        <div style={{ fontFamily: "'IBM Plex Mono', monospace", fontSize: 11, color: COLORS.textFaint, letterSpacing: 1.5, textTransform: "uppercase", marginBottom: 12 }}>
+          {t("readyToShipSection", lang)} ({ready.length})
+        </div>
+        {ready.length === 0 && <div style={{ color: COLORS.textFaint, fontFamily: "'Inter', sans-serif", fontSize: 13 }}>{t("noOrdersReady", lang)}</div>}
+        <div style={{ display: "grid", gap: 10 }}>
+          {ready.map((o) => (
+            <div key={o.id} style={{ background: COLORS.bgPanel, border: `1px solid ${COLORS.accentRun}50`, borderRadius: 14, padding: "14px 16px", display: "flex", justifyContent: "space-between", alignItems: "center", flexWrap: "wrap", gap: 10 }}>
+              <div>
+                <div style={{ fontFamily: "'Archivo', sans-serif", fontWeight: 700, fontSize: 14.5, color: COLORS.text }}>
+                  {o.urun} — {o.miktar} {t("units", lang)}
+                </div>
+                <div style={{ fontFamily: "'Inter', sans-serif", fontSize: 12, color: COLORS.textFaint, marginTop: 2 }}>
+                  {o.musteri} · {o.id}
+                </div>
+              </div>
+              <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+                <span style={{ fontFamily: "'Inter', sans-serif", fontSize: 11, fontWeight: 700, color: COLORS.accentRun, border: `1px solid ${COLORS.accentRun}50`, borderRadius: 99, padding: "4px 10px" }}>
+                  {t("readyBadge", lang)}
+                </span>
+                <button onClick={() => markOrderDelivered(o.id, true)} style={{ padding: "8px 14px", borderRadius: 8, border: `1px solid ${COLORS.accentRun}50`, background: COLORS.accentRunDim, color: COLORS.accentRun, fontFamily: "'Inter', sans-serif", fontSize: 12.5, fontWeight: 600, cursor: "pointer" }}>
+                  {t("markShipped", lang)}
+                </button>
+              </div>
+            </div>
+          ))}
+        </div>
+      </div>
+
+      <div>
+        <div style={{ fontFamily: "'IBM Plex Mono', monospace", fontSize: 11, color: COLORS.textFaint, letterSpacing: 1.5, textTransform: "uppercase", marginBottom: 12 }}>
+          {t("inProductionSection", lang)} ({inProduction.length})
+        </div>
+        {inProduction.length === 0 && <div style={{ color: COLORS.textFaint, fontFamily: "'Inter', sans-serif", fontSize: 13 }}>{t("noOrdersInProduction", lang)}</div>}
+        <div style={{ display: "grid", gap: 10 }}>
+          {inProduction.map((o) => {
+            const stage = currentOrderStage(o);
+            const doneCount = (o.asamalar || []).filter((s) => s.durum === STAGE_STATUS.DONE).length;
+            return (
+              <div key={o.id} style={{ background: COLORS.bgPanel, border: `1px solid ${COLORS.border}`, borderRadius: 14, padding: "14px 16px" }}>
+                <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", flexWrap: "wrap", gap: 8 }}>
+                  <div>
+                    <div style={{ fontFamily: "'Archivo', sans-serif", fontWeight: 700, fontSize: 14.5, color: COLORS.text }}>
+                      {o.urun} — {o.miktar} {t("units", lang)}
+                    </div>
+                    <div style={{ fontFamily: "'Inter', sans-serif", fontSize: 12, color: COLORS.textFaint, marginTop: 2 }}>
+                      {o.musteri} · {o.id}
+                    </div>
+                  </div>
+                  <div style={{ fontFamily: "'Inter', sans-serif", fontSize: 12.5, color: COLORS.text }}>
+                    {stage ? (
+                      <>{t("currentLocation", lang)}: <span style={{ color: COLORS.accentWarn, fontWeight: 700 }}>{machineName(stage.makine)}</span> · {stage.cikan}/{o.miktar}</>
+                    ) : (
+                      <span style={{ color: COLORS.textFaint }}>—</span>
+                    )}
+                  </div>
+                </div>
+                <div style={{ fontFamily: "'Inter', sans-serif", fontSize: 11.5, color: COLORS.textFaint, marginTop: 8 }}>
+                  {doneCount}/{(o.asamalar || []).length} {t("stageOf", lang)}
                 </div>
               </div>
             );
