@@ -1,9 +1,11 @@
 import { useState, useEffect, useRef, useCallback } from "react";
 import * as XLSX from "xlsx";
 import { createClient } from "@supabase/supabase-js";
+import QRCode from "qrcode";
 import {
   Play, Square, AlertTriangle, Wrench, Zap, Package, Clock,
-  ChevronLeft, Check, RefreshCw, Users, Monitor, Settings, Plus, Trash2, X, Download
+  ChevronLeft, Check, RefreshCw, Users, Monitor, Settings, Plus, Trash2, X, Download,
+  Menu, QrCode, BarChart3,
 } from "lucide-react";
 
 // =================================================================
@@ -248,6 +250,37 @@ const STRINGS = {
   noOrdersInProduction: { tr: "Üretimde sipariş yok", en: "No orders in production", ar: "لا توجد طلبات قيد الإنتاج" },
   noOrdersReady: { tr: "Sevkiyata hazır sipariş yok", en: "No orders ready to ship", ar: "لا توجد طلبات جاهزة للشحن" },
   readyBadge: { tr: "SEVKİYATA HAZIR", en: "READY TO SHIP", ar: "جاهز للشحن" },
+
+  // ---- Verimlilik (gerçek hesaplamalar) ----
+  efficiency: { tr: "Verimlilik", en: "Efficiency", ar: "الكفاءة" },
+  efficiencyDesc: { tr: "Aşağıdaki hesaplamalar gerçek üretim/duruş/sipariş verinizden anlık olarak hesaplanır — örnek veri değildir.", en: "The calculations below are computed live from your real production/downtime/order data — not sample data.", ar: "الحسابات أدناه محسوبة مباشرة من بياناتك الحقيقية." },
+  bottleneckTitle: { tr: "Darboğaz — Makine Başına Bekleyen İş", en: "Bottleneck — Pending Work per Machine", ar: "عنق الزجاجة" },
+  bottleneckDesc: { tr: "Her makinenin önünde, henüz tamamlanmamış aşamalardaki toplam bekleyen adet. En yüksek olan, hattın gerçek kısıtıdır.", en: "Total pending units across incomplete stages for each machine. The highest is the real constraint of the line.", ar: "إجمالي العمل المعلق لكل آلة." },
+  noBottleneckData: { tr: "Henüz aktif sipariş aşaması yok", en: "No active order stages yet", ar: "لا توجد مراحل نشطة بعد" },
+  downtimeParetoTitle: { tr: "Duruş Nedenleri — Pareto", en: "Downtime Reasons — Pareto", ar: "أسباب التوقف — باريتو" },
+  downtimeParetoDesc: { tr: "Kayıtlı duruşların toplam süresine göre sıralanmış nedenler (sadece süresi kaydedilen duruşlar dahildir).", en: "Downtime reasons ranked by total recorded duration.", ar: "أسباب التوقف مرتبة حسب المدة الإجمالية." },
+  noDowntimeData: { tr: "Henüz süresi kaydedilmiş duruş yok", en: "No downtime with recorded duration yet", ar: "لا توجد بيانات توقف بعد" },
+  riskTitle: { tr: "Termin Riski — Gereken Hız vs Gerçek Hız", en: "Delivery Risk — Required vs Actual Rate", ar: "خطر التسليم" },
+  riskDesc: { tr: "Kalan adet / kalan gün = gereken hız. Bu siparişe ait geçmiş üretim kayıtlarından hesaplanan gerçek hızla karşılaştırılır.", en: "Remaining qty / remaining days = required rate, compared with the actual rate from this order's production logs.", ar: "الكمية المتبقية / الأيام المتبقية." },
+  noRiskData: { tr: "Aktif sipariş yok", en: "No active orders", ar: "لا توجد طلبات نشطة" },
+  requiredRate: { tr: "Gereken Hız", en: "Required Rate", ar: "المعدل المطلوب" },
+  actualRate: { tr: "Gerçek Hız", en: "Actual Rate", ar: "المعدل الفعلي" },
+  perDay: { tr: "adet/gün", en: "units/day", ar: "وحدة/يوم" },
+  noProductionLogYet: { tr: "Bu sipariş için henüz üretim kaydı yok", en: "No production log for this order yet", ar: "لا يوجد سجل إنتاج لهذا الطلب بعد" },
+  onTrack: { tr: "YETİŞİYOR", en: "ON TRACK", ar: "على المسار" },
+  atRisk: { tr: "RİSKLİ", en: "AT RISK", ar: "في خطر" },
+  daysLeft: { tr: "gün kaldı", en: "days left", ar: "أيام متبقية" },
+  overdue: { tr: "TESLİM TARİHİ GEÇTİ", en: "OVERDUE", ar: "متأخر" },
+
+  // ---- QR İzlenebilirlik ----
+  qrTitle: { tr: "Ürün İzlenebilirlik QR", en: "Product Traceability QR", ar: "رمز QR للتتبع" },
+  qrGenerate: { tr: "QR Oluştur", en: "Generate QR", ar: "إنشاء QR" },
+  qrHint: { tr: "Etiket yazıcısından bastırıp ürüne/palete yapıştırın. Okutulduğunda bu sayfanın izlenebilirlik görünümü açılır (giriş yapmış olmanız gerekir).", en: "Print and attach to the product/pallet. Scanning opens this order's traceability view (login required).", ar: "اطبع والصق على المنتج." },
+  qrClose: { tr: "Kapat", en: "Close", ar: "إغلاق" },
+  traceTitle: { tr: "Üretim Geçmişi", en: "Production History", ar: "سجل الإنتاج" },
+  traceVerified: { tr: "Sistem Tarafından Doğrulandı", en: "Verified by System", ar: "موثق من النظام" },
+  traceBack: { tr: "Geri Dön", en: "Go Back", ar: "رجوع" },
+  traceEmptyHistory: { tr: "Henüz üretim kaydı yok", en: "No production records yet", ar: "لا توجد سجلات إنتاج بعد" },
 };
 
 function t(key, lang, vars) {
@@ -770,7 +803,8 @@ function FontImports() {
     <style>{`
       @import url('https://fonts.googleapis.com/css2?family=Archivo:wght@700;800&family=Inter:wght@400;500;600&family=IBM+Plex+Mono:wght@500;600&display=swap');
       * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
-      body { margin: 0; }
+      html, body { margin: 0; padding: 0; height: 100%; background: ${COLORS.bg}; overscroll-behavior-y: none; }
+      #root { min-height: 100%; background: ${COLORS.bg}; }
     `}</style>
   );
 }
@@ -1197,9 +1231,12 @@ function UstaMode({ data, onBack, lang, dir }) {
 
   async function pickDowntimeReason(reason) {
     // Canonical label stored is always Turkish; UI resolves translation by id.
+    // Duruşun ne zaman başladığı machine state'teki startedAt alanında tutuluyor
+    // (confirmStop / önceki duruş anında set edilir) — süreyi buradan hesaplıyoruz.
+    const downtimeMs = state?.startedAt ? Date.now() - state.startedAt : null;
     await appendLog({
       time: Date.now(), type: "duruş", machine: selectedMachine.code, label: reason.label,
-      detail: { reason: reason.label },
+      detail: { reason: reason.label, durationMs: downtimeMs },
     });
     await setMachineState(selectedMachine.code, { status: "idle" });
     showToast(`${t("downtimeSaved", lang)} ${downtimeLabel(reason.id, lang)}`);
@@ -1637,6 +1674,7 @@ function YoneticiMode({ data, onBack, lang, dir, profile }) {
   const now = useNow(2000);
   const { machines, plan, machineStates, log, refresh, orders, setPolling } = data;
   const [tab, setTab] = useState("durum");
+  const [sidebarOpen, setSidebarOpen] = useState(false);
   const todayIso = isoDate(now);
 
   // Tanımlar ve Plan sekmelerinde form/girdi düzenlemesi var; arka plan
@@ -1675,6 +1713,12 @@ function YoneticiMode({ data, onBack, lang, dir, profile }) {
         </button>
         <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
           <button
+            onClick={() => setSidebarOpen(true)}
+            style={{ display: "flex", alignItems: "center", gap: 6, background: COLORS.bgPanel, border: `1px solid ${COLORS.border}`, color: COLORS.text, cursor: "pointer", padding: "8px 10px", borderRadius: 10 }}
+          >
+            <Menu size={15} />
+          </button>
+          <button
             onClick={() => exportToExcel({ machines, plan, machineStates, log, orders })}
             style={{
               display: "flex", alignItems: "center", gap: 6, background: COLORS.accentRunDim,
@@ -1691,26 +1735,42 @@ function YoneticiMode({ data, onBack, lang, dir, profile }) {
         </div>
       </div>
 
-      <div style={{ padding: "16px 20px 0", display: "flex", gap: 8 }}>
-        {[
-          { id: "durum", label: t("status", lang) },
-          { id: "plan", label: t("productionPlan", lang) },
-          { id: "stok", label: t("stok", lang) },
-          { id: "satinalma", label: t("purchasing", lang) },
-          { id: "rota", label: t("routes", lang) },
-          { id: "sevkiyat", label: t("shipment", lang) },
-          { id: "ayarlar", label: t("settings", lang) },
-        ].map((tabItem) => (
-          <button key={tabItem.id} onClick={() => setTab(tabItem.id)} style={{
-            padding: "8px 14px", borderRadius: 10, border: `1px solid ${tab === tabItem.id ? COLORS.accentRun : COLORS.border}`,
-            background: tab === tabItem.id ? COLORS.accentRunDim : "transparent",
-            color: tab === tabItem.id ? COLORS.accentRun : COLORS.textDim,
-            fontFamily: "'Inter', sans-serif", fontSize: 13, fontWeight: 600, cursor: "pointer",
+      {/* Sol taraftan açılan gizli menü */}
+      {sidebarOpen && (
+        <div onClick={() => setSidebarOpen(false)} style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,0.55)", zIndex: 30 }}>
+          <div onClick={(e) => e.stopPropagation()} style={{
+            position: "absolute", top: 0, [dir === "rtl" ? "right" : "left"]: 0, height: "100%", width: 250,
+            background: COLORS.bgPanel, borderRight: dir === "rtl" ? "none" : `1px solid ${COLORS.border}`,
+            borderLeft: dir === "rtl" ? `1px solid ${COLORS.border}` : "none",
+            padding: "20px 14px", display: "flex", flexDirection: "column", gap: 4,
           }}>
-            {tabItem.label}
-          </button>
-        ))}
-      </div>
+            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", padding: "0 8px 16px" }}>
+              <span style={{ fontFamily: "'IBM Plex Mono', monospace", fontSize: 11, color: COLORS.textFaint, letterSpacing: 1.5, textTransform: "uppercase" }}>{t("appTitle", lang)}</span>
+              <button onClick={() => setSidebarOpen(false)} style={{ background: "none", border: "none", color: COLORS.textFaint, cursor: "pointer", display: "flex" }}><X size={16} /></button>
+            </div>
+            {[
+              { id: "durum", label: t("status", lang) },
+              { id: "plan", label: t("productionPlan", lang) },
+              { id: "stok", label: t("stok", lang) },
+              { id: "satinalma", label: t("purchasing", lang) },
+              { id: "rota", label: t("routes", lang) },
+              { id: "sevkiyat", label: t("shipment", lang) },
+              { id: "verimlilik", label: t("efficiency", lang) },
+              { id: "ayarlar", label: t("settings", lang) },
+            ].map((tabItem) => (
+              <button key={tabItem.id} onClick={() => { setTab(tabItem.id); setSidebarOpen(false); }} style={{
+                textAlign: dir === "rtl" ? "right" : "left", padding: "11px 12px", borderRadius: 10,
+                border: `1px solid ${tab === tabItem.id ? COLORS.accentRun : "transparent"}`,
+                background: tab === tabItem.id ? COLORS.accentRunDim : "transparent",
+                color: tab === tabItem.id ? COLORS.accentRun : COLORS.textDim,
+                fontFamily: "'Inter', sans-serif", fontSize: 13.5, fontWeight: 600, cursor: "pointer",
+              }}>
+                {tabItem.label}
+              </button>
+            ))}
+          </div>
+        </div>
+      )}
 
       {tab === "durum" && (
         <div style={{ maxWidth: 1180, margin: "0 auto", padding: "18px 20px 60px", display: "grid", gap: 22 }}>
@@ -1802,6 +1862,8 @@ function YoneticiMode({ data, onBack, lang, dir, profile }) {
       {tab === "rota" && <RotaPanel data={data} lang={lang} dir={dir} />}
 
       {tab === "sevkiyat" && <SevkiyatPanel data={data} lang={lang} dir={dir} />}
+
+      {tab === "verimlilik" && <VerimlilikPanel data={data} lang={lang} dir={dir} />}
 
       {tab === "ayarlar" && <TanimlarPanel data={data} lang={lang} dir={dir} />}
     </div>
@@ -2774,6 +2836,7 @@ function consumablesSummary(route) {
 function SevkiyatPanel({ data, lang, dir }) {
   const { orders, departments, markOrderDelivered } = data;
   const allMachines = departments ? allMachinesFrom(departments) : [];
+  const [qrOrder, setQrOrder] = useState(null);
 
   function machineName(code) {
     return allMachines.find((m) => m.code === code)?.name || code;
@@ -2784,6 +2847,8 @@ function SevkiyatPanel({ data, lang, dir }) {
 
   return (
     <div dir={dir} style={{ maxWidth: 1000, margin: "0 auto", padding: "18px 20px 60px", display: "grid", gap: 26 }}>
+      {qrOrder && <QrModal order={qrOrder} lang={lang} onClose={() => setQrOrder(null)} />}
+
       <div>
         <div style={{ fontFamily: "'IBM Plex Mono', monospace", fontSize: 11, color: COLORS.textFaint, letterSpacing: 1.5, textTransform: "uppercase", marginBottom: 12 }}>
           {t("readyToShipSection", lang)} ({ready.length})
@@ -2804,6 +2869,9 @@ function SevkiyatPanel({ data, lang, dir }) {
                 <span style={{ fontFamily: "'Inter', sans-serif", fontSize: 11, fontWeight: 700, color: COLORS.accentRun, border: `1px solid ${COLORS.accentRun}50`, borderRadius: 99, padding: "4px 10px" }}>
                   {t("readyBadge", lang)}
                 </span>
+                <button onClick={() => setQrOrder(o)} style={{ display: "flex", alignItems: "center", gap: 6, padding: "8px 12px", borderRadius: 8, border: `1px solid ${COLORS.border}`, background: "transparent", color: COLORS.textDim, fontFamily: "'Inter', sans-serif", fontSize: 12.5, fontWeight: 600, cursor: "pointer" }}>
+                  <QrCode size={13} /> QR
+                </button>
                 <button onClick={() => markOrderDelivered(o.id, true)} style={{ padding: "8px 14px", borderRadius: 8, border: `1px solid ${COLORS.accentRun}50`, background: COLORS.accentRunDim, color: COLORS.accentRun, fontFamily: "'Inter', sans-serif", fontSize: 12.5, fontWeight: 600, cursor: "pointer" }}>
                   {t("markShipped", lang)}
                 </button>
@@ -2833,12 +2901,17 @@ function SevkiyatPanel({ data, lang, dir }) {
                       {o.musteri} · {o.id}
                     </div>
                   </div>
-                  <div style={{ fontFamily: "'Inter', sans-serif", fontSize: 12.5, color: COLORS.text }}>
-                    {stage ? (
-                      <>{t("currentLocation", lang)}: <span style={{ color: COLORS.accentWarn, fontWeight: 700 }}>{machineName(stage.makine)}</span> · {stage.cikan}/{o.miktar}</>
-                    ) : (
-                      <span style={{ color: COLORS.textFaint }}>—</span>
-                    )}
+                  <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+                    <div style={{ fontFamily: "'Inter', sans-serif", fontSize: 12.5, color: COLORS.text }}>
+                      {stage ? (
+                        <>{t("currentLocation", lang)}: <span style={{ color: COLORS.accentWarn, fontWeight: 700 }}>{machineName(stage.makine)}</span> · {stage.cikan}/{o.miktar}</>
+                      ) : (
+                        <span style={{ color: COLORS.textFaint }}>—</span>
+                      )}
+                    </div>
+                    <button onClick={() => setQrOrder(o)} style={{ display: "flex", alignItems: "center", gap: 6, padding: "7px 11px", borderRadius: 8, border: `1px solid ${COLORS.border}`, background: "transparent", color: COLORS.textDim, fontFamily: "'Inter', sans-serif", fontSize: 12, fontWeight: 600, cursor: "pointer" }}>
+                      <QrCode size={12} /> QR
+                    </button>
                   </div>
                 </div>
                 <div style={{ fontFamily: "'Inter', sans-serif", fontSize: 11.5, color: COLORS.textFaint, marginTop: 8 }}>
@@ -2847,6 +2920,293 @@ function SevkiyatPanel({ data, lang, dir }) {
               </div>
             );
           })}
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// =================================================================
+// VERİMLİLİK PANELİ — gerçek verilerden hesaplanan 3 metrik:
+// 1) Darboğaz: makine başına bekleyen iş (siparişlerin aşamalarından)
+// 2) Duruş Pareto: kayıtlı duruş sürelerinden (log)
+// 3) Termin Riski: gereken hız vs bu siparişin gerçek üretim hızı (log)
+// Örnek/sahte veri YOKTUR — hepsi data.orders, data.log, data.departments'tan türetilir.
+// =================================================================
+function VerimlilikPanel({ data, lang, dir }) {
+  const { orders, log, departments } = data;
+  if (!orders || !log || !departments) return <LoadingScreen lang={lang} />;
+  const allMachines = allMachinesFrom(departments);
+  function machineName(code) { return allMachines.find((m) => m.code === code)?.name || code; }
+
+  // ---- 1) Darboğaz: aktif (PENDING) siparişlerin tamamlanmamış aşamalarında bekleyen adet, makineye göre toplanır ----
+  const bottleneckMap = {};
+  orders.filter((o) => o.durum === ORDER_STATUS.PENDING).forEach((o) => {
+    (o.asamalar || []).forEach((s) => {
+      if (s.durum === STAGE_STATUS.DONE) return;
+      const remaining = Math.max(0, (o.miktar || 0) - (s.cikan || 0));
+      bottleneckMap[s.makine] = (bottleneckMap[s.makine] || 0) + remaining;
+    });
+  });
+  const bottleneckList = Object.entries(bottleneckMap).sort((a, b) => b[1] - a[1]);
+  const bottleneckMax = bottleneckList[0]?.[1] || 1;
+
+  // ---- 2) Duruş Pareto: sadece durationMs kaydedilmiş "duruş" logları ----
+  const downtimeMap = {};
+  log.filter((l) => l.type === "duruş" && l.detail?.durationMs > 0).forEach((l) => {
+    const id = downtimeIdFromTrLabel(l.label) || l.label;
+    downtimeMap[id] = (downtimeMap[id] || 0) + l.detail.durationMs;
+  });
+  const downtimeList = Object.entries(downtimeMap).sort((a, b) => b[1] - a[1]);
+  const downtimeTotal = downtimeList.reduce((sum, [, ms]) => sum + ms, 0) || 1;
+  let cumMs = 0;
+
+  // ---- 3) Termin Riski: gereken hız (kalan/gün) vs bu siparişin log'lardan hesaplanan gerçek hızı ----
+  const today = new Date(); today.setHours(0, 0, 0, 0);
+  const riskList = orders.filter((o) => o.durum === ORDER_STATUS.PENDING && o.teslimTarihi).map((o) => {
+    const stages = o.asamalar || [];
+    const lastStage = stages[stages.length - 1];
+    const completed = lastStage ? (lastStage.cikan || 0) : 0;
+    const remaining = Math.max(0, (o.miktar || 0) - completed);
+    const due = new Date(o.teslimTarihi + "T00:00:00");
+    const daysLeft = (due - today) / 86400000;
+
+    const relevantLogs = log.filter((l) => l.type === "üretim" && l.detail?.orderId === o.id && l.detail?.durationMs > 0);
+    let actualRate = null;
+    if (relevantLogs.length > 0) {
+      const totalQty = relevantLogs.reduce((s, l) => s + (l.detail.qty || 0), 0);
+      const totalMs = relevantLogs.reduce((s, l) => s + (l.detail.durationMs || 0), 0);
+      if (totalMs > 0) actualRate = totalQty / (totalMs / 86400000);
+    }
+    const requiredRate = remaining / Math.max(daysLeft, 0.1);
+    return { order: o, remaining, daysLeft, requiredRate, actualRate };
+  }).sort((a, b) => a.daysLeft - b.daysLeft);
+
+  return (
+    <div dir={dir} style={{ maxWidth: 1000, margin: "0 auto", padding: "18px 20px 60px", display: "grid", gap: 22 }}>
+      <div style={{ fontFamily: "'Inter', sans-serif", fontSize: 13, color: COLORS.textDim, lineHeight: 1.5 }}>
+        {t("efficiencyDesc", lang)}
+      </div>
+
+      {/* Darboğaz */}
+      <div style={{ background: COLORS.bgPanel, border: `1px solid ${COLORS.border}`, borderRadius: 16, padding: 18 }}>
+        <div style={{ fontFamily: "'Archivo', sans-serif", fontWeight: 700, fontSize: 15, color: COLORS.text, marginBottom: 4 }}>{t("bottleneckTitle", lang)}</div>
+        <div style={{ fontFamily: "'Inter', sans-serif", fontSize: 12, color: COLORS.textFaint, marginBottom: 14 }}>{t("bottleneckDesc", lang)}</div>
+        {bottleneckList.length === 0 && <div style={{ color: COLORS.textFaint, fontFamily: "'Inter', sans-serif", fontSize: 13 }}>{t("noBottleneckData", lang)}</div>}
+        <div style={{ display: "grid", gap: 8 }}>
+          {bottleneckList.map(([machine, qty], i) => (
+            <div key={machine} className="browlike" style={{ display: "grid", gridTemplateColumns: "150px 1fr 70px", alignItems: "center", gap: 12 }}>
+              <div style={{ fontFamily: "'IBM Plex Mono', monospace", fontSize: 12, color: COLORS.textDim }}>{machineName(machine)}</div>
+              <div style={{ height: 14, background: COLORS.bgRaised, borderRadius: 6, overflow: "hidden" }}>
+                <div style={{ height: "100%", width: `${Math.round((qty / bottleneckMax) * 100)}%`, background: i === 0 ? COLORS.accentStop : COLORS.accentRun, borderRadius: 6 }} />
+              </div>
+              <div style={{ fontFamily: "'IBM Plex Mono', monospace", fontSize: 12, textAlign: "right", color: COLORS.text }}>{qty}</div>
+            </div>
+          ))}
+        </div>
+      </div>
+
+      {/* Duruş Pareto */}
+      <div style={{ background: COLORS.bgPanel, border: `1px solid ${COLORS.border}`, borderRadius: 16, padding: 18 }}>
+        <div style={{ fontFamily: "'Archivo', sans-serif", fontWeight: 700, fontSize: 15, color: COLORS.text, marginBottom: 4 }}>{t("downtimeParetoTitle", lang)}</div>
+        <div style={{ fontFamily: "'Inter', sans-serif", fontSize: 12, color: COLORS.textFaint, marginBottom: 14 }}>{t("downtimeParetoDesc", lang)}</div>
+        {downtimeList.length === 0 && <div style={{ color: COLORS.textFaint, fontFamily: "'Inter', sans-serif", fontSize: 13 }}>{t("noDowntimeData", lang)}</div>}
+        <div style={{ display: "grid", gap: 8 }}>
+          {downtimeList.map(([reasonId, ms]) => {
+            cumMs += ms;
+            const pct = Math.round((ms / downtimeTotal) * 100);
+            const cumPct = Math.round((cumMs / downtimeTotal) * 100);
+            const meta = DOWNTIME_REASONS.find((r) => r.id === reasonId);
+            const minutes = Math.round(ms / 60000);
+            return (
+              <div key={reasonId} style={{ display: "grid", gridTemplateColumns: "150px 1fr 60px 70px", alignItems: "center", gap: 12 }}>
+                <div style={{ fontFamily: "'Inter', sans-serif", fontSize: 12.5, color: COLORS.textDim }}>{meta ? downtimeLabel(meta.id, lang) : reasonId}</div>
+                <div style={{ height: 14, background: COLORS.bgRaised, borderRadius: 6, overflow: "hidden" }}>
+                  <div style={{ height: "100%", width: `${pct}%`, background: COLORS.accentStop, borderRadius: 6 }} />
+                </div>
+                <div style={{ fontFamily: "'IBM Plex Mono', monospace", fontSize: 11.5, textAlign: "right", color: COLORS.text }}>{minutes} dk</div>
+                <div style={{ fontFamily: "'IBM Plex Mono', monospace", fontSize: 11, textAlign: "right", color: COLORS.textFaint }}>Σ %{cumPct}</div>
+              </div>
+            );
+          })}
+        </div>
+      </div>
+
+      {/* Termin Riski */}
+      <div style={{ background: COLORS.bgPanel, border: `1px solid ${COLORS.border}`, borderRadius: 16, padding: 18 }}>
+        <div style={{ fontFamily: "'Archivo', sans-serif", fontWeight: 700, fontSize: 15, color: COLORS.text, marginBottom: 4 }}>{t("riskTitle", lang)}</div>
+        <div style={{ fontFamily: "'Inter', sans-serif", fontSize: 12, color: COLORS.textFaint, marginBottom: 14 }}>{t("riskDesc", lang)}</div>
+        {riskList.length === 0 && <div style={{ color: COLORS.textFaint, fontFamily: "'Inter', sans-serif", fontSize: 13 }}>{t("noRiskData", lang)}</div>}
+        <div style={{ display: "grid", gap: 10 }}>
+          {riskList.map(({ order, remaining, daysLeft, requiredRate, actualRate }) => {
+            const overdue = daysLeft < 0;
+            const onTrack = actualRate !== null && actualRate >= requiredRate;
+            return (
+              <div key={order.id} style={{ border: `1px solid ${COLORS.border}`, borderRadius: 12, padding: "12px 14px" }}>
+                <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", flexWrap: "wrap", gap: 8 }}>
+                  <div>
+                    <div style={{ fontFamily: "'Archivo', sans-serif", fontWeight: 700, fontSize: 13.5, color: COLORS.text }}>{order.urun} · {order.id}</div>
+                    <div style={{ fontFamily: "'Inter', sans-serif", fontSize: 11.5, color: COLORS.textFaint, marginTop: 2 }}>
+                      {remaining} {t("units", lang)} {overdue ? "" : `· ${Math.ceil(daysLeft)} ${t("daysLeft", lang)}`}
+                    </div>
+                  </div>
+                  <span style={{
+                    fontFamily: "'Inter', sans-serif", fontSize: 10.5, fontWeight: 700, padding: "4px 10px", borderRadius: 99,
+                    color: overdue ? COLORS.accentStop : actualRate === null ? COLORS.textFaint : onTrack ? COLORS.accentRun : COLORS.accentStop,
+                    background: overdue ? COLORS.accentStopDim : actualRate === null ? COLORS.bgRaised : onTrack ? COLORS.accentRunDim : COLORS.accentStopDim,
+                    border: `1px solid ${overdue || (!onTrack && actualRate !== null) ? COLORS.accentStop + "50" : actualRate === null ? COLORS.border : COLORS.accentRun + "50"}`,
+                  }}>
+                    {overdue ? t("overdue", lang) : actualRate === null ? t("noProductionLogYet", lang) : onTrack ? t("onTrack", lang) : t("atRisk", lang)}
+                  </span>
+                </div>
+                <div style={{ display: "flex", gap: 22, marginTop: 10, fontFamily: "'IBM Plex Mono', monospace", fontSize: 12 }}>
+                  <div><span style={{ color: COLORS.textFaint }}>{t("requiredRate", lang)}: </span><span style={{ color: COLORS.text }}>{requiredRate.toFixed(1)} {t("perDay", lang)}</span></div>
+                  {actualRate !== null && (
+                    <div><span style={{ color: COLORS.textFaint }}>{t("actualRate", lang)}: </span><span style={{ color: onTrack ? COLORS.accentRun : COLORS.accentStop }}>{actualRate.toFixed(1)} {t("perDay", lang)}</span></div>
+                  )}
+                </div>
+              </div>
+            );
+          })}
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// =================================================================
+// QR MODAL — sipariş için gerçek bir QR kod üretir (qrcode kütüphanesi).
+// QR, uygulama içi #/urun/<id> adresine gider; okutulduğunda (ya da
+// tıklanınca) giriş yapmış kullanıcıya o siparişin izlenebilirlik
+// sayfasını açar.
+// =================================================================
+function QrModal({ order, lang, onClose }) {
+  const [dataUrl, setDataUrl] = useState(null);
+  const traceUrl = `${window.location.origin}${window.location.pathname}#/urun/${order.id}`;
+
+  useEffect(() => {
+    let cancelled = false;
+    QRCode.toDataURL(traceUrl, { width: 220, margin: 1, color: { dark: "#15171A", light: "#FFFFFF" } })
+      .then((url) => { if (!cancelled) setDataUrl(url); })
+      .catch(() => {});
+    return () => { cancelled = true; };
+  }, [traceUrl]);
+
+  return (
+    <div onClick={onClose} style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,0.6)", display: "flex", alignItems: "center", justifyContent: "center", zIndex: 60, padding: 20 }}>
+      <div onClick={(e) => e.stopPropagation()} style={{ background: COLORS.bgPanel, border: `1px solid ${COLORS.border}`, borderRadius: 18, padding: 28, maxWidth: 340, width: "100%", textAlign: "center" }}>
+        <div style={{ fontFamily: "'Archivo', sans-serif", fontWeight: 700, fontSize: 16, color: COLORS.text, marginBottom: 2 }}>{order.urun}</div>
+        <div style={{ fontFamily: "'IBM Plex Mono', monospace", fontSize: 11.5, color: COLORS.textFaint, marginBottom: 18 }}>{order.id} · {order.musteri}</div>
+        <div style={{ background: "#fff", padding: 14, borderRadius: 12, display: "inline-block", marginBottom: 18 }}>
+          {dataUrl ? <img src={dataUrl} alt="QR" width={188} height={188} /> : <div style={{ width: 188, height: 188 }} />}
+        </div>
+        <div style={{ fontSize: 11.5, color: COLORS.textFaint, lineHeight: 1.5, marginBottom: 18 }}>{t("qrHint", lang)}</div>
+        <div style={{ display: "flex", gap: 8 }}>
+          <button onClick={onClose} style={{ flex: 1, padding: "10px 0", borderRadius: 9, border: `1px solid ${COLORS.border}`, background: "transparent", color: COLORS.textDim, fontFamily: "'Inter', sans-serif", fontSize: 12.5, fontWeight: 600, cursor: "pointer" }}>
+            {t("qrClose", lang)}
+          </button>
+          <button onClick={() => { window.location.hash = `/urun/${order.id}`; }} style={{ flex: 1, padding: "10px 0", borderRadius: 9, border: `1px solid ${COLORS.accentRun}50`, background: COLORS.accentRunDim, color: COLORS.accentRun, fontFamily: "'Inter', sans-serif", fontSize: 12.5, fontWeight: 600, cursor: "pointer" }}>
+            {t("traceTitle", lang)}
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// =================================================================
+// İZLENEBİLİRLİK SAYFASI — QR okutulunca (veya #/urun/<id> hash'iyle)
+// açılan, salt-okunur üretim geçmişi görünümü. Sipariş verisinden ve
+// (varsa) ürün rotasının reçetesinden otomatik oluşur.
+// =================================================================
+function TraceView({ orderId, data, lang, dir, onBack }) {
+  const { orders, departments, productRoutes, stock } = data;
+  const order = (orders || []).find((o) => o.id === orderId);
+  const allMachines = departments ? allMachinesFrom(departments) : [];
+  function machineName(code) { return allMachines.find((m) => m.code === code)?.name || code; }
+
+  if (!orders) return <LoadingScreen lang={lang} />;
+  if (!order) {
+    return (
+      <div dir={dir} style={{ minHeight: "100vh", background: COLORS.bg, display: "flex", alignItems: "center", justifyContent: "center", padding: 20 }}>
+        <div style={{ textAlign: "center" }}>
+          <div style={{ color: COLORS.textDim, fontFamily: "'Inter', sans-serif", fontSize: 14, marginBottom: 14 }}>Sipariş bulunamadı: {orderId}</div>
+          <button onClick={onBack} style={{ padding: "9px 16px", borderRadius: 9, border: `1px solid ${COLORS.border}`, background: "transparent", color: COLORS.textDim, cursor: "pointer" }}>{t("traceBack", lang)}</button>
+        </div>
+      </div>
+    );
+  }
+
+  const route = (productRoutes || []).find((r) => r.productName === order.urun);
+  // Reçeteye göre kullanılan toplam malzeme: her aşamanın kendi cikan'ı × birim başına miktar
+  const materialTotals = {};
+  (order.asamalar || []).forEach((s) => {
+    const routeStage = route?.stages?.find((rs) => rs.machine === s.makine);
+    routeStage?.consumables?.forEach((c) => {
+      materialTotals[c.stockItemId] = (materialTotals[c.stockItemId] || 0) + (c.qtyPerUnit || 0) * (s.cikan || 0);
+    });
+  });
+  const materialRows = Object.entries(materialTotals).map(([stockItemId, total]) => {
+    const item = (stock || []).find((s) => s.id === stockItemId);
+    return { name: item?.name || stockItemId, unit: item?.unit || "", total };
+  });
+
+  return (
+    <div dir={dir} style={{ minHeight: "100vh", background: COLORS.bg, padding: "28px 20px 60px" }}>
+      <div style={{ maxWidth: 720, margin: "0 auto" }}>
+        <button onClick={onBack} style={{ display: "flex", alignItems: "center", gap: 6, marginBottom: 18, padding: "9px 14px", borderRadius: 9, border: `1px solid ${COLORS.border}`, background: "transparent", color: COLORS.textDim, fontFamily: "'Inter', sans-serif", fontSize: 12.5, cursor: "pointer" }}>
+          <ChevronLeft size={14} /> {t("traceBack", lang)}
+        </button>
+
+        <div style={{ background: COLORS.bgPanel, border: `1px solid ${COLORS.border}`, borderRadius: 18, padding: 26, marginBottom: 18 }}>
+          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", gap: 16, flexWrap: "wrap", borderBottom: `1px solid ${COLORS.border}`, paddingBottom: 18, marginBottom: 18 }}>
+            <div>
+              <div style={{ fontFamily: "'Archivo', sans-serif", fontWeight: 800, fontSize: 20, color: COLORS.text }}>{order.urun}</div>
+              <div style={{ fontFamily: "'IBM Plex Mono', monospace", fontSize: 12, color: COLORS.textFaint, marginTop: 4 }}>{order.id} · {order.musteri} · {order.miktar} {t("units", lang)}</div>
+            </div>
+            <span style={{ display: "flex", alignItems: "center", gap: 6, fontSize: 11.5, fontWeight: 700, color: COLORS.accentRun, background: COLORS.accentRunDim, border: `1px solid ${COLORS.accentRun}50`, padding: "5px 11px", borderRadius: 99 }}>
+              <Check size={12} /> {t("traceVerified", lang)}
+            </span>
+          </div>
+
+          <div style={{ fontFamily: "'IBM Plex Mono', monospace", fontSize: 11, letterSpacing: 1.5, textTransform: "uppercase", color: COLORS.textFaint, marginBottom: 14 }}>{t("traceTitle", lang)}</div>
+          {(order.asamalar || []).length === 0 && <div style={{ color: COLORS.textFaint, fontFamily: "'Inter', sans-serif", fontSize: 13 }}>{t("traceEmptyHistory", lang)}</div>}
+          <div style={{ position: "relative", paddingLeft: 26 }}>
+            {(order.asamalar || []).length > 1 && (
+              <div style={{ position: "absolute", left: 8, top: 6, bottom: 6, width: 1.5, background: COLORS.border }} />
+            )}
+            {(order.asamalar || []).map((s, i) => (
+              <div key={s.id} style={{ position: "relative", paddingBottom: i === (order.asamalar.length - 1) ? 0 : 22 }}>
+                <div style={{
+                  position: "absolute", left: -26, top: 2, width: 10, height: 10, borderRadius: "50%",
+                  background: s.durum === STAGE_STATUS.DONE ? COLORS.accentRun : s.durum === STAGE_STATUS.RUNNING ? COLORS.accentWarn : COLORS.accentIdle,
+                  boxShadow: `0 0 0 3px ${s.durum === STAGE_STATUS.DONE ? COLORS.accentRunDim : s.durum === STAGE_STATUS.RUNNING ? COLORS.accentWarnDim : COLORS.bgRaised}`,
+                }} />
+                <div style={{ fontFamily: "'Archivo', sans-serif", fontWeight: 700, fontSize: 13.5, color: COLORS.text }}>{machineName(s.makine)}</div>
+                <div style={{ fontFamily: "'IBM Plex Mono', monospace", fontSize: 11.5, color: COLORS.textFaint, marginTop: 3 }}>
+                  {s.cikan || 0} / {order.miktar} {t("units", lang)} · {s.durum === STAGE_STATUS.DONE ? t("stageDone", lang) : s.durum === STAGE_STATUS.RUNNING ? t("stageRunning", lang) : t("stageWaiting", lang)}
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+
+        {materialRows.length > 0 && (
+          <div style={{ background: COLORS.bgPanel, border: `1px solid ${COLORS.border}`, borderRadius: 18, padding: 26, marginBottom: 18 }}>
+            <div style={{ fontFamily: "'IBM Plex Mono', monospace", fontSize: 11, letterSpacing: 1.5, textTransform: "uppercase", color: COLORS.textFaint, marginBottom: 14 }}>
+              {t("stockItems", lang)}
+            </div>
+            {materialRows.map((m, i) => (
+              <div key={i} style={{ display: "flex", justifyContent: "space-between", padding: "9px 0", borderBottom: i < materialRows.length - 1 ? `1px solid ${COLORS.border}` : "none", fontSize: 13 }}>
+                <span style={{ color: COLORS.textDim }}>{m.name}</span>
+                <span style={{ fontFamily: "'IBM Plex Mono', monospace", color: COLORS.text }}>{m.total.toFixed(2)} {m.unit}</span>
+              </div>
+            ))}
+          </div>
+        )}
+
+        <div style={{ textAlign: "center", fontSize: 11, color: COLORS.textFaint, lineHeight: 1.6 }}>
+          Bu sayfa üretim verisinden otomatik oluşturulur ve elle düzenlenemez.
         </div>
       </div>
     </div>
@@ -2946,15 +3306,39 @@ function ModeSelect({ onSelect, lang, setLang, dir, profile, onSignOut }) {
 // ANA UYGULAMA
 // =================================================================
 
+function useHashRoute() {
+  const [hash, setHash] = useState(window.location.hash);
+  useEffect(() => {
+    const onChange = () => setHash(window.location.hash);
+    window.addEventListener("hashchange", onChange);
+    return () => window.removeEventListener("hashchange", onChange);
+  }, []);
+  // "#/urun/SIP-102" -> "SIP-102"
+  const match = hash.match(/^#\/urun\/(.+)$/);
+  return { traceOrderId: match ? decodeURIComponent(match[1]) : null };
+}
+
 export default function App() {
   const [mode, setMode] = useState(null);
   const data = useSharedData();
   const { lang, setLang, dir, ready } = useLanguage();
   const auth = useAuth();
+  const { traceOrderId } = useHashRoute();
 
   if (!ready || auth.loading) return <LoadingScreen lang={lang} />;
   if (!auth.session) {
     return <LoginScreen lang={lang} dir={dir} setLang={setLang} onSignIn={auth.signIn} onSignUp={auth.signUp} />;
+  }
+
+  // QR kod / doğrudan link ile gelinen izlenebilirlik sayfası — giriş
+  // yapmış herhangi bir kullanıcı görebilir, mod seçiminden bağımsızdır.
+  if (traceOrderId) {
+    return (
+      <>
+        <FontImports />
+        <TraceView orderId={traceOrderId} data={data} lang={lang} dir={dir} onBack={() => { window.location.hash = ""; }} />
+      </>
+    );
   }
 
   return (
