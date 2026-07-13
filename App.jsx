@@ -239,6 +239,19 @@ const STRINGS = {
   qtyPerUnit: { tr: "Birim başına miktar", en: "Qty per unit", ar: "الكمية لكل وحدة" },
   saveRoute: { tr: "Rotayı Kaydet", en: "Save Route", ar: "حفظ المسار" },
   noRoutes: { tr: "Henüz rota tanımlanmadı", en: "No routes defined yet", ar: "لم يتم تحديد مسارات بعد" },
+  renk: { tr: "Renk", en: "Color", ar: "اللون" },
+  selectColor: { tr: "Renk seçin...", en: "Select color...", ar: "اختر اللون..." },
+  colorAny: { tr: "Tüm renkler (rengden bağımsız)", en: "All colors (color-independent)", ar: "كل الألوان" },
+  colors: { tr: "Renkler", en: "Colors", ar: "الألوان" },
+  newColorPlaceholder: { tr: "Yeni renk adı", en: "New color name", ar: "اسم لون جديد" },
+  materialNeed: { tr: "Malzeme İhtiyacı (Bekleyen Siparişler)", en: "Material Need (Pending Orders)", ar: "احتياج المواد (الطلبات المعلقة)" },
+  materialNeedDesc: { tr: "Bekleyen siparişlerin kalan üretimi için gereken malzeme, tanımlı rota/reçeteye göre hesaplanır. Rotası olmayan ürünler bu hesaba dahil değildir.", en: "Material required for the remaining production of pending orders, based on defined routes. Products without a route are not included.", ar: "المواد المطلوبة للطلبات المعلقة بناءً على المسار المحدد." },
+  materialNeedNone: { tr: "Şu an tanımlı rotaya göre hesaplanabilen bekleyen ihtiyaç yok", en: "No calculable pending need right now", ar: "لا توجد احتياجات حالياً" },
+  materialShort: { tr: "YETERSİZ", en: "SHORT", ar: "غير كافٍ" },
+  materialOk: { tr: "yeterli", en: "sufficient", ar: "كافٍ" },
+  needed: { tr: "gerekli", en: "needed", ar: "مطلوب" },
+  available: { tr: "mevcut", en: "available", ar: "متوفر" },
+  confirmResetProduced: { tr: "Bu aşama 'Bekliyor'a alınırsa, girilmiş üretim adedi sıfırlanacak. Emin misiniz?", en: "Resetting this stage to 'Waiting' will clear its recorded output quantity. Are you sure?", ar: "سيؤدي هذا إلى إعادة تعيين الكمية المنتجة. هل أنت متأكد؟" },
   selectMachine: { tr: "Makine seçin...", en: "Select machine...", ar: "اختر الآلة..." },
 
   // ---- Sevkiyat ----
@@ -647,8 +660,16 @@ const DEFAULT_STOCK = [
 // Ürün Rotaları / Reçeteleri: her ürünün hangi makinelerden sırayla geçtiği
 // ve her aşamada hangi malzemeden ne kadar tükettiği. Yönetici tarafından
 // "Rota / Reçete" sekmesinden tanımlanır. Yapı:
-// { id, productName, stages: [ { machine: "MK-EX2", consumables: [{ stockItemId, qtyPerUnit }] } ] }
+// { id, productName, stages: [ { machine: "MK-EX2", consumables: [{ stockItemId, qtyPerUnit, renk }] } ] }
+// consumables[].renk: null/"" ise malzeme rengden bağımsızdır (her siparişte tüketilir).
+// Bir renk verilmişse, sadece o rengin siparişinde (order.renk) tüketilir/talep hesabına girer.
 const DEFAULT_PRODUCT_ROUTES = [];
+
+// Laminasyon (folyo) renkleri — sadece Kasa/Pervaz gibi extrüderde nötr çıkıp
+// sonradan lamine edilen ürünler için geçerli. Deck'in kendi ürün adına gömülü
+// renk sistemi (örn. "DECK 140x26 Antrasit") bundan ayrı ve değişmeden kalır.
+// Tanımlar panelinden eklenip çıkarılabilir; burası sadece ilk kurulum listesi.
+const DEFAULT_COLORS = ["Antrasit", "Ceviz", "Altın Meşe", "Beyaz", "Krem"];
 
 const PURCHASE_STATUS = {
   PENDING: "bekliyor",
@@ -834,6 +855,7 @@ function useSharedData() {
   const [stockMovements, setStockMovements] = useState([]);
   const [purchaseRequests, setPurchaseRequestsState] = useState(null);
   const [productRoutes, setProductRoutesState] = useState(null);
+  const [colors, setColorsState] = useState(null);
   const [loading, setLoading] = useState(true);
   // Tracks machine codes with a write in flight, plus a version counter,
   // so a slow background refresh() can never overwrite a newer local change.
@@ -849,7 +871,7 @@ function useSharedData() {
     isRefreshing.current = true;
     try {
       const versionAtStart = writeVersion.current;
-      const [dep, ord, p, l, sk, skMoves, pr, routes] = await Promise.all([
+      const [dep, ord, p, l, sk, skMoves, pr, routes, cols] = await Promise.all([
         loadShared("departments", DEFAULT_DEPARTMENTS),
         loadShared("orders", DEFAULT_ORDERS),
         loadShared("plan", {}),
@@ -858,6 +880,7 @@ function useSharedData() {
         loadShared("stock-movements", []),
         loadShared("purchase-requests", []),
         loadShared("product-routes", DEFAULT_PRODUCT_ROUTES),
+        loadShared("colors", DEFAULT_COLORS),
       ]);
       const m = allMachinesFrom(dep);
       const stateEntries = await Promise.all(
@@ -885,6 +908,7 @@ function useSharedData() {
       setStockMovements((prev) => (prev.length >= skMoves.length ? prev : skMoves));
       setPurchaseRequestsState(pr);
       setProductRoutesState(routes);
+      setColorsState(cols);
       setLoading(false);
     } finally {
       isRefreshing.current = false;
@@ -993,9 +1017,13 @@ function useSharedData() {
         const routeStage = route?.stages?.find((rs) => rs.machine === stage.makine);
         if (routeStage?.consumables?.length) {
           for (const c of routeStage.consumables) {
+            // renk tanımlı bir malzemeyse (örn. bir folyo rengi), sadece siparişin
+            // rengi eşleşiyorsa tüketilir; renksiz (genel) malzemeler her zaman düşer.
+            if (c.renk && c.renk !== order.renk) continue;
             const qty = Number(c.qtyPerUnit) || 0;
             if (qty > 0) {
-              await adjustStockQty(c.stockItemId, -qty * delta, `Otomatik tüketim: ${order.urun} — ${stage.makine} (${order.id})`);
+              const label = c.renk ? `${order.urun} · ${c.renk}` : order.urun;
+              await adjustStockQty(c.stockItemId, -qty * delta, `Otomatik tüketim: ${label} — ${stage.makine} (${order.id})`);
             }
           }
         }
@@ -1135,14 +1163,35 @@ function useSharedData() {
     await updateProductRoutes(newRoutes);
   }
 
+  // ---------------- Renkler (Laminasyon/folyo) ----------------
+  const colorsRef = useRef(colors);
+  useEffect(() => { colorsRef.current = colors; }, [colors]);
+
+  async function updateColors(newColors) {
+    colorsRef.current = newColors;
+    setColorsState(newColors);
+    await saveShared("colors", newColors);
+  }
+  async function addColor(name) {
+    const trimmed = (name || "").trim();
+    if (!trimmed) return;
+    const current = colorsRef.current || [];
+    if (current.includes(trimmed)) return;
+    await updateColors([...current, trimmed]);
+  }
+  async function removeColor(name) {
+    const newColors = (colorsRef.current || []).filter((c) => c !== name);
+    await updateColors(newColors);
+  }
+
   return {
     departments, machines, orders, plan, machineStates, log, loading,
-    stock, stockMovements, purchaseRequests, productRoutes,
+    stock, stockMovements, purchaseRequests, productRoutes, colors,
     refresh, setMachineState, appendLog, updateDepartments, setPlanCell, setPolling,
     addOrder, removeOrder, markOrderDelivered, addOrderStage, removeOrderStage, updateOrderStage, updateOrders,
     addStockItem, removeStockItem, adjustStockQty,
     addPurchaseRequest, removePurchaseRequest, advancePurchaseStatus,
-    addProductRoute, removeProductRoute,
+    addProductRoute, removeProductRoute, addColor, removeColor,
   };
 }
 
@@ -2136,12 +2185,13 @@ function PlanCellEditor({ dept, dateIso, machine, currentCell, orders, lang, onS
 
 
 function TanimlarPanel({ data, lang, dir }) {
-  const { departments, updateDepartments, orders, addOrder, removeOrder, markOrderDelivered, addOrderStage, removeOrderStage, updateOrderStage, productRoutes } = data;
+  const { departments, updateDepartments, orders, addOrder, removeOrder, markOrderDelivered, addOrderStage, removeOrderStage, updateOrderStage, productRoutes, colors, addColor, removeColor } = data;
   const [localDepartments, setLocalDepartments] = useState(departments);
   const [activeDept, setActiveDept] = useState(departments?.[0]?.id || "extruder");
   const [savedMsg, setSavedMsg] = useState(null);
   const [newProductText, setNewProductText] = useState("");
-  const [newOrder, setNewOrder] = useState({ urun: "", musteri: "", miktar: "", teslimTarihi: "" });
+  const [newColorText, setNewColorText] = useState("");
+  const [newOrder, setNewOrder] = useState({ urun: "", musteri: "", miktar: "", teslimTarihi: "", renk: "" });
   const [stagePickers, setStagePickers] = useState({}); // orderId -> selected machine code (draft, before "Ekle")
 
   useEffect(() => { setLocalDepartments(departments); }, [departments]);
@@ -2201,6 +2251,11 @@ function TanimlarPanel({ data, lang, dir }) {
   const allOrderProducts = allProductsFrom(localDepartments);
   // Sipariş makine seçenekleri: tüm bölümlerin makineleri + Kanat makineleri.
   const allOrderMachines = allMachinesFrom(localDepartments);
+  // Sadece Laminasyon bölümünün ürün listesindeki (Kasa/Pervaz) ürünler için renk
+  // seçimi anlamlı — Deck kendi ürün adına gömülü rengini korur, extrüder çıktısı
+  // rengden bağımsız (folyo rengi Laminasyon aşamasında verilir).
+  const laminasyonProducts = localDepartments.find((d) => d.id === "laminasyon")?.products || [];
+  const orderNeedsColor = laminasyonProducts.includes(newOrder.urun);
 
   async function submitNewOrder() {
     if (!newOrder.urun || !newOrder.miktar) return;
@@ -2213,16 +2268,28 @@ function TanimlarPanel({ data, lang, dir }) {
     await addOrder({
       id, urun: newOrder.urun, musteri: newOrder.musteri || "—",
       miktar: parseInt(newOrder.miktar) || 0, teslimTarihi: newOrder.teslimTarihi || "",
+      renk: orderNeedsColor ? (newOrder.renk || null) : null,
       durum: ORDER_STATUS.PENDING, asamalar,
     });
-    setNewOrder({ urun: "", musteri: "", miktar: "", teslimTarihi: "" });
+    setNewOrder({ urun: "", musteri: "", miktar: "", teslimTarihi: "", renk: "" });
   }
 
+  // Manuel durum değişikliği, üretilen adetle (cikan) senkron tutulur — aksi halde
+  // "Tamamlandı" işaretlenmiş bir aşama düşük bir adetle kalıp, sonradan cikan
+  // düzenlendiğinde otomatik hesaplama tarafından sessizce geri alınabiliyordu.
   function cycleStageStatus(orderId, stage) {
+    const order = (orders || []).find((o) => o.id === orderId);
     const next = stage.durum === STAGE_STATUS.WAITING ? STAGE_STATUS.RUNNING
       : stage.durum === STAGE_STATUS.RUNNING ? STAGE_STATUS.DONE
       : STAGE_STATUS.WAITING;
-    updateOrderStage(orderId, stage.id, { durum: next });
+    const patch = { durum: next };
+    if (next === STAGE_STATUS.DONE && order) {
+      patch.cikan = order.miktar || 0; // tamamlandı → adet miktara eşitlenir, stok da doğru düşer
+    } else if (next === STAGE_STATUS.WAITING) {
+      if (stage.cikan > 0 && !window.confirm(t("confirmResetProduced", lang))) return;
+      patch.cikan = 0; // bekliyor'a dönünce sıfırlanır (tutarlılık için)
+    }
+    updateOrderStage(orderId, stage.id, patch);
   }
 
   return (
@@ -2306,11 +2373,17 @@ function TanimlarPanel({ data, lang, dir }) {
           {t("orders", lang)}
         </div>
 
-        <div style={{ display: "grid", gridTemplateColumns: "1.4fr 1fr 90px 130px 40px", gap: 8, marginBottom: 12 }}>
-          <select value={newOrder.urun} onChange={(e) => setNewOrder({ ...newOrder, urun: e.target.value })} style={inputStyle}>
+        <div style={{ display: "grid", gridTemplateColumns: orderNeedsColor ? "1.2fr 0.9fr 0.9fr 80px 120px 40px" : "1.4fr 1fr 90px 130px 40px", gap: 8, marginBottom: 12 }}>
+          <select value={newOrder.urun} onChange={(e) => setNewOrder({ ...newOrder, urun: e.target.value, renk: "" })} style={inputStyle}>
             <option value="">{t("selectProduct", lang)}</option>
             {allOrderProducts.map((p) => <option key={p} value={p}>{p}</option>)}
           </select>
+          {orderNeedsColor && (
+            <select value={newOrder.renk} onChange={(e) => setNewOrder({ ...newOrder, renk: e.target.value })} style={inputStyle}>
+              <option value="">{t("selectColor", lang)}</option>
+              {(colors || []).map((c) => <option key={c} value={c}>{c}</option>)}
+            </select>
+          )}
           <input value={newOrder.musteri} onChange={(e) => setNewOrder({ ...newOrder, musteri: e.target.value })} placeholder={t("orderCustomer", lang)} style={inputStyle} />
           <input type="number" value={newOrder.miktar} onChange={(e) => setNewOrder({ ...newOrder, miktar: e.target.value })} placeholder={t("orderQty", lang)} style={inputStyle} />
           <input type="date" value={newOrder.teslimTarihi} onChange={(e) => setNewOrder({ ...newOrder, teslimTarihi: e.target.value })} style={inputStyle} />
@@ -2337,6 +2410,9 @@ function TanimlarPanel({ data, lang, dir }) {
                     <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
                       <span style={{ fontFamily: "'IBM Plex Mono', monospace", fontSize: 12, color: COLORS.accentWarn }}>{o.id}</span>
                       <span style={{ fontFamily: "'Inter', sans-serif", fontSize: 13.5, fontWeight: 600, color: COLORS.text }}>{o.urun}</span>
+                      {o.renk && (
+                        <span style={{ fontFamily: "'IBM Plex Mono', monospace", fontSize: 10.5, color: COLORS.textDim, border: `1px solid ${COLORS.border}`, borderRadius: 6, padding: "1px 6px" }}>{o.renk}</span>
+                      )}
                     </div>
                     <div style={{ fontFamily: "'Inter', sans-serif", fontSize: 12, color: COLORS.textFaint, marginTop: 2 }}>
                       {o.musteri} · {o.miktar} {t("units", lang)} {o.teslimTarihi && `· ${t("due", lang)} ${fmtDateShort(o.teslimTarihi)}`}
@@ -2438,6 +2514,38 @@ function TanimlarPanel({ data, lang, dir }) {
         </div>
       </div>
 
+      {/* ---- Renkler (Laminasyon/folyo) ---- */}
+      <div>
+        <div style={{ fontFamily: "'Archivo', sans-serif", fontWeight: 700, fontSize: 16, color: COLORS.text, marginBottom: 12 }}>
+          {t("colors", lang)}
+        </div>
+        <div style={{ display: "flex", flexWrap: "wrap", gap: 8, marginBottom: 10 }}>
+          {(colors || []).map((c) => (
+            <span key={c} style={{
+              display: "flex", alignItems: "center", gap: 6, fontFamily: "'Inter', sans-serif", fontSize: 12.5, color: COLORS.text,
+              background: COLORS.bgRaised, border: `1px solid ${COLORS.border}`, padding: "5px 6px 5px 10px", borderRadius: 8,
+            }}>
+              {c}
+              <button onClick={() => removeColor(c)} style={{ background: "none", border: "none", color: COLORS.textFaint, cursor: "pointer", display: "flex", padding: 0 }}>
+                <X size={12} />
+              </button>
+            </span>
+          ))}
+        </div>
+        <div style={{ display: "flex", gap: 8, maxWidth: 340 }}>
+          <input
+            value={newColorText}
+            onChange={(e) => setNewColorText(e.target.value)}
+            onKeyDown={(e) => { if (e.key === "Enter") { addColor(newColorText); setNewColorText(""); } }}
+            placeholder={t("newColorPlaceholder", lang)}
+            style={{ ...inputStyle, flex: 1 }}
+          />
+          <button onClick={() => { addColor(newColorText); setNewColorText(""); }} style={{ padding: "0 14px", borderRadius: 8, border: `1px solid ${COLORS.accentRun}50`, background: COLORS.accentRunDim, color: COLORS.accentRun, cursor: "pointer" }}>
+            <Plus size={14} />
+          </button>
+        </div>
+      </div>
+
       {/* ---- ER Kapı Model Kataloğu (referans) ---- */}
       <div>
         <div style={{ fontFamily: "'Archivo', sans-serif", fontWeight: 700, fontSize: 16, color: COLORS.text, marginBottom: 6 }}>
@@ -2480,11 +2588,50 @@ const inputStyle = {
   color: COLORS.text, fontFamily: "'Inter', sans-serif", fontSize: 13, padding: "8px 10px", width: "100%", outline: "none",
 };
 
+// Bekleyen siparişlerin (henüz teslim edilmemiş) kalan üretimi için, tanımlı
+// rota/reçeteye göre ne kadar malzemeye ihtiyaç olduğunu hesaplar ve mevcut
+// stokla karşılaştırır. Sadece rotası tanımlı ürünler dahil edilir — rotası
+// olmayan bir ürün için "gerekli malzeme" bilinemez, sessizce atlanır.
+// Renk bağımlı malzemeler (örn. folyo) sadece siparişin rengi eşleşiyorsa sayılır.
+function computeMaterialNeeds(orders, productRoutes, stock) {
+  const totals = {}; // stockItemId -> gerekli miktar
+  for (const order of orders || []) {
+    if (order.durum === ORDER_STATUS.DELIVERED) continue;
+    const route = (productRoutes || []).find((r) => r.productName === order.urun);
+    if (!route) continue;
+    for (const stage of order.asamalar || []) {
+      if (stage.durum === STAGE_STATUS.DONE) continue;
+      const routeStage = route.stages.find((rs) => rs.machine === stage.makine);
+      if (!routeStage?.consumables?.length) continue;
+      const remaining = Math.max(0, (order.miktar || 0) - (stage.cikan || 0));
+      if (remaining <= 0) continue;
+      for (const c of routeStage.consumables) {
+        if (c.renk && c.renk !== order.renk) continue;
+        const qty = Number(c.qtyPerUnit) || 0;
+        if (qty <= 0) continue;
+        totals[c.stockItemId] = (totals[c.stockItemId] || 0) + qty * remaining;
+      }
+    }
+  }
+  return Object.entries(totals)
+    .map(([stockItemId, needed]) => {
+      const item = (stock || []).find((s) => s.id === stockItemId);
+      const available = item?.qty || 0;
+      return {
+        stockItemId, needed, available,
+        unit: item?.unit || "", name: item?.name || stockItemId,
+        short: needed > available,
+      };
+    })
+    .sort((a, b) => (b.short === a.short ? b.needed - a.needed : b.short ? 1 : -1));
+}
+
 // =================================================================
 // STOK / HAMMADDE PANELİ
 // =================================================================
 function StokPanel({ data, lang, dir }) {
-  const { stock, stockMovements, addStockItem, removeStockItem, adjustStockQty } = data;
+  const { stock, stockMovements, addStockItem, removeStockItem, adjustStockQty, orders, productRoutes } = data;
+  const materialNeeds = computeMaterialNeeds(orders, productRoutes, stock);
   const [newItem, setNewItem] = useState({ name: "", unit: "", qty: "", criticalLevel: "" });
   const [adjusting, setAdjusting] = useState(null); // { id, sign }
   const [adjustAmount, setAdjustAmount] = useState("");
@@ -2513,6 +2660,40 @@ function StokPanel({ data, lang, dir }) {
 
   return (
     <div style={{ maxWidth: 1180, margin: "0 auto", padding: "18px 20px 60px", display: "grid", gap: 22 }}>
+      <div style={{ background: COLORS.bgPanel, border: `1px solid ${COLORS.border}`, borderRadius: 16, padding: 18 }}>
+        <div style={{ fontFamily: "'Archivo', sans-serif", fontWeight: 700, fontSize: 15, color: COLORS.text, marginBottom: 6 }}>
+          {t("materialNeed", lang)}
+        </div>
+        <div style={{ fontFamily: "'Inter', sans-serif", fontSize: 12, color: COLORS.textFaint, marginBottom: 14, lineHeight: 1.5 }}>
+          {t("materialNeedDesc", lang)}
+        </div>
+        {materialNeeds.length === 0 ? (
+          <div style={{ color: COLORS.textFaint, fontFamily: "'Inter', sans-serif", fontSize: 13 }}>{t("materialNeedNone", lang)}</div>
+        ) : (
+          <div style={{ display: "grid", gap: 8 }}>
+            {materialNeeds.map((m) => (
+              <div key={m.stockItemId} style={{
+                display: "flex", alignItems: "center", justifyContent: "space-between", gap: 10,
+                padding: "10px 14px", borderRadius: 10,
+                background: m.short ? COLORS.accentStopDim : COLORS.bgRaised,
+                border: `1px solid ${m.short ? COLORS.accentStop + "50" : COLORS.border}`,
+              }}>
+                <span style={{ fontFamily: "'Inter', sans-serif", fontSize: 13, fontWeight: 600, color: COLORS.text }}>{m.name}</span>
+                <span style={{ fontFamily: "'IBM Plex Mono', monospace", fontSize: 12, color: COLORS.textDim, display: "flex", alignItems: "center", gap: 10 }}>
+                  <span>{t("needed", lang)}: <b style={{ color: COLORS.text }}>{Math.round(m.needed * 100) / 100}</b> {m.unit}</span>
+                  <span>{t("available", lang)}: {Math.round(m.available * 100) / 100} {m.unit}</span>
+                  {m.short && (
+                    <span style={{ display: "flex", alignItems: "center", gap: 4, color: COLORS.accentStop, fontWeight: 700 }}>
+                      <AlertTriangle size={12} /> {t("materialShort", lang)}
+                    </span>
+                  )}
+                </span>
+              </div>
+            ))}
+          </div>
+        )}
+      </div>
+
       <div>
         <div style={{ fontFamily: "'IBM Plex Mono', monospace", fontSize: 11, color: COLORS.textFaint, letterSpacing: 1.5, textTransform: "uppercase", marginBottom: 12 }}>
           {t("stockItems", lang)}
@@ -2715,17 +2896,18 @@ function SatinAlmaPanel({ data, lang, dir, profile }) {
 // bu rota otomatik olarak aşamalara dönüştürülür.
 // =================================================================
 function RotaPanel({ data, lang, dir }) {
-  const { departments, stock, productRoutes, addProductRoute, removeProductRoute } = data;
+  const { departments, stock, productRoutes, addProductRoute, removeProductRoute, colors } = data;
   const allProducts = departments ? allProductsFrom(departments) : [];
   const allMachines = departments ? allMachinesFrom(departments) : [];
 
   const [productName, setProductName] = useState("");
   const [stageMachines, setStageMachines] = useState([]); // ["MK-EX2", "MK-FOL", ...]
   const [machinePicker, setMachinePicker] = useState("");
-  const [consumables, setConsumables] = useState([]); // [{ machine, stockItemId, qtyPerUnit }]
+  const [consumables, setConsumables] = useState([]); // [{ machine, stockItemId, qtyPerUnit, renk }]
   const [cMachine, setCMachine] = useState("");
   const [cStock, setCStock] = useState("");
   const [cQty, setCQty] = useState("");
+  const [cColor, setCColor] = useState(""); // "" -> rengden bağımsız (her zaman tüketilir)
 
   if (!productRoutes || !stock) return <LoadingScreen lang={lang} />;
 
@@ -2739,8 +2921,8 @@ function RotaPanel({ data, lang, dir }) {
   }
   function addConsumableToDraft() {
     if (!cMachine || !cStock || !cQty) return;
-    setConsumables([...consumables, { machine: cMachine, stockItemId: cStock, qtyPerUnit: Number(cQty) }]);
-    setCMachine(""); setCStock(""); setCQty("");
+    setConsumables([...consumables, { machine: cMachine, stockItemId: cStock, qtyPerUnit: Number(cQty), renk: cColor || null }]);
+    setCMachine(""); setCStock(""); setCQty(""); setCColor("");
   }
   function removeConsumableFromDraft(idx) {
     setConsumables(consumables.filter((_, i) => i !== idx));
@@ -2750,7 +2932,7 @@ function RotaPanel({ data, lang, dir }) {
     if (!productName || stageMachines.length === 0) return;
     const stages = stageMachines.map((machine) => ({
       machine,
-      consumables: consumables.filter((c) => c.machine === machine).map(({ stockItemId, qtyPerUnit }) => ({ stockItemId, qtyPerUnit })),
+      consumables: consumables.filter((c) => c.machine === machine).map(({ stockItemId, qtyPerUnit, renk }) => ({ stockItemId, qtyPerUnit, renk: renk || null })),
     }));
     addProductRoute({ id: `RT-${Date.now().toString().slice(-6)}`, productName, stages });
     setProductName(""); setStageMachines([]); setConsumables([]);
@@ -2847,14 +3029,17 @@ function RotaPanel({ data, lang, dir }) {
           <div style={{ display: "grid", gap: 6, marginBottom: 8 }}>
             {consumables.map((c, i) => (
               <div key={i} style={{ display: "flex", alignItems: "center", gap: 8, fontFamily: "'Inter', sans-serif", fontSize: 12.5, color: COLORS.textDim }}>
-                <span style={{ flex: 1 }}>{machineName(c.machine)} → {stockName(c.stockItemId)} × {c.qtyPerUnit}</span>
+                <span style={{ flex: 1 }}>
+                  {machineName(c.machine)} → {stockName(c.stockItemId)} × {c.qtyPerUnit}
+                  {c.renk && <span style={{ color: COLORS.accentWarn, marginLeft: 6 }}>· {c.renk}</span>}
+                </span>
                 <button onClick={() => removeConsumableFromDraft(i)} style={{ background: "none", border: "none", color: COLORS.textFaint, cursor: "pointer" }}>
                   <Trash2 size={13} />
                 </button>
               </div>
             ))}
           </div>
-          <div style={{ display: "grid", gridTemplateColumns: "1.2fr 1.2fr 0.8fr auto", gap: 8 }}>
+          <div style={{ display: "grid", gridTemplateColumns: "1.1fr 1.1fr 0.7fr 0.9fr auto", gap: 8 }}>
             <select value={cMachine} onChange={(e) => setCMachine(e.target.value)} style={inputStyle}>
               <option value="">{t("selectMachine", lang)}</option>
               {stageMachines.map((m) => <option key={m} value={m}>{machineName(m)}</option>)}
@@ -2864,6 +3049,10 @@ function RotaPanel({ data, lang, dir }) {
               {stock.map((s) => <option key={s.id} value={s.id}>{s.name} ({s.unit})</option>)}
             </select>
             <input type="number" placeholder={t("qtyPerUnit", lang)} value={cQty} onChange={(e) => setCQty(e.target.value)} style={inputStyle} />
+            <select value={cColor} onChange={(e) => setCColor(e.target.value)} style={inputStyle}>
+              <option value="">{t("colorAny", lang)}</option>
+              {(colors || []).map((c) => <option key={c} value={c}>{c}</option>)}
+            </select>
             <button onClick={addConsumableToDraft} style={{ padding: "0 14px", borderRadius: 8, border: `1px solid ${COLORS.border}`, background: "transparent", color: COLORS.textDim, fontFamily: "'Inter', sans-serif", fontSize: 12, cursor: "pointer" }}>
               <Plus size={14} />
             </button>
