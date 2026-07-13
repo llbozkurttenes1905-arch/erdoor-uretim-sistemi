@@ -252,6 +252,9 @@ const STRINGS = {
   needed: { tr: "gerekli", en: "needed", ar: "مطلوب" },
   available: { tr: "mevcut", en: "available", ar: "متوفر" },
   confirmResetProduced: { tr: "Bu aşama 'Bekliyor'a alınırsa, girilmiş üretim adedi sıfırlanacak. Emin misiniz?", en: "Resetting this stage to 'Waiting' will clear its recorded output quantity. Are you sure?", ar: "سيؤدي هذا إلى إعادة تعيين الكمية المنتجة. هل أنت متأكد؟" },
+  generalRecipeTitle: { tr: "Genel Malzeme Reçetesi (1 birim ürün için)", en: "General Material Recipe (per 1 unit of product)", ar: "وصفة المواد العامة (لكل وحدة)" },
+  generalRecipeDesc: { tr: "Belirli bir makine/aşamaya bağlı olmadan, bu üründen 1 adet için genel olarak ne kadar malzeme gerektiğini girin (örn. 1 kapı için 1 Seren, 2.5 m² Levha). Sipariş miktarına göre otomatik çarpılır; stoktan otomatik düşmez, sadece ihtiyaç hesabında (Stok sekmesi) gösterilir.", en: "Enter how much material 1 unit of this product needs overall, without tying it to a specific machine stage (e.g. 1 door needs 1 Seren, 2.5 m² Sheet). Multiplied automatically by order quantity; does not auto-deduct stock, only shown in the material-need report (Stock tab).", ar: "أدخل كمية المواد اللازمة لوحدة واحدة من هذا المنتج بشكل عام." },
+  addGeneralItem: { tr: "Malzeme Ekle", en: "Add Material", ar: "إضافة مادة" },
   selectMachine: { tr: "Makine seçin...", en: "Select machine...", ar: "اختر الآلة..." },
 
   // ---- Sevkiyat ----
@@ -2599,6 +2602,8 @@ function computeMaterialNeeds(orders, productRoutes, stock) {
     if (order.durum === ORDER_STATUS.DELIVERED) continue;
     const route = (productRoutes || []).find((r) => r.productName === order.urun);
     if (!route) continue;
+
+    // 1) Aşamaya bağlı reçete: sadece o aşamanın kalan (henüz üretilmemiş) adedi kadar.
     for (const stage of order.asamalar || []) {
       if (stage.durum === STAGE_STATUS.DONE) continue;
       const routeStage = route.stages.find((rs) => rs.machine === stage.makine);
@@ -2610,6 +2615,17 @@ function computeMaterialNeeds(orders, productRoutes, stock) {
         const qty = Number(c.qtyPerUnit) || 0;
         if (qty <= 0) continue;
         totals[c.stockItemId] = (totals[c.stockItemId] || 0) + qty * remaining;
+      }
+    }
+
+    // 2) Genel (aşamasız) reçete: belirli bir makineye bağlı değil, siparişin
+    // tamamı üzerinden hesaplanır (üretim ilerlemesi burada takip edilmiyor).
+    if (route.generalConsumables?.length) {
+      for (const c of route.generalConsumables) {
+        if (c.renk && c.renk !== order.renk) continue;
+        const qty = Number(c.qtyPerUnit) || 0;
+        if (qty <= 0) continue;
+        totals[c.stockItemId] = (totals[c.stockItemId] || 0) + qty * (order.miktar || 0);
       }
     }
   }
@@ -2908,6 +2924,13 @@ function RotaPanel({ data, lang, dir }) {
   const [cStock, setCStock] = useState("");
   const [cQty, setCQty] = useState("");
   const [cColor, setCColor] = useState(""); // "" -> rengden bağımsız (her zaman tüketilir)
+  // Genel (aşamasız) reçete: belirli bir makineye bağlı olmadan, "1 birim ürün
+  // için ne kadar malzeme" — sipariş miktarına göre çarpılır, ihtiyaç raporunda
+  // gösterilir ama stoktan otomatik düşmez (hangi anda düşüleceği belirsiz).
+  const [generalItems, setGeneralItems] = useState([]); // [{ stockItemId, qtyPerUnit, renk }]
+  const [gStock, setGStock] = useState("");
+  const [gQty, setGQty] = useState("");
+  const [gColor, setGColor] = useState("");
 
   if (!productRoutes || !stock) return <LoadingScreen lang={lang} />;
 
@@ -2927,15 +2950,24 @@ function RotaPanel({ data, lang, dir }) {
   function removeConsumableFromDraft(idx) {
     setConsumables(consumables.filter((_, i) => i !== idx));
   }
+  function addGeneralItemToDraft() {
+    if (!gStock || !gQty) return;
+    setGeneralItems([...generalItems, { stockItemId: gStock, qtyPerUnit: Number(gQty), renk: gColor || null }]);
+    setGStock(""); setGQty(""); setGColor("");
+  }
+  function removeGeneralItemFromDraft(idx) {
+    setGeneralItems(generalItems.filter((_, i) => i !== idx));
+  }
 
   function saveRoute() {
-    if (!productName || stageMachines.length === 0) return;
+    if (!productName || (stageMachines.length === 0 && generalItems.length === 0)) return;
     const stages = stageMachines.map((machine) => ({
       machine,
       consumables: consumables.filter((c) => c.machine === machine).map(({ stockItemId, qtyPerUnit, renk }) => ({ stockItemId, qtyPerUnit, renk: renk || null })),
     }));
-    addProductRoute({ id: `RT-${Date.now().toString().slice(-6)}`, productName, stages });
-    setProductName(""); setStageMachines([]); setConsumables([]);
+    const generalConsumables = generalItems.map(({ stockItemId, qtyPerUnit, renk }) => ({ stockItemId, qtyPerUnit, renk: renk || null }));
+    addProductRoute({ id: `RT-${Date.now().toString().slice(-6)}`, productName, stages, generalConsumables });
+    setProductName(""); setStageMachines([]); setConsumables([]); setGeneralItems([]);
   }
 
   function machineName(code) {
@@ -2982,6 +3014,20 @@ function RotaPanel({ data, lang, dir }) {
               {consumablesSummary(r) && (
                 <div style={{ fontFamily: "'Inter', sans-serif", fontSize: 11.5, color: COLORS.textFaint, marginTop: 8 }}>
                   {consumablesSummary(r)}
+                </div>
+              )}
+              {r.generalConsumables?.length > 0 && (
+                <div style={{ marginTop: 8, paddingTop: 8, borderTop: `1px solid ${COLORS.border}` }}>
+                  <div style={{ fontFamily: "'IBM Plex Mono', monospace", fontSize: 10, color: COLORS.textFaint, letterSpacing: 1, textTransform: "uppercase", marginBottom: 4 }}>
+                    {t("generalRecipeTitle", lang)}
+                  </div>
+                  <div style={{ display: "flex", flexWrap: "wrap", gap: 6 }}>
+                    {r.generalConsumables.map((c, i) => (
+                      <span key={i} style={{ fontFamily: "'Inter', sans-serif", fontSize: 11.5, color: COLORS.textDim, background: COLORS.bgRaised, border: `1px solid ${COLORS.border}`, padding: "3px 8px", borderRadius: 6 }}>
+                        {stockName(c.stockItemId)} × {c.qtyPerUnit}{c.renk ? ` (${c.renk})` : ""}
+                      </span>
+                    ))}
+                  </div>
                 </div>
               )}
             </div>
@@ -3054,6 +3100,38 @@ function RotaPanel({ data, lang, dir }) {
               {(colors || []).map((c) => <option key={c} value={c}>{c}</option>)}
             </select>
             <button onClick={addConsumableToDraft} style={{ padding: "0 14px", borderRadius: 8, border: `1px solid ${COLORS.border}`, background: "transparent", color: COLORS.textDim, fontFamily: "'Inter', sans-serif", fontSize: 12, cursor: "pointer" }}>
+              <Plus size={14} />
+            </button>
+          </div>
+        </div>
+
+        <div style={{ borderTop: `1px solid ${COLORS.border}`, paddingTop: 16 }}>
+          <div style={{ fontFamily: "'Inter', sans-serif", fontSize: 12, color: COLORS.textDim, marginBottom: 2 }}>{t("generalRecipeTitle", lang)}</div>
+          <div style={{ fontFamily: "'Inter', sans-serif", fontSize: 11, color: COLORS.textFaint, marginBottom: 8, lineHeight: 1.5 }}>{t("generalRecipeDesc", lang)}</div>
+          <div style={{ display: "grid", gap: 6, marginBottom: 8 }}>
+            {generalItems.map((it, i) => (
+              <div key={i} style={{ display: "flex", alignItems: "center", gap: 8, fontFamily: "'Inter', sans-serif", fontSize: 12.5, color: COLORS.textDim }}>
+                <span style={{ flex: 1 }}>
+                  {stockName(it.stockItemId)} × {it.qtyPerUnit}
+                  {it.renk && <span style={{ color: COLORS.accentWarn, marginLeft: 6 }}>· {it.renk}</span>}
+                </span>
+                <button onClick={() => removeGeneralItemFromDraft(i)} style={{ background: "none", border: "none", color: COLORS.textFaint, cursor: "pointer" }}>
+                  <Trash2 size={13} />
+                </button>
+              </div>
+            ))}
+          </div>
+          <div style={{ display: "grid", gridTemplateColumns: "1.3fr 0.8fr 0.9fr auto", gap: 8 }}>
+            <select value={gStock} onChange={(e) => setGStock(e.target.value)} style={inputStyle}>
+              <option value="">{t("selectStockItem", lang)}</option>
+              {stock.map((s) => <option key={s.id} value={s.id}>{s.name} ({s.unit})</option>)}
+            </select>
+            <input type="number" placeholder={t("qtyPerUnit", lang)} value={gQty} onChange={(e) => setGQty(e.target.value)} style={inputStyle} />
+            <select value={gColor} onChange={(e) => setGColor(e.target.value)} style={inputStyle}>
+              <option value="">{t("colorAny", lang)}</option>
+              {(colors || []).map((c) => <option key={c} value={c}>{c}</option>)}
+            </select>
+            <button onClick={addGeneralItemToDraft} style={{ padding: "0 14px", borderRadius: 8, border: `1px solid ${COLORS.border}`, background: "transparent", color: COLORS.textDim, fontFamily: "'Inter', sans-serif", fontSize: 12, cursor: "pointer" }}>
               <Plus size={14} />
             </button>
           </div>
