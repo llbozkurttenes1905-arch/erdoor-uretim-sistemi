@@ -281,6 +281,14 @@ const STRINGS = {
   traceVerified: { tr: "Sistem Tarafından Doğrulandı", en: "Verified by System", ar: "موثق من النظام" },
   traceBack: { tr: "Geri Dön", en: "Go Back", ar: "رجوع" },
   traceEmptyHistory: { tr: "Henüz üretim kaydı yok", en: "No production records yet", ar: "لا توجد سجلات إنتاج بعد" },
+
+  // ---- Sipariş Tamamlama Onayı ----
+  completeAndApprove: { tr: "Siparişi Onayla ve Gönder", en: "Approve & Send Order", ar: "الموافقة وإرسال الطلب" },
+  confirmCompleteTitle: { tr: "Sipariş Tamamlandı", en: "Order Complete", ar: "اكتمل الطلب" },
+  confirmCompleteDesc: { tr: "için hedef miktara ulaşıldı:", en: "reached its target quantity:", ar: "وصل إلى الكمية المستهدفة:" },
+  confirmCompleteNext: { tr: "Onaylarsanız bu aşama tamamlanmış sayılır ve sipariş rotadaki bir sonraki makineye geçer.", en: "Approving marks this stage complete and moves the order to the next machine in its route.", ar: "الموافقة تنهي هذه المرحلة وتنقل الطلب للمرحلة التالية." },
+  orderCompletedToast: { tr: "Sipariş onaylandı, sonraki makineye gönderildi", en: "Order approved and sent to the next machine", ar: "تمت الموافقة على الطلب وإرساله" },
+  orderQtyReached: { tr: "Hedef miktara ulaşıldı — onaylayıp sonraki makineye gönderin", en: "Target quantity reached — approve to send to the next machine", ar: "تم الوصول إلى الكمية المستهدفة" },
 };
 
 function t(key, lang, vars) {
@@ -1168,6 +1176,10 @@ function UstaMode({ data, onBack, lang, dir }) {
   if (!machines) return <LoadingScreen lang={lang} />;
 
   const state = selectedMachine ? machineStates[selectedMachine.code] || { status: "idle" } : null;
+  // Şu an üretilen sipariş ve "sipariş miktarına ulaşıldı mı" kontrolü —
+  // ulaşıldıysa normal "durdur" akışı yerine usta onayı istenir.
+  const runningOrder = state?.orderId ? (orders || []).find((o) => o.id === state.orderId) : null;
+  const orderComplete = !!(runningOrder && (state?.produced || 0) >= (runningOrder.miktar || Infinity));
   const backIcon = dir === "rtl" ? { transform: "rotate(180deg)" } : {};
   const todayIso = isoDate(now);
   const todaysCell = selectedMachine ? normalizeCell((plan[todayIso] || {})[selectedMachine.code]) : null;
@@ -1210,8 +1222,28 @@ function UstaMode({ data, onBack, lang, dir }) {
   }
 
   async function adjustProduced(delta) {
-    const newState = { ...state, produced: Math.max(0, (state.produced || 0) + delta) };
+    const cap = runningOrder ? (runningOrder.miktar || Infinity) : Infinity;
+    const newProduced = Math.min(cap, Math.max(0, (state.produced || 0) + delta));
+    const newState = { ...state, produced: newProduced };
     await setMachineState(selectedMachine.code, newState);
+  }
+
+  // Sipariş miktarı tamamlandığında (örn. 500/500) çağrılır. Bu bir "duruş"
+  // değildir — makine boşta kalır ve sipariş, rotaya göre bir sonraki
+  // makinenin kuyruğuna otomatik düşer (updateOrderStage zaten bunu yapıyor).
+  async function completeOrderNow() {
+    await appendLog({
+      time: Date.now(), type: "üretim", machine: selectedMachine.code,
+      label: `${state.produced} adet · ${state.profile} · ${state.orderId} (tamamlandı, onaylandı)`,
+      detail: { qty: state.produced, profile: state.profile, orderId: state.orderId || null, stageId: state.stageId || null, durationMs: Date.now() - state.startedAt },
+    });
+    if (state.orderId && state.stageId) {
+      await updateOrderStage(state.orderId, state.stageId, { cikan: state.produced });
+    }
+    await setMachineState(selectedMachine.code, { status: "idle" });
+    setConfirmingStop(false);
+    setSelectedOrderId(null);
+    showToast(t("orderCompletedToast", lang));
   }
 
   async function confirmStop() {
@@ -1421,23 +1453,39 @@ function UstaMode({ data, onBack, lang, dir }) {
           </div>
 
           <div>
-            <div style={{ fontFamily: "'Inter', sans-serif", fontSize: 14, color: COLORS.textDim, marginBottom: 10 }}>{t("producedQty", lang)}</div>
+            <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 10 }}>
+              <div style={{ fontFamily: "'Inter', sans-serif", fontSize: 14, color: COLORS.textDim }}>{t("producedQty", lang)}</div>
+              {runningOrder && (
+                <div style={{ fontFamily: "'IBM Plex Mono', monospace", fontSize: 12.5, color: orderComplete ? COLORS.accentRun : COLORS.textFaint }}>
+                  {state.produced} / {runningOrder.miktar}
+                </div>
+              )}
+            </div>
             <div style={{ display: "flex", alignItems: "center", gap: 14 }}>
               <BigButton onClick={() => adjustProduced(-1)} style={{ width: 56, height: 56, fontSize: 26, display: "flex", alignItems: "center", justifyContent: "center" }}>−</BigButton>
-              <div style={{ flex: 1, textAlign: "center", fontFamily: "'IBM Plex Mono', monospace", fontSize: 36, fontWeight: 700, color: COLORS.text, background: COLORS.bgPanel, border: `1px solid ${COLORS.border}`, borderRadius: 14, padding: "10px 0" }}>
+              <div style={{
+                flex: 1, textAlign: "center", fontFamily: "'IBM Plex Mono', monospace", fontSize: 36, fontWeight: 700, color: COLORS.text,
+                background: COLORS.bgPanel, border: `1px solid ${orderComplete ? COLORS.accentRun : COLORS.border}`, borderRadius: 14, padding: "10px 0",
+              }}>
                 {state.produced}
               </div>
-              <BigButton onClick={() => adjustProduced(1)} variant="run" style={{ width: 56, height: 56, fontSize: 26, display: "flex", alignItems: "center", justifyContent: "center" }}>+</BigButton>
+              <BigButton onClick={() => adjustProduced(1)} variant="run" disabled={orderComplete} style={{ width: 56, height: 56, fontSize: 26, display: "flex", alignItems: "center", justifyContent: "center", opacity: orderComplete ? 0.4 : 1 }}>+</BigButton>
             </div>
             <div style={{ display: "flex", gap: 8, marginTop: 10 }}>
               {[10, 25, 50].map((n) => (
-                <BigButton key={n} onClick={() => adjustProduced(n)} style={{ flex: 1, padding: "10px 0", fontSize: 14 }}>+{n}</BigButton>
+                <BigButton key={n} onClick={() => adjustProduced(n)} disabled={orderComplete} style={{ flex: 1, padding: "10px 0", fontSize: 14, opacity: orderComplete ? 0.4 : 1 }}>+{n}</BigButton>
               ))}
             </div>
+            {orderComplete && (
+              <div style={{ marginTop: 10, fontFamily: "'Inter', sans-serif", fontSize: 12.5, color: COLORS.accentRun, textAlign: "center" }}>
+                {t("orderQtyReached", lang)}
+              </div>
+            )}
           </div>
 
-          <BigButton onClick={() => setConfirmingStop(true)} variant="stop" style={{ padding: "20px 0", fontSize: 18, display: "flex", alignItems: "center", justifyContent: "center", gap: 10 }}>
-            <Square size={20} fill="currentColor" /> {t("stopProduction", lang)}
+          <BigButton onClick={() => setConfirmingStop(true)} variant={orderComplete ? "run" : "stop"} style={{ padding: "20px 0", fontSize: 18, display: "flex", alignItems: "center", justifyContent: "center", gap: 10 }}>
+            {orderComplete ? <Check size={20} /> : <Square size={20} fill="currentColor" />}
+            {orderComplete ? t("completeAndApprove", lang) : t("stopProduction", lang)}
           </BigButton>
         </div>
       )}
@@ -1474,14 +1522,20 @@ function UstaMode({ data, onBack, lang, dir }) {
         <div style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,0.6)", display: "flex", alignItems: "flex-end", justifyContent: "center", zIndex: 50 }}>
           <div style={{ background: COLORS.bgPanel, borderTop: `1px solid ${COLORS.border}`, borderRadius: "20px 20px 0 0", padding: "26px 22px 30px", width: "100%", maxWidth: 480 }}>
             <div style={{ fontFamily: "'Archivo', sans-serif", fontWeight: 800, fontSize: 20, color: COLORS.text, marginBottom: 6 }}>
-              {t("confirmStopTitle", lang)}
+              {orderComplete ? t("confirmCompleteTitle", lang) : t("confirmStopTitle", lang)}
             </div>
             <div style={{ fontFamily: "'Inter', sans-serif", fontSize: 14, color: COLORS.textDim, marginBottom: 18 }}>
-              {state.profile} {t("confirmStopFor", lang)} <strong style={{ color: COLORS.text }}>{state.produced} {t("units", lang)}</strong> {t("unitsWillBeSaved", lang)}
+              {orderComplete ? (
+                <>{state.profile} {t("confirmCompleteDesc", lang)} <strong style={{ color: COLORS.text }}>{state.produced} {t("units", lang)}</strong>. {t("confirmCompleteNext", lang)}</>
+              ) : (
+                <>{state.profile} {t("confirmStopFor", lang)} <strong style={{ color: COLORS.text }}>{state.produced} {t("units", lang)}</strong> {t("unitsWillBeSaved", lang)}</>
+              )}
             </div>
             <div style={{ display: "flex", gap: 10 }}>
               <BigButton onClick={() => setConfirmingStop(false)} variant="ghost" style={{ flex: 1, padding: "16px 0" }}>{t("cancel", lang)}</BigButton>
-              <BigButton onClick={confirmStop} variant="stop" style={{ flex: 1, padding: "16px 0" }}>{t("stop", lang)}</BigButton>
+              <BigButton onClick={orderComplete ? completeOrderNow : confirmStop} variant={orderComplete ? "run" : "stop"} style={{ flex: 1, padding: "16px 0" }}>
+                {orderComplete ? t("approve", lang) : t("stop", lang)}
+              </BigButton>
             </div>
           </div>
         </div>
