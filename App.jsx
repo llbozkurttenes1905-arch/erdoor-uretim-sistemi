@@ -257,6 +257,14 @@ const STRINGS = {
   bottleneckTitle: { tr: "Darboğaz — Makine Başına Bekleyen İş", en: "Bottleneck — Pending Work per Machine", ar: "عنق الزجاجة" },
   bottleneckDesc: { tr: "Her makinenin önünde, henüz tamamlanmamış aşamalardaki toplam bekleyen adet. En yüksek olan, hattın gerçek kısıtıdır.", en: "Total pending units across incomplete stages for each machine. The highest is the real constraint of the line.", ar: "إجمالي العمل المعلق لكل آلة." },
   noBottleneckData: { tr: "Henüz aktif sipariş aşaması yok", en: "No active order stages yet", ar: "لا توجد مراحل نشطة بعد" },
+  terminPanelTab: { tr: "Termin Hesaplama", en: "Due Date Calc", ar: "حساب الموعد" },
+  terminPanelDesc: { tr: "Smart production and logistics management dashboard", en: "Smart production and logistics management dashboard", ar: "لوحة إدارة الإنتاج والخدمات اللوجستية الذكية" },
+  terminRemainingStages: { tr: "Kalan Aşamalar", en: "Remaining Stages", ar: "المراحل المتبقية" },
+  terminTotalRemaining: { tr: "Toplam kalan süre", en: "Total remaining time", ar: "الوقت المتبقي الإجمالي" },
+  terminNoOrders: { tr: "Bekleyen sipariş yok", en: "No pending orders", ar: "لا توجد طلبات معلقة" },
+  terminAllDone: { tr: "Tüm aşamalar tamamlandı", en: "All stages completed", ar: "اكتملت جميع المراحل" },
+  terminCapacityTitle: { tr: "Kapasite / Hat Durumu", en: "Capacity / Line Status", ar: "السعة / حالة الخط" },
+  liveStatus: { tr: "Live Status", en: "Live Status", ar: "الحالة المباشرة" },
   downtimeParetoTitle: { tr: "Duruş Nedenleri — Pareto", en: "Downtime Reasons — Pareto", ar: "أسباب التوقف — باريتو" },
   downtimeParetoDesc: { tr: "Kayıtlı duruşların toplam süresine göre sıralanmış nedenler (sadece süresi kaydedilen duruşlar dahildir).", en: "Downtime reasons ranked by total recorded duration.", ar: "أسباب التوقف مرتبة حسب المدة الإجمالية." },
   noDowntimeData: { tr: "Henüz süresi kaydedilmiş duruş yok", en: "No downtime with recorded duration yet", ar: "لا توجد بيانات توقف بعد" },
@@ -343,10 +351,10 @@ const STRINGS = {
 
   // ---- WhatsApp Sipariş Formu OCR (mockup) ----
   ocrUploadTitle: { tr: "WhatsApp Sipariş Formu Yükle", en: "Upload WhatsApp Order Form", ar: "تحميل نموذج طلب واتساب" },
-  ocrUploadHint: { tr: "PDF veya fotoğraf yükleyin — sistem kalemleri otomatik okumayı dener (mockup/simülasyon).", en: "Upload a PDF or photo — the system will attempt to auto-read the line items (mockup/simulation).", ar: "قم بتحميل PDF أو صورة." },
+  ocrUploadHint: { tr: "WhatsApp'tan gelen sipariş fotoğrafı/PDF'ini yükleyin — AI kalemleri otomatik okur.", en: "Upload the order photo/PDF from WhatsApp — AI will auto-read the line items.", ar: "قم بتحميل صورة/PDF الطلب من واتساب — سيقرأ الذكاء الاصطناعي البنود تلقائيًا." },
   ocrProcessing: { tr: "Form okunuyor…", en: "Reading form…", ar: "جارٍ قراءة النموذج…" },
   ocrDone: { tr: "Form okundu — aşağıdaki kalemleri kontrol edip onaylayın", en: "Form read — review the items below and confirm", ar: "تمت قراءة النموذج — راجع البنود أدناه" },
-  ocrDisclaimer: { tr: "Bu bir simülasyondur; gerçek bir OCR/AI servisine henüz bağlı değildir.", en: "This is a simulation; not yet connected to a real OCR/AI service.", ar: "هذا محاكاة؛ غير متصل بخدمة OCR/AI حقيقية بعد." },
+  ocrDisclaimer: { tr: "AI okuması hata yapabilir — sipariş oluşturmadan önce aşağıdaki kalemleri kontrol edin.", en: "AI reading can make mistakes — review the items below before creating the order.", ar: "قد تخطئ قراءة الذكاء الاصطناعي — راجع البنود أدناه قبل إنشاء الطلب." },
 };
 
 function t(key, lang, vars) {
@@ -1992,6 +2000,7 @@ function YoneticiMode({ data, onBack, lang, dir, profile }) {
               { id: "stok", label: t("stok", lang) },
               { id: "satinalma", label: t("purchasing", lang) },
               { id: "rota", label: t("routes", lang) },
+              { id: "termin", label: t("terminPanelTab", lang) },
               { id: "sevkiyat", label: t("shipment", lang) },
               { id: "takvim", label: t("calendarTitle", lang) },
               { id: "geri-al", label: t("undoTitle", lang) },
@@ -2102,6 +2111,8 @@ function YoneticiMode({ data, onBack, lang, dir, profile }) {
       {tab === "satinalma" && <SatinAlmaPanel data={data} lang={lang} dir={dir} profile={profile} />}
 
       {tab === "rota" && <RotaPanel data={data} lang={lang} dir={dir} />}
+
+      {tab === "termin" && <TerminPanel data={data} lang={lang} dir={dir} />}
 
       {tab === "sevkiyat" && <SevkiyatPanel data={data} lang={lang} dir={dir} />}
 
@@ -2337,6 +2348,7 @@ function TanimlarPanel({ data, lang, dir }) {
   const [formItems, setFormItems] = useState([{ urun: "", miktar: "", birim: "adet" }]);
   const [ocrProcessing, setOcrProcessing] = useState(false);
   const [ocrDone, setOcrDone] = useState(false);
+  const [ocrError, setOcrError] = useState(null);
   const [stagePickers, setStagePickers] = useState({}); // orderId -> selected machine code (draft, before "Ekle")
 
   useEffect(() => { setLocalDepartments(departments); }, [departments]);
@@ -2411,32 +2423,51 @@ function TanimlarPanel({ data, lang, dir }) {
     setFormItems(formItems.map((row, i) => (i === idx ? { ...row, ...patch } : row)));
   }
   // ---------------------------------------------------------------
-  // WHATSAPP SİPARİŞ FORMU OKUYUCU — MOCKUP / SİMÜLASYON
+  // WHATSAPP SİPARİŞ FORMU OKUYUCU — Gemini AI ile
   // ---------------------------------------------------------------
-  // Bu fonksiyon gerçek bir OCR/AI servisine bağlı DEĞİLDİR. Yüklenen
-  // dosyayı okumaz; sadece "form yükleyip otomatik doldurma" akışının
-  // nasıl çalışacağını göstermek için 1.2 saniyelik bir gecikmeyle
-  // örnek kalemler üretir. Gerçek bir servise bağlamak için:
-  //   1) Dosyayı bir Supabase Storage bucket'ına yükleyin
-  //   2) Bir Edge Function içinde görüntü/PDF'i bir OCR/AI görüntü
-  //      modeline (örn. Claude/GPT görüntü API'si) gönderin
-  //   3) Modelden dönen JSON'u (formNo, tarih, kalemler[]) burada
-  //      "mockParseWhatsappForm" yerine kullanın — arayüz tarafı
-  //      (kontrol/onay ekranı) değişmeden kalır.
-  async function mockParseWhatsappForm(file) {
+  // Yüklenen görüntü/PDF, base64'e çevrilip sunucu tarafındaki
+  // /api/parse-order fonksiyonuna gönderilir. O fonksiyon Gemini'ye
+  // görseli okutup { musteri, teslimTarihi, kalemler: [{urun,miktar,birim}] }
+  // biçiminde JSON döndürür. Gemini anahtarı burada, tarayıcıda DEĞİL —
+  // sadece Vercel'in sunucu tarafındaki ortam değişkeninde tutulur.
+  async function parseWhatsappFormWithAI(file) {
     setOcrProcessing(true);
     setOcrDone(false);
-    await new Promise((resolve) => setTimeout(resolve, 1200));
-    const sampleProducts = allOrderProducts.length > 0 ? allOrderProducts : ["ER1020 KANAT", "PERVAZ DÜZ", "KASA DÜZ"];
-    const mockItems = [
-      { urun: sampleProducts[0] || "ER1020 KANAT", miktar: "400", birim: "adet" },
-      { urun: sampleProducts[1] || "PERVAZ DÜZ", miktar: "400", birim: "takım" },
-      { urun: sampleProducts[2] || "KASA DÜZ", miktar: "400", birim: "takım" },
-    ];
-    setOrderForm((f) => ({ ...f, formNo: `E${Date.now().toString().slice(-9)}`, tarih: isoDate(new Date()) }));
-    setFormItems(mockItems);
-    setOcrProcessing(false);
-    setOcrDone(true);
+    setOcrError(null);
+    try {
+      const base64 = await new Promise((resolve, reject) => {
+        const reader = new FileReader();
+        reader.onload = () => resolve(reader.result.split(",")[1]);
+        reader.onerror = () => reject(new Error("Dosya okunamadı"));
+        reader.readAsDataURL(file);
+      });
+
+      const res = await fetch("/api/parse-order", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ imageBase64: base64, mimeType: file.type || "image/jpeg" }),
+      });
+      const result = await res.json();
+      if (!res.ok) throw new Error(result.error || "AI okuma başarısız");
+
+      const items = (result.kalemler || []).length > 0
+        ? result.kalemler.map((k) => ({ urun: k.urun || "", miktar: k.miktar != null ? String(k.miktar) : "", birim: k.birim || "adet" }))
+        : [{ urun: "", miktar: "", birim: "adet" }];
+
+      setOrderForm((f) => ({
+        ...f,
+        formNo: `E${Date.now().toString().slice(-9)}`,
+        tarih: isoDate(new Date()),
+        musteri: result.musteri || f.musteri,
+        teslimTarihi: result.teslimTarihi || f.teslimTarihi,
+      }));
+      setFormItems(items);
+      setOcrDone(true);
+    } catch (e) {
+      setOcrError(e.message || "Bir hata oluştu");
+    } finally {
+      setOcrProcessing(false);
+    }
   }
 
   async function submitOrderForm() {
@@ -2567,12 +2598,17 @@ function TanimlarPanel({ data, lang, dir }) {
               }}>
                 <Download size={13} style={{ transform: "rotate(180deg)" }} />
                 {ocrProcessing ? t("ocrProcessing", lang) : t("ocrUploadTitle", lang)}
-                <input type="file" accept="image/*,application/pdf" style={{ display: "none" }} onChange={(e) => e.target.files[0] && mockParseWhatsappForm(e.target.files[0])} disabled={ocrProcessing} />
+                <input type="file" accept="image/*,application/pdf" style={{ display: "none" }} onChange={(e) => e.target.files[0] && parseWhatsappFormWithAI(e.target.files[0])} disabled={ocrProcessing} />
               </label>
             </div>
             {ocrDone && (
               <div style={{ marginTop: 10, fontFamily: "'Inter', sans-serif", fontSize: 11.5, color: COLORS.accentRun }}>
                 ✓ {t("ocrDone", lang)}
+              </div>
+            )}
+            {ocrError && (
+              <div style={{ marginTop: 10, fontFamily: "'Inter', sans-serif", fontSize: 11.5, color: COLORS.accentStop }}>
+                ⚠ {ocrError}
               </div>
             )}
             <div style={{ marginTop: 8, fontFamily: "'Inter', sans-serif", fontSize: 10.5, color: COLORS.textFaint, fontStyle: "italic" }}>
@@ -3023,6 +3059,235 @@ function SatinAlmaPanel({ data, lang, dir, profile }) {
 // ne kadar tükettiği burada bir kere tanımlanır. Yeni sipariş açılırken
 // bu rota otomatik olarak aşamalara dönüştürülür.
 // =================================================================
+// =================================================================
+// TERMİN HESAPLAMA PANELİ
+// Her bekleyen siparişin kalan aşamalarını, o makinenin GEÇMİŞ log
+// kayıtlarından çıkardığı gerçek üretim hızına göre günceller ve
+// tahmini bitiş tarihini + teslim tarihine göre risk durumunu
+// (UYGUN / SINIRDA / GECİKME) hesaplar. Veri geçmişi yoksa varsayılan
+// bir hıza (saatte 15 adet) düşer.
+// =================================================================
+const TERMIN_DEFAULT_RATE_PER_HOUR = 15;
+const TERMIN_WORK_HOURS_PER_DAY = 8;
+const TERMIN_DEPT_COLOR = { extruder: "#E8C93D", laminasyon: "#3DA5E8", deck: "#5FB87A", kanat: "#E8533D" };
+
+function terminMachineRate(machineCode, log) {
+  const entries = (log || []).filter(
+    (e) => e.type === "üretim" && e.machine === machineCode && e.detail?.qty > 0 && e.detail?.durationMs > 0
+  );
+  if (entries.length === 0) return TERMIN_DEFAULT_RATE_PER_HOUR;
+  const totalQty = entries.reduce((s, e) => s + e.detail.qty, 0);
+  const totalHours = entries.reduce((s, e) => s + e.detail.durationMs / 3600000, 0);
+  return totalHours > 0 ? Math.max(0.1, totalQty / totalHours) : TERMIN_DEFAULT_RATE_PER_HOUR;
+}
+
+function terminAddWorkDays(startDate, decimalDays) {
+  let remaining = decimalDays;
+  let d = new Date(startDate);
+  while (remaining > 0) {
+    d = new Date(d.getTime() + 24 * 3600000);
+    const dow = d.getDay();
+    if (dow === 0 || dow === 6) continue;
+    remaining -= 1;
+  }
+  return d;
+}
+
+function terminDaysBetween(a, b) {
+  const x = new Date(a); const y = new Date(b);
+  x.setHours(0, 0, 0, 0); y.setHours(0, 0, 0, 0);
+  return Math.round((y - x) / 86400000);
+}
+
+function calcOrderTermin(order, machines, log) {
+  const stages = (order.asamalar || []).filter((s) => s.durum !== STAGE_STATUS.DONE);
+  const segments = stages.map((stage) => {
+    const remainingQty = Math.max(0, (order.miktar || 0) - (stage.cikan || 0));
+    const rate = terminMachineRate(stage.makine, log);
+    const days = Math.max(0.15, remainingQty / rate / TERMIN_WORK_HOURS_PER_DAY);
+    const machine = (machines || []).find((m) => m.code === stage.makine);
+    return { stageId: stage.id, machine: stage.makine, departmentId: machine?.departmentId || "kanat", days, running: stage.durum === STAGE_STATUS.RUNNING };
+  });
+  const totalDays = segments.reduce((s, x) => s + x.days, 0);
+  const eta = segments.length ? terminAddWorkDays(new Date(), totalDays) : new Date();
+  const bottleneck = segments.reduce((max, x) => (!max || x.days > max.days ? x : max), null);
+  let riskStatus = "uygun";
+  if (order.teslimTarihi) {
+    const margin = terminDaysBetween(eta, new Date(order.teslimTarihi + "T00:00:00"));
+    if (margin < 0) riskStatus = "gecikme"; else if (margin <= 2) riskStatus = "sinirda";
+  }
+  return { segments, totalDays, eta, bottleneck, riskStatus };
+}
+
+const TERMIN_RISK_STYLE = {
+  uygun: { colorKey: "accentRun" },
+  sinirda: { colorKey: "accentWarn" },
+  gecikme: { colorKey: "accentStop" },
+};
+
+function terminFmtGun(n) { return n < 1 ? `${Math.round(n * 24)} sa` : `${n.toFixed(1)} gün`; }
+function terminFmtTarih(d, lang) {
+  const locale = lang === "ar" ? "ar" : lang === "en" ? "en-US" : "tr-TR";
+  return new Date(d).toLocaleDateString(locale, { day: "2-digit", month: "long", year: "numeric" });
+}
+
+function TerminGanttBar({ segments, lang }) {
+  const total = segments.reduce((s, x) => s + x.days, 0) || 1;
+  if (segments.length === 0) {
+    return (
+      <div style={{ height: 34, borderRadius: 8, border: `1px solid ${COLORS.border}`, display: "flex", alignItems: "center", justifyContent: "center" }}>
+        <span style={{ fontFamily: "'Inter', sans-serif", fontSize: 12, color: COLORS.textFaint }}>{t("terminAllDone", lang)}</span>
+      </div>
+    );
+  }
+  return (
+    <div style={{ display: "flex", height: 34, borderRadius: 8, overflow: "hidden", border: `1px solid ${COLORS.border}` }}>
+      {segments.map((seg, i) => {
+        const pct = (seg.days / total) * 100;
+        const color = TERMIN_DEPT_COLOR[seg.departmentId] || COLORS.accentIdle;
+        return (
+          <div key={seg.stageId || i} title={`${seg.machine} · ${terminFmtGun(seg.days)}`}
+            style={{ width: `${pct}%`, minWidth: 34, background: color, display: "flex", alignItems: "center", justifyContent: "center", position: "relative", opacity: seg.running ? 1 : 0.75 }}>
+            <span style={{ fontFamily: "'IBM Plex Mono', monospace", fontSize: 11, fontWeight: 700, color: "#14161A" }}>{terminFmtGun(seg.days)}</span>
+            {seg.running && <span style={{ position: "absolute", top: 3, right: 4, width: 6, height: 6, borderRadius: 99, background: "#14161A" }} />}
+          </div>
+        );
+      })}
+    </div>
+  );
+}
+
+function TerminCapacityGauge({ pct, label }) {
+  const color = pct >= 85 ? COLORS.accentStop : pct >= 60 ? COLORS.accentWarn : COLORS.accentRun;
+  return (
+    <div>
+      <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 6 }}>
+        <span style={{ fontFamily: "'Inter', sans-serif", fontSize: 12.5, color: COLORS.textDim }}>{label}</span>
+        <span style={{ fontFamily: "'IBM Plex Mono', monospace", fontSize: 13, fontWeight: 700, color }}>{pct}%</span>
+      </div>
+      <div style={{ height: 8, borderRadius: 99, background: COLORS.bgRaised, overflow: "hidden" }}>
+        <div style={{ width: `${pct}%`, height: "100%", background: color, borderRadius: 99, transition: "width 0.3s ease" }} />
+      </div>
+    </div>
+  );
+}
+
+function TerminPanel({ data, lang, dir }) {
+  const { orders, machines, departments, log, machineStates } = data;
+  const [selectedId, setSelectedId] = useState(null);
+
+  if (!orders || !machines) return <LoadingScreen lang={lang} />;
+
+  const pending = orders.filter((o) => o.durum !== ORDER_STATUS.DELIVERED);
+  const computed = pending.map((o) => ({ order: o, termin: calcOrderTermin(o, machines, log) }));
+  const selected = selectedId ? computed.find((c) => c.order.id === selectedId) : computed[0];
+
+  const capacityByDept = (departments || []).map((dept) => {
+    const total = dept.machines.length || 1;
+    const running = dept.machines.filter((m) => (machineStates[m.code] || {}).status === "run").length;
+    return { id: dept.id, name: dept.name, pct: Math.min(100, Math.round((running / total) * 100)) };
+  });
+
+  return (
+    <div dir={dir} style={{ maxWidth: 1100, margin: "0 auto", padding: "18px 20px 60px" }}>
+      <div style={{ background: COLORS.bg, borderRadius: 18, border: `1px solid ${COLORS.border}`, padding: 24 }}>
+        <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 22, flexWrap: "wrap", gap: 10 }}>
+          <div>
+            <div style={{ fontFamily: "'Archivo', sans-serif", fontWeight: 800, fontSize: 20, color: COLORS.text }}>{t("terminPanelTab", lang)}</div>
+            <div style={{ fontFamily: "'Inter', sans-serif", fontSize: 12.5, color: COLORS.textDim, marginTop: 2 }}>{t("terminPanelDesc", lang)}</div>
+          </div>
+          <div style={{ display: "flex", alignItems: "center", gap: 6, background: COLORS.accentRunDim, border: `1px solid ${COLORS.accentRun}40`, borderRadius: 99, padding: "6px 14px" }}>
+            <span style={{ width: 7, height: 7, borderRadius: 99, background: COLORS.accentRun, boxShadow: `0 0 0 3px ${COLORS.accentRun}30` }} />
+            <span style={{ fontFamily: "'IBM Plex Mono', monospace", fontSize: 11.5, color: COLORS.accentRun, fontWeight: 700 }}>{t("liveStatus", lang)}</span>
+          </div>
+        </div>
+
+        <div style={{ display: "grid", gridTemplateColumns: capacityByDept.length ? "1fr 260px" : "1fr", gap: 20 }}>
+          <div>
+            <div style={{ display: "grid", gap: 10, marginBottom: 20 }}>
+              {computed.map(({ order, termin }) => {
+                const risk = TERMIN_RISK_STYLE[termin.riskStatus];
+                const riskColor = COLORS[risk.colorKey];
+                const isSelected = selected?.order.id === order.id;
+                return (
+                  <button key={order.id} onClick={() => setSelectedId(order.id)} style={{
+                    textAlign: dir === "rtl" ? "right" : "left", cursor: "pointer",
+                    border: `1px solid ${isSelected ? riskColor + "60" : COLORS.border}`,
+                    background: isSelected ? COLORS.bgRaised : COLORS.bgPanel, borderRadius: 14, padding: "14px 16px",
+                    display: "flex", alignItems: "center", justifyContent: "space-between", gap: 12,
+                  }}>
+                    <div>
+                      <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+                        <span style={{ fontFamily: "'IBM Plex Mono', monospace", fontSize: 12, color: COLORS.accentWarn }}>{order.id}</span>
+                        <span style={{ fontFamily: "'Archivo', sans-serif", fontWeight: 700, fontSize: 15, color: COLORS.text }}>{order.urun}</span>
+                      </div>
+                      <div style={{ fontFamily: "'Inter', sans-serif", fontSize: 12, color: COLORS.textDim, marginTop: 2 }}>
+                        {order.musteri} · {t("due", lang)}: {order.teslimTarihi ? terminFmtTarih(order.teslimTarihi + "T00:00:00", lang) : "—"}
+                      </div>
+                    </div>
+                    <span style={{ fontFamily: "'IBM Plex Mono', monospace", fontSize: 10.5, fontWeight: 700, color: riskColor, border: `1px solid ${riskColor}50`, borderRadius: 8, padding: "4px 8px", whiteSpace: "nowrap" }}>
+                      {t(termin.riskStatus, lang)}
+                    </span>
+                  </button>
+                );
+              })}
+              {computed.length === 0 && (
+                <div style={{ fontFamily: "'Inter', sans-serif", fontSize: 13, color: COLORS.textFaint, padding: 20, textAlign: "center" }}>{t("terminNoOrders", lang)}</div>
+              )}
+            </div>
+
+            {selected && (
+              <div style={{ background: COLORS.bgPanel, border: `1px solid ${COLORS.border}`, borderRadius: 16, padding: 20 }}>
+                <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 14, flexWrap: "wrap", gap: 8 }}>
+                  <div style={{ fontFamily: "'Archivo', sans-serif", fontWeight: 700, fontSize: 15, color: COLORS.text }}>
+                    {selected.order.id} — {t("terminRemainingStages", lang)}
+                  </div>
+                  <div style={{ display: "flex", alignItems: "center", gap: 6, color: COLORS.textDim, fontSize: 12, fontFamily: "'Inter', sans-serif" }}>
+                    <Clock size={13} /> {t("estFinish", lang)}: <span style={{ color: COLORS.text, fontWeight: 600 }}>{terminFmtTarih(selected.termin.eta, lang)}</span>
+                  </div>
+                </div>
+
+                <TerminGanttBar segments={selected.termin.segments} lang={lang} />
+
+                <div style={{ display: "flex", gap: 18, marginTop: 16, flexWrap: "wrap" }}>
+                  <span style={{ fontFamily: "'Inter', sans-serif", fontSize: 12.5, color: COLORS.textDim }}>
+                    {t("terminTotalRemaining", lang)}: <b style={{ color: COLORS.text }}>{terminFmtGun(selected.termin.totalDays)}</b>
+                  </span>
+                  {selected.termin.bottleneck && (
+                    <span style={{ fontFamily: "'Inter', sans-serif", fontSize: 12.5, color: COLORS.textDim }}>
+                      {t("bottleneck", lang)}: <b style={{ color: COLORS.accentWarn }}>{selected.termin.bottleneck.machine}</b>
+                    </span>
+                  )}
+                </div>
+
+                {selected.order.teslimTarihi && (() => {
+                  const risk = TERMIN_RISK_STYLE[selected.termin.riskStatus];
+                  const riskColor = COLORS[risk.colorKey];
+                  const margin = terminDaysBetween(selected.termin.eta, new Date(selected.order.teslimTarihi + "T00:00:00"));
+                  return (
+                    <div style={{ marginTop: 14, padding: "10px 14px", borderRadius: 10, background: riskColor + "18", border: `1px solid ${riskColor}40`, fontFamily: "'Inter', sans-serif", fontSize: 12.5, color: COLORS.text }}>
+                      {margin >= 0 ? t("daysMargin", lang, { n: margin }) : t("daysOverdue", lang, { n: Math.abs(margin) })}
+                    </div>
+                  );
+                })()}
+              </div>
+            )}
+          </div>
+
+          {capacityByDept.length > 0 && (
+            <div style={{ display: "grid", gap: 16, alignContent: "start" }}>
+              <div style={{ fontFamily: "'IBM Plex Mono', monospace", fontSize: 11, letterSpacing: 1.5, color: COLORS.textFaint, textTransform: "uppercase" }}>
+                {t("terminCapacityTitle", lang)}
+              </div>
+              {capacityByDept.map((d) => <TerminCapacityGauge key={d.id} pct={d.pct} label={d.name} />)}
+            </div>
+          )}
+        </div>
+      </div>
+    </div>
+  );
+}
+
 function RotaPanel({ data, lang, dir }) {
   const { departments, stock, productRoutes, addProductRoute, removeProductRoute } = data;
   const allProducts = departments ? allProductsFrom(departments) : [];
