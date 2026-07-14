@@ -342,6 +342,13 @@ const STRINGS = {
   noShipments: { tr: "Henüz sevkiyat kaydı yok", en: "No shipment records yet", ar: "لا توجد سجلات شحن بعد" },
   exportShipments: { tr: "Excel'e Aktar", en: "Export to Excel", ar: "تصدير إلى Excel" },
   requiredField: { tr: "Bu alan zorunlu", en: "This field is required", ar: "هذا الحقل مطلوب" },
+  partiallyShipped: { tr: "Kısmi sevk edildi", en: "Partially shipped", ar: "تم الشحن جزئيًا" },
+  remainingQty: { tr: "Kalan", en: "Remaining", ar: "المتبقي" },
+  alreadyShipped: { tr: "Şu ana kadar sevk edilen", en: "Shipped so far", ar: "تم شحنه حتى الآن" },
+  partialBadge: { tr: "KISMEN SEVK EDİLDİ", en: "PARTIALLY SHIPPED", ar: "مشحون جزئيًا" },
+  shipRemainingTitle: { tr: "Kalanı Sevk Et", en: "Ship Remaining", ar: "شحن المتبقي" },
+  shipQtyInvalid: { tr: "Geçerli bir miktar girin", en: "Enter a valid quantity", ar: "أدخل كمية صحيحة" },
+  shipQtyExceeds: { tr: "Kalan miktarı ({n}) aşamazsınız", en: "Cannot exceed remaining quantity ({n})", ar: "لا يمكن تجاوز الكمية المتبقية ({n})" },
 
   // ---- Yönetici Geri Al (Undo) ----
   undoTitle: { tr: "Son İşlemler / Geri Al", en: "Recent Actions / Undo", ar: "الإجراءات الأخيرة / تراجع" },
@@ -1048,10 +1055,24 @@ function useSharedData() {
   async function markOrderDelivered(orderId, delivered) {
     const newOrders = (ordersRef.current || []).map((o) => {
       if (o.id !== orderId) return o;
-      if (delivered) return { ...o, durum: ORDER_STATUS.DELIVERED };
+      if (delivered) return { ...o, durum: ORDER_STATUS.DELIVERED, sevkEdilen: o.miktar || 0 };
       const stages = o.asamalar || [];
       const allDone = stages.length > 0 && stages.every((s) => s.durum === STAGE_STATUS.DONE);
-      return { ...o, durum: allDone ? ORDER_STATUS.READY : ORDER_STATUS.PENDING };
+      return { ...o, sevkEdilen: 0, durum: allDone ? ORDER_STATUS.READY : ORDER_STATUS.PENDING };
+    });
+    await updateOrders(newOrders);
+  }
+  // Kısmi sevkiyat: sevk edilen miktarı siparişin "sevkEdilen" alanına ekler.
+  // Toplam sevk edilen, sipariş miktarına ulaşınca/aşınca sipariş "Teslim Edildi"
+  // olur; ulaşmazsa "Sevkiyata Hazır" durumunda kalır (kalan miktar takip edilir).
+  async function recordOrderShipment(orderId, shippedQty) {
+    const qty = Math.max(0, Number(shippedQty) || 0);
+    const newOrders = (ordersRef.current || []).map((o) => {
+      if (o.id !== orderId) return o;
+      const already = o.sevkEdilen || 0;
+      const total = Math.min(o.miktar || 0, already + qty);
+      const durum = total >= (o.miktar || 0) ? ORDER_STATUS.DELIVERED : ORDER_STATUS.READY;
+      return { ...o, sevkEdilen: total, durum };
     });
     await updateOrders(newOrders);
   }
@@ -1338,7 +1359,7 @@ function useSharedData() {
     stock, stockMovements, purchaseRequests, productRoutes,
     shipments, calendarExceptions, undoLog,
     refresh, setMachineState, appendLog, updateDepartments, setPlanCell, setPolling,
-    addOrder, removeOrder, markOrderDelivered, addOrderStage, removeOrderStage, updateOrderStage, updateOrders,
+    addOrder, removeOrder, markOrderDelivered, recordOrderShipment, addOrderStage, removeOrderStage, updateOrderStage, updateOrders,
     addStockItem, removeStockItem, adjustStockQty,
     addPurchaseRequest, removePurchaseRequest, advancePurchaseStatus,
     addProductRoute, removeProductRoute,
@@ -1794,16 +1815,18 @@ function exportToExcel({ machines, plan, machineStates, log, orders }) {
     const stages = o.asamalar || [];
     const doneCount = stages.filter((s) => s.durum === STAGE_STATUS.DONE).length;
     const active = stages.find((s) => s.durum === STAGE_STATUS.RUNNING) || stages.find((s) => s.durum === STAGE_STATUS.WAITING);
+    const sevkEdilen = o.sevkEdilen || 0;
     return {
       "Sipariş No": o.id, "Ürün": o.urun, "Müşteri": o.musteri,
       "Miktar": o.miktar, "Teslim Tarihi": o.teslimTarihi,
       "Aşama İlerlemesi": stages.length ? `${doneCount}/${stages.length}` : "",
       "Şu Anki Aşama": active ? active.makine : (stages.length ? "Tamamlandı" : ""),
-      "Durum": o.durum === ORDER_STATUS.DELIVERED ? "Teslim Edildi" : "Bekliyor",
+      "Sevk Edilen": sevkEdilen, "Kalan": Math.max(0, (o.miktar || 0) - sevkEdilen),
+      "Durum": o.durum === ORDER_STATUS.DELIVERED ? "Teslim Edildi" : o.durum === ORDER_STATUS.READY ? (sevkEdilen > 0 ? "Kısmen Sevk Edildi" : "Sevkiyata Hazır") : "Bekliyor",
     };
   });
   const wsOrders = XLSX.utils.json_to_sheet(orderRows);
-  wsOrders["!cols"] = [{ wch: 14 }, { wch: 24 }, { wch: 22 }, { wch: 10 }, { wch: 14 }, { wch: 14 }, { wch: 16 }, { wch: 14 }];
+  wsOrders["!cols"] = [{ wch: 14 }, { wch: 24 }, { wch: 22 }, { wch: 10 }, { wch: 14 }, { wch: 14 }, { wch: 16 }, { wch: 12 }, { wch: 10 }, { wch: 18 }];
   XLSX.utils.book_append_sheet(wb, wsOrders, "Siparişler");
 
   // Sayfa 3b: Sipariş Aşamaları (detay) — her siparişin her aşaması ayrı satır.
@@ -3391,7 +3414,7 @@ function consumablesSummary(route) {
 // bitip sevkiyata hazır olduğunu tek ekrandan gösterir.
 // =================================================================
 function SevkiyatPanel({ data, lang, dir }) {
-  const { orders, departments, markOrderDelivered, shipments, addShipment } = data;
+  const { orders, departments, markOrderDelivered, recordOrderShipment, shipments, addShipment } = data;
   const allMachines = departments ? allMachinesFrom(departments) : [];
   const [qrOrder, setQrOrder] = useState(null);
   const [shipOrder, setShipOrder] = useState(null);
@@ -3433,12 +3456,16 @@ function SevkiyatPanel({ data, lang, dir }) {
           order={shipOrder} lang={lang}
           onClose={() => setShipOrder(null)}
           onConfirm={async (details) => {
+            const qty = Math.max(0, Number(details.shippedQuantity) || 0);
             await addShipment({
               id: `SHP-${Date.now().toString().slice(-6)}`,
               orderId: shipOrder.id, urun: shipOrder.urun, musteri: shipOrder.musteri,
-              ...details, shippedAt: new Date().toISOString(), status: "en_route",
+              ...details, shippedQuantity: qty, shippedAt: new Date().toISOString(), status: "en_route",
             });
-            await markOrderDelivered(shipOrder.id, true);
+            // Girilen miktar kadarını siparişin sevk edilen toplamına ekler.
+            // Miktar siparişin tamamına ulaşmıyorsa sipariş "Sevkiyata Hazır"
+            // listesinde kalan miktarla birlikte görünmeye devam eder.
+            await recordOrderShipment(shipOrder.id, qty);
             setShipOrder(null);
           }}
         />
@@ -3450,7 +3477,11 @@ function SevkiyatPanel({ data, lang, dir }) {
         </div>
         {ready.length === 0 && <div style={{ color: COLORS.textFaint, fontFamily: "'Inter', sans-serif", fontSize: 13 }}>{t("noOrdersReady", lang)}</div>}
         <div style={{ display: "grid", gap: 10 }}>
-          {ready.map((o) => (
+          {ready.map((o) => {
+            const shipped = o.sevkEdilen || 0;
+            const remaining = Math.max(0, (o.miktar || 0) - shipped);
+            const isPartial = shipped > 0;
+            return (
             <div key={o.id} style={{ background: COLORS.bgPanel, border: `1px solid ${COLORS.accentRun}50`, borderRadius: 14, padding: "14px 16px", display: "flex", justifyContent: "space-between", alignItems: "center", flexWrap: "wrap", gap: 10 }}>
               <div>
                 <div style={{ fontFamily: "'Archivo', sans-serif", fontWeight: 700, fontSize: 14.5, color: COLORS.text }}>
@@ -3459,20 +3490,26 @@ function SevkiyatPanel({ data, lang, dir }) {
                 <div style={{ fontFamily: "'Inter', sans-serif", fontSize: 12, color: COLORS.textFaint, marginTop: 2 }}>
                   {o.musteri} · {o.id} {o.formNo && `· ${t("formLabel", lang)} ${o.formNo}`}
                 </div>
+                {isPartial && (
+                  <div style={{ fontFamily: "'Inter', sans-serif", fontSize: 11.5, fontWeight: 600, color: COLORS.accentWarn, marginTop: 4 }}>
+                    {t("partiallyShipped", lang)}: {shipped}/{o.miktar} · {t("remainingQty", lang)}: {remaining}
+                  </div>
+                )}
               </div>
               <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
                 <span style={{ fontFamily: "'Inter', sans-serif", fontSize: 11, fontWeight: 700, color: COLORS.accentRun, border: `1px solid ${COLORS.accentRun}50`, borderRadius: 99, padding: "4px 10px" }}>
-                  {t("readyBadge", lang)}
+                  {isPartial ? t("partialBadge", lang) : t("readyBadge", lang)}
                 </span>
                 <button onClick={() => setQrOrder(o)} style={{ display: "flex", alignItems: "center", gap: 6, padding: "8px 12px", borderRadius: 8, border: `1px solid ${COLORS.border}`, background: "transparent", color: COLORS.textDim, fontFamily: "'Inter', sans-serif", fontSize: 12.5, fontWeight: 600, cursor: "pointer" }}>
                   <QrCode size={13} /> QR
                 </button>
                 <button onClick={() => setShipOrder(o)} style={{ padding: "8px 14px", borderRadius: 8, border: `1px solid ${COLORS.accentRun}50`, background: COLORS.accentRunDim, color: COLORS.accentRun, fontFamily: "'Inter', sans-serif", fontSize: 12.5, fontWeight: 600, cursor: "pointer" }}>
-                  {t("shipOutTitle", lang)}
+                  {isPartial ? t("shipRemainingTitle", lang) : t("shipOutTitle", lang)}
                 </button>
               </div>
             </div>
-          ))}
+            );
+          })}
         </div>
       </div>
 
@@ -3553,15 +3590,26 @@ function SevkiyatPanel({ data, lang, dir }) {
 // sipariş "Teslim Edildi" olarak işaretlenir.
 // =================================================================
 function ShipmentModal({ order, lang, onClose, onConfirm }) {
+  const alreadyShipped = order.sevkEdilen || 0;
+  const remaining = Math.max(0, (order.miktar || 0) - alreadyShipped);
   const [form, setForm] = useState({
     logisticsCompany: "", vehiclePlate: "", driverName: "", driverPhone: "",
-    waybillNo: "", shippedQuantity: order.miktar,
+    waybillNo: "", shippedQuantity: remaining,
   });
   const [error, setError] = useState(null);
 
   function handleConfirm() {
     if (!form.logisticsCompany || !form.vehiclePlate || !form.driverName || !form.waybillNo) {
       setError(t("requiredField", lang));
+      return;
+    }
+    const qty = Number(form.shippedQuantity);
+    if (!qty || qty <= 0) {
+      setError(t("shipQtyInvalid", lang));
+      return;
+    }
+    if (qty > remaining) {
+      setError(t("shipQtyExceeds", lang, { n: remaining }));
       return;
     }
     onConfirm(form);
@@ -3571,14 +3619,19 @@ function ShipmentModal({ order, lang, onClose, onConfirm }) {
     <div onClick={onClose} style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,0.6)", display: "flex", alignItems: "center", justifyContent: "center", zIndex: 60, padding: 20 }}>
       <div onClick={(e) => e.stopPropagation()} style={{ background: COLORS.bgPanel, border: `1px solid ${COLORS.border}`, borderRadius: 18, padding: 26, maxWidth: 440, width: "100%" }}>
         <div style={{ fontFamily: "'Archivo', sans-serif", fontWeight: 700, fontSize: 17, color: COLORS.text, marginBottom: 2 }}>{t("shipOutTitle", lang)}</div>
-        <div style={{ fontFamily: "'IBM Plex Mono', monospace", fontSize: 11.5, color: COLORS.textFaint, marginBottom: 16 }}>{order.urun} · {order.id} · {order.musteri}</div>
+        <div style={{ fontFamily: "'IBM Plex Mono', monospace", fontSize: 11.5, color: COLORS.textFaint, marginBottom: 6 }}>{order.urun} · {order.id} · {order.musteri}</div>
+        {alreadyShipped > 0 && (
+          <div style={{ fontFamily: "'Inter', sans-serif", fontSize: 12.5, color: COLORS.accentWarn, marginBottom: 10 }}>
+            {t("alreadyShipped", lang)}: {alreadyShipped}/{order.miktar} · {t("remainingQty", lang)}: {remaining}
+          </div>
+        )}
         <div style={{ display: "grid", gap: 10 }}>
           <input value={form.logisticsCompany} onChange={(e) => setForm({ ...form, logisticsCompany: e.target.value })} placeholder={t("logisticsCompany", lang)} style={inputStyle} />
           <input value={form.vehiclePlate} onChange={(e) => setForm({ ...form, vehiclePlate: e.target.value })} placeholder={t("vehiclePlate", lang) + " (örn. 38 AB 123)"} style={inputStyle} />
           <input value={form.driverName} onChange={(e) => setForm({ ...form, driverName: e.target.value })} placeholder={t("driverName", lang)} style={inputStyle} />
           <input value={form.driverPhone} onChange={(e) => setForm({ ...form, driverPhone: e.target.value })} placeholder={t("driverPhone", lang)} style={inputStyle} />
           <input value={form.waybillNo} onChange={(e) => setForm({ ...form, waybillNo: e.target.value })} placeholder={t("waybillNo", lang)} style={inputStyle} />
-          <input type="number" value={form.shippedQuantity} onChange={(e) => setForm({ ...form, shippedQuantity: e.target.value })} placeholder={t("shippedQty", lang)} style={inputStyle} />
+          <input type="number" min={1} max={remaining} value={form.shippedQuantity} onChange={(e) => setForm({ ...form, shippedQuantity: e.target.value })} placeholder={`${t("shippedQty", lang)} (${t("remainingQty", lang)}: ${remaining})`} style={inputStyle} />
         </div>
         {error && <div style={{ color: COLORS.accentStop, fontSize: 12.5, marginTop: 10, fontFamily: "'Inter', sans-serif" }}>{error}</div>}
         <div style={{ display: "flex", gap: 8, marginTop: 18 }}>
