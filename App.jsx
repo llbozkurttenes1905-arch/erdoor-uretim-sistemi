@@ -349,12 +349,6 @@ const STRINGS = {
   undoConfirm: { tr: "Bu işlemi geri almak istediğinizden emin misiniz?", en: "Are you sure you want to undo this action?", ar: "هل أنت متأكد من التراجع؟" },
   undoneToast: { tr: "İşlem geri alındı", en: "Action undone", ar: "تم التراجع عن الإجراء" },
 
-  // ---- WhatsApp Sipariş Formu OCR (mockup) ----
-  ocrUploadTitle: { tr: "WhatsApp Sipariş Formu Yükle", en: "Upload WhatsApp Order Form", ar: "تحميل نموذج طلب واتساب" },
-  ocrUploadHint: { tr: "WhatsApp'tan gelen sipariş fotoğrafı/PDF'ini yükleyin — AI kalemleri otomatik okur.", en: "Upload the order photo/PDF from WhatsApp — AI will auto-read the line items.", ar: "قم بتحميل صورة/PDF الطلب من واتساب — سيقرأ الذكاء الاصطناعي البنود تلقائيًا." },
-  ocrProcessing: { tr: "Form okunuyor…", en: "Reading form…", ar: "جارٍ قراءة النموذج…" },
-  ocrDone: { tr: "Form okundu — aşağıdaki kalemleri kontrol edip onaylayın", en: "Form read — review the items below and confirm", ar: "تمت قراءة النموذج — راجع البنود أدناه" },
-  ocrDisclaimer: { tr: "AI okuması hata yapabilir — sipariş oluşturmadan önce aşağıdaki kalemleri kontrol edin.", en: "AI reading can make mistakes — review the items below before creating the order.", ar: "قد تخطئ قراءة الذكاء الاصطناعي — راجع البنود أدناه قبل إنشاء الطلب." },
 };
 
 function t(key, lang, vars) {
@@ -2346,9 +2340,6 @@ function TanimlarPanel({ data, lang, dir }) {
   const [newProductText, setNewProductText] = useState("");
   const [orderForm, setOrderForm] = useState({ formNo: "", tarih: "", musteri: "", teslimTarihi: "" });
   const [formItems, setFormItems] = useState([{ urun: "", miktar: "", birim: "adet" }]);
-  const [ocrProcessing, setOcrProcessing] = useState(false);
-  const [ocrDone, setOcrDone] = useState(false);
-  const [ocrError, setOcrError] = useState(null);
   const [stagePickers, setStagePickers] = useState({}); // orderId -> selected machine code (draft, before "Ekle")
 
   useEffect(() => { setLocalDepartments(departments); }, [departments]);
@@ -2422,54 +2413,6 @@ function TanimlarPanel({ data, lang, dir }) {
   function updateFormItemRow(idx, patch) {
     setFormItems(formItems.map((row, i) => (i === idx ? { ...row, ...patch } : row)));
   }
-  // ---------------------------------------------------------------
-  // WHATSAPP SİPARİŞ FORMU OKUYUCU — Gemini AI ile
-  // ---------------------------------------------------------------
-  // Yüklenen görüntü/PDF, base64'e çevrilip sunucu tarafındaki
-  // /api/parse-order fonksiyonuna gönderilir. O fonksiyon Gemini'ye
-  // görseli okutup { musteri, teslimTarihi, kalemler: [{urun,miktar,birim}] }
-  // biçiminde JSON döndürür. Gemini anahtarı burada, tarayıcıda DEĞİL —
-  // sadece Vercel'in sunucu tarafındaki ortam değişkeninde tutulur.
-  async function parseWhatsappFormWithAI(file) {
-    setOcrProcessing(true);
-    setOcrDone(false);
-    setOcrError(null);
-    try {
-      const base64 = await new Promise((resolve, reject) => {
-        const reader = new FileReader();
-        reader.onload = () => resolve(reader.result.split(",")[1]);
-        reader.onerror = () => reject(new Error("Dosya okunamadı"));
-        reader.readAsDataURL(file);
-      });
-
-      const res = await fetch("/api/parse-order", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ imageBase64: base64, mimeType: file.type || "image/jpeg" }),
-      });
-      const result = await res.json();
-      if (!res.ok) throw new Error(result.error || "AI okuma başarısız");
-
-      const items = (result.kalemler || []).length > 0
-        ? result.kalemler.map((k) => ({ urun: k.urun || "", miktar: k.miktar != null ? String(k.miktar) : "", birim: k.birim || "adet" }))
-        : [{ urun: "", miktar: "", birim: "adet" }];
-
-      setOrderForm((f) => ({
-        ...f,
-        formNo: `E${Date.now().toString().slice(-9)}`,
-        tarih: isoDate(new Date()),
-        musteri: result.musteri || f.musteri,
-        teslimTarihi: result.teslimTarihi || f.teslimTarihi,
-      }));
-      setFormItems(items);
-      setOcrDone(true);
-    } catch (e) {
-      setOcrError(e.message || "Bir hata oluştu");
-    } finally {
-      setOcrProcessing(false);
-    }
-  }
-
   async function submitOrderForm() {
     const validItems = formItems.filter((it) => it.urun && it.miktar);
     if (validItems.length === 0) return;
@@ -2583,37 +2526,6 @@ function TanimlarPanel({ data, lang, dir }) {
         <div style={{ background: COLORS.bgRaised, border: `1px solid ${COLORS.border}`, borderRadius: 12, padding: 14, marginBottom: 16 }}>
           <div style={{ fontFamily: "'IBM Plex Mono', monospace", fontSize: 10.5, color: COLORS.textFaint, letterSpacing: 1, textTransform: "uppercase", marginBottom: 10 }}>
             {t("newOrderForm", lang)}
-          </div>
-
-          <div style={{ border: `1px dashed ${COLORS.border}`, borderRadius: 10, padding: "12px 14px", marginBottom: 14, background: COLORS.bgPanel }}>
-            <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", flexWrap: "wrap", gap: 8 }}>
-              <div>
-                <div style={{ fontFamily: "'Inter', sans-serif", fontSize: 12.5, fontWeight: 600, color: COLORS.text }}>{t("ocrUploadTitle", lang)}</div>
-                <div style={{ fontFamily: "'Inter', sans-serif", fontSize: 11, color: COLORS.textFaint, marginTop: 2 }}>{t("ocrUploadHint", lang)}</div>
-              </div>
-              <label style={{
-                display: "flex", alignItems: "center", gap: 6, padding: "8px 14px", borderRadius: 8,
-                border: `1px solid ${COLORS.accentRun}50`, background: COLORS.accentRunDim, color: COLORS.accentRun,
-                fontFamily: "'Inter', sans-serif", fontSize: 12, fontWeight: 600, cursor: "pointer",
-              }}>
-                <Download size={13} style={{ transform: "rotate(180deg)" }} />
-                {ocrProcessing ? t("ocrProcessing", lang) : t("ocrUploadTitle", lang)}
-                <input type="file" accept="image/*,application/pdf" style={{ display: "none" }} onChange={(e) => e.target.files[0] && parseWhatsappFormWithAI(e.target.files[0])} disabled={ocrProcessing} />
-              </label>
-            </div>
-            {ocrDone && (
-              <div style={{ marginTop: 10, fontFamily: "'Inter', sans-serif", fontSize: 11.5, color: COLORS.accentRun }}>
-                ✓ {t("ocrDone", lang)}
-              </div>
-            )}
-            {ocrError && (
-              <div style={{ marginTop: 10, fontFamily: "'Inter', sans-serif", fontSize: 11.5, color: COLORS.accentStop }}>
-                ⚠ {ocrError}
-              </div>
-            )}
-            <div style={{ marginTop: 8, fontFamily: "'Inter', sans-serif", fontSize: 10.5, color: COLORS.textFaint, fontStyle: "italic" }}>
-              {t("ocrDisclaimer", lang)}
-            </div>
           </div>
 
           <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1.3fr 1fr", gap: 8, marginBottom: 12 }}>
