@@ -1,92 +1,118 @@
 // api/parse-order.js
+// -----------------------------------------------------------------
+// Vercel Serverless Function — WhatsApp sipariş formu OCR/okuma.
 //
-// Vercel serverless function — WhatsApp'tan gelen sipariş fotoğrafını
-// veya PDF'ini Google Gemini (görüntü anlama) ile okuyup App.jsx'teki
-// sipariş formunun beklediği yapıya çevirir.
+// Frontend (App.jsx) buraya şunu gönderiyor:
+//   POST /api/parse-order
+//   { imageBase64: "<base64>", mimeType: "image/jpeg" | "application/pdf" | ... }
 //
-// ÖNEMLİ — GÜVENLİK:
-//   Gemini anahtarınızı ASLA frontend (App.jsx, src/*) içine yazmayın.
-//   Bu dosya sunucuda çalışır, anahtar tarayıcıya hiç gönderilmez.
-//   Vercel Dashboard > Project > Settings > Environment Variables:
-//     GEMINI_API_KEY -> Google AI Studio'dan aldığınız anahtar
-//   Sohbette bir kere paylaştığınız anahtarı Google AI Studio'dan iptal
-//   edip yeni bir tane oluşturmanızı öneririm; sadece buraya yeni anahtarı yazın.
-
-const GEMINI_API_KEY = process.env.GEMINI_API_KEY;
-const GEMINI_MODEL = "gemini-2.5-flash";
-
-const SYSTEM_PROMPT = `Sen bir üretim/sipariş asistanısın. Sana WhatsApp üzerinden gelmiş bir
-sipariş formu görüntüsü veya PDF'i verilecek (fotoğraf, ekran görüntüsü ya da taranmış form
-olabilir). Görevin içindeki bilgileri çıkarıp SADECE aşağıdaki JSON şemasına uygun bir nesne
-döndürmek. Başka hiçbir metin, açıklama veya markdown ekleme.
-
-Şema:
-{
-  "musteri": string | null,        // müşteri/firma adı
-  "teslimTarihi": string | null,   // YYYY-MM-DD formatında; "10 gün içinde" gibi göreli ifadeleri
-                                     // bugünün tarihine göre hesapla
-  "kalemler": [                     // görüntüdeki her sipariş satırı için bir öğe
-    { "urun": string, "miktar": number, "birim": string }  // birim: "adet", "takım" vb.
-  ],
-  "eminMi": boolean,                // görüntü gerçekten bir sipariş formu/mesajı mı
-  "belirsizAlanlar": string[]       // emin olamadığın alanların listesi (kullanıcıya sorulacak)
-}
-
-Bugünün tarihi: ${new Date().toISOString().slice(0, 10)}
-Sayılarda binlik ayraç kullanma. Emin olmadığın alanı null bırak, uydurma.
-Görüntüde birden fazla ürün kalemi varsa hepsini "kalemler" dizisine ekle.`;
+// Bu fonksiyon görseli/PDF'i Google Gemini'ye gönderip, siparişi şu
+// biçimde JSON olarak geri döndürür:
+//   { musteri, teslimTarihi, kalemler: [{ urun, miktar, birim }] }
+//
+// GEREKLİ AYAR (Vercel):
+//   Project Settings → Environment Variables → GEMINI_API_KEY
+//   Değeri: https://aistudio.google.com/apikey adresinden alınan anahtar
+// -----------------------------------------------------------------
 
 export default async function handler(req, res) {
-  if (req.method !== "POST") return res.status(405).send("Method Not Allowed");
-  if (!GEMINI_API_KEY) return res.status(500).json({ error: "GEMINI_API_KEY tanımlı değil (Vercel env vars)" });
-
-  const { imageBase64, mimeType, message } = req.body || {};
-  if (!imageBase64 && !message) {
-    return res.status(400).json({ error: "imageBase64 veya message alanlarından biri zorunlu" });
+  if (req.method !== "POST") {
+    res.setHeader("Allow", "POST");
+    return res.status(405).json({ error: "Sadece POST istekleri desteklenir" });
   }
 
+  const apiKey = process.env.GEMINI_API_KEY;
+  if (!apiKey) {
+    console.error("parse-order: GEMINI_API_KEY tanımlı değil");
+    return res.status(500).json({ error: "Sunucu yapılandırma hatası: GEMINI_API_KEY eksik" });
+  }
+
+  const { imageBase64, mimeType } = req.body || {};
+  if (!imageBase64) {
+    return res.status(400).json({ error: "imageBase64 alanı zorunlu" });
+  }
+
+  const prompt = `Bu görsel/PDF, WhatsApp üzerinden gelen elle yazılmış veya
+yazılı bir sipariş formudur. Görüntüyü dikkatlice oku ve içeriğini SADECE
+aşağıdaki JSON şemasına uygun, başka hiçbir metin eklemeden döndür:
+
+{
+  "musteri": "müşteri/firma adı (bulunamazsa boş string)",
+  "teslimTarihi": "YYYY-MM-DD formatında teslim/termin tarihi (bulunamazsa boş string)",
+  "kalemler": [
+    { "urun": "ürün/model adı", "miktar": sayı, "birim": "adet" }
+  ]
+}
+
+Kurallar:
+- Sadece geçerli JSON döndür, markdown code fence (\`\`\`) kullanma, açıklama ekleme.
+- Tarihi anlayabildiğin her formattan (gg.aa.yyyy, gg/aa/yyyy, vb.) YYYY-MM-DD'ye çevir.
+- Miktarı sayıya çevir (virgül/nokta temizle).
+- Birim belirtilmemişse "adet" kullan.
+- Emin olmadığın alanları boş bırak, uydurma bilgi ekleme.`;
+
   try {
-    const parts = [];
-    if (imageBase64) {
-      parts.push({ inlineData: { mimeType: mimeType || "image/jpeg", data: imageBase64 } });
-    }
-    if (message) {
-      parts.push({ text: message });
-    }
+    const controller = new AbortController();
+    const timeout = setTimeout(() => controller.abort(), 25000); // 25s zaman aşımı
 
     const geminiRes = await fetch(
-      `https://generativelanguage.googleapis.com/v1beta/models/${GEMINI_MODEL}:generateContent?key=${GEMINI_API_KEY}`,
+      `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=${apiKey}`,
       {
         method: "POST",
         headers: { "Content-Type": "application/json" },
+        signal: controller.signal,
         body: JSON.stringify({
-          contents: [{ role: "user", parts }],
-          systemInstruction: { parts: [{ text: SYSTEM_PROMPT }] },
-          generationConfig: { responseMimeType: "application/json", temperature: 0.1 },
+          contents: [
+            {
+              parts: [
+                { text: prompt },
+                { inline_data: { mime_type: mimeType || "image/jpeg", data: imageBase64 } },
+              ],
+            },
+          ],
+          generationConfig: {
+            temperature: 0.1,
+            responseMimeType: "application/json",
+          },
         }),
       }
     );
+    clearTimeout(timeout);
 
     if (!geminiRes.ok) {
-      const errText = await geminiRes.text();
-      console.error("Gemini API error", errText);
-      return res.status(502).json({ error: "AI servisi yanıt vermedi" });
+      const errText = await geminiRes.text().catch(() => "");
+      console.error("parse-order: Gemini API hatası", geminiRes.status, errText);
+      return res.status(502).json({ error: `AI servisi hata döndü (${geminiRes.status})` });
     }
 
     const data = await geminiRes.json();
-    const text = data?.candidates?.[0]?.content?.parts?.[0]?.text;
-    if (!text) return res.status(502).json({ error: "AI yanıtı boş döndü" });
+    const rawText = data?.candidates?.[0]?.content?.parts?.[0]?.text;
+    if (!rawText) {
+      console.error("parse-order: Gemini yanıtında metin yok", JSON.stringify(data).slice(0, 500));
+      return res.status(502).json({ error: "AI servisi boş yanıt döndürdü" });
+    }
 
     let parsed;
     try {
-      parsed = JSON.parse(text);
-    } catch {
-      return res.status(502).json({ error: "AI yanıtı JSON olarak okunamadı" });
+      // Gemini bazen kod bloğu içine sarabiliyor; temizleyip parse et.
+      const cleaned = rawText.trim().replace(/^```json\s*|```$/g, "");
+      parsed = JSON.parse(cleaned);
+    } catch (parseErr) {
+      console.error("parse-order: JSON parse hatası", rawText.slice(0, 500));
+      return res.status(502).json({ error: "AI yanıtı okunamadı (geçersiz JSON)" });
     }
 
-    return res.status(200).json(parsed);
+    return res.status(200).json({
+      musteri: parsed.musteri || "",
+      teslimTarihi: parsed.teslimTarihi || "",
+      kalemler: Array.isArray(parsed.kalemler) ? parsed.kalemler : [],
+    });
   } catch (err) {
-    console.error("parse-order error", err);
-    return res.status(500).json({ error: "Sunucu hatası" });
+    if (err.name === "AbortError") {
+      console.error("parse-order: zaman aşımı");
+      return res.status(504).json({ error: "AI servisi zamanında yanıt vermedi" });
+    }
+    console.error("parse-order: beklenmeyen hata", err);
+    return res.status(500).json({ error: "Sunucu hatası: " + (err.message || "bilinmeyen hata") });
   }
 }
