@@ -30,6 +30,8 @@ const COLORS = {
   accentStop: "#E8533D", accentStopDim: "#2E1F1C",
   accentWarn: "#E8A33D", accentWarnDim: "#2E2818",
   accentIdle: "#5C6066",
+  // ERDOOR marka kırmızısı — logo/başlık/vurgu için (durum renklerinden ayrı tutulur)
+  brand: "#D70E16", brandDim: "#2E1114",
 };
 
 const DOWNTIME_REASONS = [
@@ -480,13 +482,14 @@ function LoginScreen({ lang, dir, setLang, onSignIn, onSignUp }) {
     <div dir={dir} style={{ minHeight: "100vh", background: COLORS.bg, display: "flex", alignItems: "center", justifyContent: "center", padding: 20 }}>
       <FontImports />
       <div style={{ width: "100%", maxWidth: 380 }}>
+        <ErdoorLogo height={52} style={{ marginBottom: 22 }} />
         <div style={{ display: "flex", justifyContent: "center", gap: 8, marginBottom: 26 }}>
           {LANGUAGES.map((l) => (
             <button key={l.code} onClick={() => setLang(l.code)} style={{
               padding: "7px 14px", borderRadius: 99, cursor: "pointer",
-              border: `1px solid ${lang === l.code ? COLORS.accentRun : COLORS.border}`,
-              background: lang === l.code ? COLORS.accentRunDim : "transparent",
-              color: lang === l.code ? COLORS.accentRun : COLORS.textDim,
+              border: `1px solid ${lang === l.code ? COLORS.brand : COLORS.border}`,
+              background: lang === l.code ? COLORS.brandDim : "transparent",
+              color: lang === l.code ? COLORS.brand : COLORS.textDim,
               fontFamily: "'Inter', sans-serif", fontSize: 13, fontWeight: 600,
             }}>
               {l.label}
@@ -507,7 +510,7 @@ function LoginScreen({ lang, dir, setLang, onSignIn, onSignUp }) {
           <AuthTextField label={t("password", lang)} type="password" value={password} onChange={setPassword} />
           {error && <div style={{ color: COLORS.accentStop, fontFamily: "'Inter', sans-serif", fontSize: 13 }}>{error}</div>}
           {info && <div style={{ color: COLORS.accentRun, fontFamily: "'Inter', sans-serif", fontSize: 13 }}>{info}</div>}
-          <BigButton variant="run" disabled={busy} style={{ padding: "14px 20px", justifyContent: "center" }}>
+          <BigButton variant="brand" disabled={busy} style={{ padding: "14px 20px", justifyContent: "center" }}>
             {isSignUp ? t("signUp", lang) : t("signIn", lang)}
           </BigButton>
         </form>
@@ -847,6 +850,7 @@ function BigButton({ children, onClick, variant = "default", style, disabled }) 
     run: { background: COLORS.accentRun, borderColor: COLORS.accentRun, color: "#0C1A10" },
     stop: { background: COLORS.accentStop, borderColor: COLORS.accentStop, color: "#fff" },
     ghost: { background: "transparent", borderColor: COLORS.border, color: COLORS.textDim },
+    brand: { background: COLORS.brand, borderColor: COLORS.brand, color: "#fff" },
   };
   return (
     <button
@@ -881,6 +885,19 @@ function SavedToast({ text }) {
     }}>
       <Check size={16} color={COLORS.accentRun} /> {text}
     </div>
+  );
+}
+
+// ERDOOR marka logosu — dosya, projenin `public/` klasöründe `logo.png`
+// olarak durmalı (Vite statik dosyaları oradan `/logo.png` yoluyla sunar).
+function ErdoorLogo({ height = 40, style }) {
+  return (
+    <img
+      src="/logo.png"
+      alt="ERDOOR"
+      style={{ height, display: "block", margin: "0 auto", ...style }}
+      onError={(e) => { e.currentTarget.style.display = "none"; }}
+    />
   );
 }
 
@@ -1984,7 +2001,7 @@ function YoneticiMode({ data, onBack, lang, dir, profile }) {
             padding: "20px 14px", display: "flex", flexDirection: "column", gap: 4,
           }}>
             <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", padding: "0 8px 16px" }}>
-              <span style={{ fontFamily: "'IBM Plex Mono', monospace", fontSize: 11, color: COLORS.textFaint, letterSpacing: 1.5, textTransform: "uppercase" }}>{t("appTitle", lang)}</span>
+              <ErdoorLogo height={22} style={{ margin: 0 }} />
               <button onClick={() => setSidebarOpen(false)} style={{ background: "none", border: "none", color: COLORS.textFaint, cursor: "pointer", display: "flex" }}><X size={16} /></button>
             </div>
             {[
@@ -4092,6 +4109,7 @@ function ModeSelect({ onSelect, lang, setLang, dir, profile, onSignOut }) {
   return (
     <div dir={dir} style={{ minHeight: "100vh", background: COLORS.bg, display: "flex", alignItems: "center", justifyContent: "center", padding: 20 }}>
       <div style={{ width: "100%", maxWidth: 420 }}>
+        <ErdoorLogo height={56} style={{ marginBottom: 24 }} />
         <div style={{ display: "flex", justifyContent: "center", gap: 8, marginBottom: 26 }}>
           {LANGUAGES.map((l) => (
             <button
@@ -4099,9 +4117,9 @@ function ModeSelect({ onSelect, lang, setLang, dir, profile, onSignOut }) {
               onClick={() => setLang(l.code)}
               style={{
                 padding: "7px 14px", borderRadius: 99, cursor: "pointer",
-                border: `1px solid ${lang === l.code ? COLORS.accentRun : COLORS.border}`,
-                background: lang === l.code ? COLORS.accentRunDim : "transparent",
-                color: lang === l.code ? COLORS.accentRun : COLORS.textDim,
+                border: `1px solid ${lang === l.code ? COLORS.brand : COLORS.border}`,
+                background: lang === l.code ? COLORS.brandDim : "transparent",
+                color: lang === l.code ? COLORS.brand : COLORS.textDim,
                 fontFamily: "'Inter', sans-serif", fontSize: 13, fontWeight: 600,
               }}
             >
