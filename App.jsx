@@ -310,6 +310,26 @@ const STRINGS = {
   formItemsTitle: { tr: "Kalemler (Modeller)", en: "Line Items (Models)", ar: "البنود (الموديلات)" },
   addLineItem: { tr: "Kalem Ekle", en: "Add Line Item", ar: "إضافة بند" },
   createOrderForm: { tr: "Siparişi Oluştur", en: "Create Order", ar: "إنشاء الطلب" },
+
+  orderCode: { tr: "Sipariş Kodu", en: "Order Code", ar: "رمز الطلب" },
+  orderCodeRequired: { tr: "Sipariş kodu zorunludur", en: "Order code is required", ar: "رمز الطلب مطلوب" },
+  orderCodeDuplicate: { tr: "Bu sipariş kodu zaten kullanılıyor, farklı bir kod girin", en: "This order code is already in use, please choose another", ar: "رمز الطلب هذا مستخدم بالفعل" },
+  orderNotes: { tr: "Ustalara Not (opsiyonel)", en: "Note for Operators (optional)", ar: "ملاحظة للعمال (اختياري)" },
+  orderNotesPlaceholder: { tr: "Örn: bu sipariş için özel talimat, dikkat edilecek nokta...", en: "e.g. special instructions for this order...", ar: "مثال: تعليمات خاصة لهذا الطلب" },
+  orderNotesLabelUsta: { tr: "Not", en: "Note", ar: "ملاحظة" },
+
+  colModel: { tr: "MODEL", en: "MODEL", ar: "الموديل" },
+  colRenk: { tr: "RENK", en: "COLOR", ar: "اللون" },
+  colOlcu: { tr: "ÖLÇÜ", en: "SIZE", ar: "المقاس" },
+  colMiktar: { tr: "MİKTAR", en: "QTY", ar: "الكمية" },
+  colBirim: { tr: "BİRİM", en: "UNIT", ar: "الوحدة" },
+  colSiparis: { tr: "SİPARİŞ", en: "ORDER", ar: "الطلب" },
+  colKategori: { tr: "KATEGORİ", en: "CATEGORY", ar: "الفئة" },
+
+  undoExcessOver: { tr: "fazla girildi", en: "over-entered", ar: "تم إدخال زيادة" },
+  undoExcessUnder: { tr: "azaltıldı", en: "reduced", ar: "تم تخفيضه" },
+  undoReasonLabel: { tr: "Neden", en: "Reason", ar: "السبب" },
+  undoReasonPrompt: { tr: "Bu düzeltmenin nedeni nedir? (opsiyonel)", en: "What is the reason for this correction? (optional)", ar: "ما سبب هذا التصحيح؟ (اختياري)" },
   formLabel: { tr: "Form:", en: "Form:", ar: "نموذج:" },
 
   // ---- Kanban ----
@@ -1086,9 +1106,10 @@ function useSharedData() {
     const stage = (order.asamalar || []).find((s) => s.id === stageId);
     if (!stage) return;
 
+    const { reason, ...stagePatch } = patch;
     const prevCikan = stage.cikan || 0;
     const prevDurum = stage.durum;
-    let merged = { ...stage, ...patch };
+    let merged = { ...stage, ...stagePatch };
     let consumedForUndo = [];
 
     if (patch.cikan !== undefined) {
@@ -1118,6 +1139,7 @@ function useSharedData() {
         id: `UNDO-${Date.now().toString().slice(-6)}-${Math.floor(Math.random() * 900 + 100)}`,
         time: Date.now(), orderId, stageId, urun: order.urun, machine: stage.makine,
         prevCikan, prevDurum, newCikan, newDurum: merged.durum, consumed: consumedForUndo,
+        reason: reason || null,
       });
     }
 
@@ -1592,7 +1614,23 @@ function UstaMode({ data, onBack, lang, dir }) {
             <div style={{ fontFamily: "'Inter', sans-serif", fontSize: 13, color: COLORS.textDim, marginTop: 6 }}>
               {selectedEntry.order.musteri} · {selectedEntry.order.miktar} {t("units", lang)}
               {selectedEntry.order.teslimTarihi && ` · ${t("due", lang)} ${fmtDateShort(selectedEntry.order.teslimTarihi)}`}
+              {(selectedEntry.order.renk || selectedEntry.order.olcu || selectedEntry.order.kategori) && (
+                <> · {[selectedEntry.order.renk, selectedEntry.order.olcu, selectedEntry.order.kategori].filter(Boolean).join(" · ")}</>
+              )}
             </div>
+            {selectedEntry.order.not && (
+              <div style={{
+                marginTop: 10, padding: "10px 12px", borderRadius: 10,
+                background: COLORS.accentWarnDim, border: `1px solid ${COLORS.accentWarn}50`,
+              }}>
+                <div style={{ fontFamily: "'Inter', sans-serif", fontSize: 10.5, fontWeight: 700, letterSpacing: 0.5, textTransform: "uppercase", color: COLORS.accentWarn, marginBottom: 3 }}>
+                  {t("orderNotesLabelUsta", lang)}
+                </div>
+                <div style={{ fontFamily: "'Inter', sans-serif", fontSize: 13, color: COLORS.text, lineHeight: 1.45 }}>
+                  {selectedEntry.order.not}
+                </div>
+              </div>
+            )}
             <div style={{ fontFamily: "'Inter', sans-serif", fontSize: 13, color: COLORS.text, marginTop: 10, paddingTop: 10, borderTop: `1px solid ${COLORS.border}` }}>
               {((order) => {
                 const idx = (order.asamalar || []).findIndex((s) => s.id === selectedEntry.stage.id);
@@ -2400,9 +2438,25 @@ function TanimlarPanel({ data, lang, dir }) {
   const [activeDept, setActiveDept] = useState(departments?.[0]?.id || "extruder");
   const [savedMsg, setSavedMsg] = useState(null);
   const [newProductText, setNewProductText] = useState("");
-  const [orderForm, setOrderForm] = useState({ formNo: "", tarih: "", musteri: "", teslimTarihi: "" });
-  const [formItems, setFormItems] = useState([{ urun: "", miktar: "", birim: "adet" }]);
+  const [orderForm, setOrderForm] = useState({ siparisKodu: "", formNo: "", tarih: "", musteri: "", teslimTarihi: "", not: "" });
+  const [formItems, setFormItems] = useState([{ urun: "", renk: "", olcu: "", miktar: "", birim: "adet", siparis: "", kategori: "" }]);
   const [stagePickers, setStagePickers] = useState({}); // orderId -> selected machine code (draft, before "Ekle")
+  const [stageCikanDraft, setStageCikanDraft] = useState({}); // stageId -> geçici yazılan değer (blur'da commit edilir)
+
+  // Üretilen adet elle düzeltildiğinde (yönetici tarafından), isteğe bağlı
+  // bir düzeltme nedeni sorulur ve bu neden "Geri Al" ekranında görünür.
+  // Tuş başına değil, sadece odak kaybolunca (blur) commit edilir.
+  function commitStageCikanEdit(orderId, stageId, prevValue, draftValue) {
+    setStageCikanDraft((prev) => {
+      const next = { ...prev };
+      delete next[stageId];
+      return next;
+    });
+    const newValue = Math.max(0, parseInt(draftValue) || 0);
+    if (newValue === prevValue) return; // değişiklik yoksa ne commit ne de soru
+    const reason = window.prompt(t("undoReasonPrompt", lang)) || null;
+    updateOrderStage(orderId, stageId, { cikan: newValue, reason });
+  }
 
   useEffect(() => { setLocalDepartments(departments); }, [departments]);
 
@@ -2467,7 +2521,7 @@ function TanimlarPanel({ data, lang, dir }) {
   // kendi rotasında ayrı bir "sipariş" olarak izlenir ama hepsi aynı
   // formNo ile etiketlenip birlikte gruplanır.
   function addFormItemRow() {
-    setFormItems([...formItems, { urun: "", miktar: "", birim: "adet" }]);
+    setFormItems([...formItems, { urun: "", renk: "", olcu: "", miktar: "", birim: "adet", siparis: "", kategori: "" }]);
   }
   function removeFormItemRow(idx) {
     setFormItems(formItems.length > 1 ? formItems.filter((_, i) => i !== idx) : formItems);
@@ -2475,26 +2529,44 @@ function TanimlarPanel({ data, lang, dir }) {
   function updateFormItemRow(idx, patch) {
     setFormItems(formItems.map((row, i) => (i === idx ? { ...row, ...patch } : row)));
   }
+  const [orderCodeError, setOrderCodeError] = useState("");
+
   async function submitOrderForm() {
     const validItems = formItems.filter((it) => it.urun && it.miktar);
     if (validItems.length === 0) return;
+
+    const baseCode = (orderForm.siparisKodu || "").trim();
+    if (!baseCode) { setOrderCodeError(t("orderCodeRequired", lang)); return; }
+
+    // Birden fazla kalem varsa (aynı formda birden fazla ürün/miktar satırı),
+    // her kalem kullanıcının girdiği koda -1, -2... eki alarak benzersizleşir.
+    // Girilen kod (veya türetilen alt kodları) başka bir siparişte kullanılıyorsa
+    // hiçbir kayıt oluşturulmadan uyarı verilir — sistem otomatik kod atamaz.
+    const candidateIds = validItems.map((_, i) => (validItems.length > 1 ? `${baseCode}-${i + 1}` : baseCode));
+    const existingIds = new Set((orders || []).map((o) => o.id));
+    if (candidateIds.some((id) => existingIds.has(id))) { setOrderCodeError(t("orderCodeDuplicate", lang)); return; }
+    setOrderCodeError("");
+
     const sharedFormNo = orderForm.formNo || `FRM-${Date.now().toString().slice(-6)}`;
-    for (const item of validItems) {
-      const id = `SIP-${Date.now().toString().slice(-6)}-${Math.floor(Math.random() * 900 + 100)}`;
+    for (let i = 0; i < validItems.length; i++) {
+      const item = validItems[i];
+      const id = candidateIds[i];
       const route = (productRoutes || []).find((r) => r.productName === item.urun);
       const asamalar = route
-        ? route.stages.map((s, i) => ({ id: `AS${Date.now().toString().slice(-6)}${i}${Math.floor(Math.random() * 90)}`, makine: s.machine, durum: STAGE_STATUS.WAITING, cikan: 0 }))
+        ? route.stages.map((s, si) => ({ id: `AS${Date.now().toString().slice(-6)}${si}${Math.floor(Math.random() * 90)}`, makine: s.machine, durum: STAGE_STATUS.WAITING, cikan: 0 }))
         : [];
       await addOrder({
         id, urun: item.urun, musteri: orderForm.musteri || "—",
+        renk: item.renk || "", olcu: item.olcu || "", siparis: item.siparis || "", kategori: item.kategori || "",
         miktar: parseInt(item.miktar) || 0, birim: item.birim || "adet",
         teslimTarihi: orderForm.teslimTarihi || "",
         formNo: sharedFormNo, formTarihi: orderForm.tarih || "",
+        not: orderForm.not || "",
         durum: ORDER_STATUS.PENDING, asamalar,
       });
     }
-    setOrderForm({ formNo: "", tarih: "", musteri: "", teslimTarihi: "" });
-    setFormItems([{ urun: "", miktar: "", birim: "adet" }]);
+    setOrderForm({ siparisKodu: "", formNo: "", tarih: "", musteri: "", teslimTarihi: "", not: "" });
+    setFormItems([{ urun: "", renk: "", olcu: "", miktar: "", birim: "adet", siparis: "", kategori: "" }]);
   }
 
   // NOT: Eskiden burada aşama durumunu doğrudan değiştiren (cikan'a
@@ -2590,33 +2662,74 @@ function TanimlarPanel({ data, lang, dir }) {
             {t("newOrderForm", lang)}
           </div>
 
-          <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1.3fr 1fr", gap: 8, marginBottom: 12 }}>
+          <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 8, marginBottom: 8 }}>
+            <div>
+              <input
+                value={orderForm.siparisKodu}
+                onChange={(e) => { setOrderForm({ ...orderForm, siparisKodu: e.target.value }); setOrderCodeError(""); }}
+                placeholder={t("orderCode", lang) + " *"}
+                style={{ ...inputStyle, border: `1px solid ${orderCodeError ? COLORS.accentStop : COLORS.border}`, width: "100%" }}
+              />
+            </div>
             <input value={orderForm.formNo} onChange={(e) => setOrderForm({ ...orderForm, formNo: e.target.value })} placeholder={t("formNo", lang)} style={inputStyle} />
             <input type="date" value={orderForm.tarih} onChange={(e) => setOrderForm({ ...orderForm, tarih: e.target.value })} style={inputStyle} title={t("formDate", lang)} />
+          </div>
+          {orderCodeError && (
+            <div style={{ fontFamily: "'Inter', sans-serif", fontSize: 11.5, color: COLORS.accentStop, marginTop: -4, marginBottom: 10 }}>
+              {orderCodeError}
+            </div>
+          )}
+          <div style={{ display: "grid", gridTemplateColumns: "1.3fr 1fr", gap: 8, marginBottom: 12 }}>
             <input value={orderForm.musteri} onChange={(e) => setOrderForm({ ...orderForm, musteri: e.target.value })} placeholder={t("orderCustomer", lang)} style={inputStyle} />
             <input type="date" value={orderForm.teslimTarihi} onChange={(e) => setOrderForm({ ...orderForm, teslimTarihi: e.target.value })} style={inputStyle} title={t("orderDueDate", lang)} />
           </div>
+          <textarea
+            value={orderForm.not}
+            onChange={(e) => setOrderForm({ ...orderForm, not: e.target.value })}
+            placeholder={t("orderNotesPlaceholder", lang)}
+            rows={2}
+            style={{ ...inputStyle, width: "100%", marginBottom: 12, resize: "vertical", fontFamily: "'Inter', sans-serif" }}
+          />
 
           <div style={{ fontFamily: "'Inter', sans-serif", fontSize: 11, color: COLORS.textFaint, marginBottom: 6 }}>{t("formItemsTitle", lang)}</div>
-          <div style={{ display: "grid", gap: 6, marginBottom: 8 }}>
-            {formItems.map((row, idx) => (
-              <div key={idx} style={{ display: "grid", gridTemplateColumns: "1.6fr 0.8fr 0.8fr 32px", gap: 8 }}>
-                <select value={row.urun} onChange={(e) => updateFormItemRow(idx, { urun: e.target.value })} style={inputStyle}>
-                  <option value="">{t("selectProduct", lang)}</option>
-                  {allOrderProducts.map((p) => <option key={p} value={p}>{p}</option>)}
-                </select>
-                <input type="number" value={row.miktar} onChange={(e) => updateFormItemRow(idx, { miktar: e.target.value })} placeholder={t("orderQty", lang)} style={inputStyle} />
-                <select value={row.birim} onChange={(e) => updateFormItemRow(idx, { birim: e.target.value })} style={inputStyle}>
-                  <option value="adet">ADET</option>
-                  <option value="takım">TAKIM</option>
-                  <option value="m2">M²</option>
-                  <option value="kg">KG</option>
-                </select>
-                <button onClick={() => removeFormItemRow(idx)} style={{ background: "none", border: `1px solid ${COLORS.border}`, borderRadius: 8, color: COLORS.textFaint, cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center" }}>
-                  <X size={13} />
-                </button>
+          <div style={{ overflowX: "auto", marginBottom: 8 }}>
+            <div style={{ minWidth: 820 }}>
+              <div style={{
+                display: "grid", gridTemplateColumns: "1.5fr 0.9fr 0.9fr 0.7fr 0.9fr 1fr 1fr 32px", gap: 8,
+                padding: "0 0 6px", borderBottom: `2px solid ${COLORS.border}`, marginBottom: 6,
+              }}>
+                {["colModel", "colRenk", "colOlcu", "colMiktar", "colBirim", "colSiparis", "colKategori"].map((k) => (
+                  <div key={k} style={{ fontFamily: "'Inter', sans-serif", fontSize: 10.5, fontWeight: 700, letterSpacing: 0.5, color: COLORS.textFaint }}>
+                    {t(k, lang)}
+                  </div>
+                ))}
+                <div />
               </div>
-            ))}
+              <div style={{ display: "grid", gap: 6 }}>
+                {formItems.map((row, idx) => (
+                  <div key={idx} style={{ display: "grid", gridTemplateColumns: "1.5fr 0.9fr 0.9fr 0.7fr 0.9fr 1fr 1fr 32px", gap: 8 }}>
+                    <select value={row.urun} onChange={(e) => updateFormItemRow(idx, { urun: e.target.value })} style={inputStyle}>
+                      <option value="">{t("selectProduct", lang)}</option>
+                      {allOrderProducts.map((p) => <option key={p} value={p}>{p}</option>)}
+                    </select>
+                    <input value={row.renk} onChange={(e) => updateFormItemRow(idx, { renk: e.target.value })} placeholder={t("colRenk", lang)} style={inputStyle} />
+                    <input value={row.olcu} onChange={(e) => updateFormItemRow(idx, { olcu: e.target.value })} placeholder={t("colOlcu", lang)} style={inputStyle} />
+                    <input type="number" value={row.miktar} onChange={(e) => updateFormItemRow(idx, { miktar: e.target.value })} placeholder={t("orderQty", lang)} style={inputStyle} />
+                    <select value={row.birim} onChange={(e) => updateFormItemRow(idx, { birim: e.target.value })} style={inputStyle}>
+                      <option value="adet">ADET</option>
+                      <option value="takım">TAKIM</option>
+                      <option value="m2">M²</option>
+                      <option value="kg">KG</option>
+                    </select>
+                    <input value={row.siparis} onChange={(e) => updateFormItemRow(idx, { siparis: e.target.value })} placeholder={t("colSiparis", lang)} style={inputStyle} />
+                    <input value={row.kategori} onChange={(e) => updateFormItemRow(idx, { kategori: e.target.value })} placeholder={t("colKategori", lang)} style={inputStyle} />
+                    <button onClick={() => removeFormItemRow(idx)} style={{ background: "none", border: `1px solid ${COLORS.border}`, borderRadius: 8, color: COLORS.textFaint, cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center" }}>
+                      <X size={13} />
+                    </button>
+                  </div>
+                ))}
+              </div>
+            </div>
           </div>
           <div style={{ display: "flex", gap: 8 }}>
             <button onClick={addFormItemRow} style={{ display: "flex", alignItems: "center", gap: 6, padding: "8px 12px", borderRadius: 8, border: `1px solid ${COLORS.border}`, background: "transparent", color: COLORS.textDim, fontFamily: "'Inter', sans-serif", fontSize: 12, fontWeight: 600, cursor: "pointer" }}>
@@ -2654,6 +2767,9 @@ function TanimlarPanel({ data, lang, dir }) {
                     </div>
                     <div style={{ fontFamily: "'Inter', sans-serif", fontSize: 12, color: COLORS.textFaint, marginTop: 2 }}>
                       {o.musteri} · {o.miktar} {o.birim ? o.birim.toUpperCase() : t("units", lang)} {o.teslimTarihi && `· ${t("due", lang)} ${fmtDateShort(o.teslimTarihi)}`}
+                      {(o.renk || o.olcu || o.kategori) && (
+                        <> · {[o.renk, o.olcu, o.kategori].filter(Boolean).join(" · ")}</>
+                      )}
                     </div>
                     <div style={{ fontFamily: "'Inter', sans-serif", fontSize: 12, color: COLORS.textDim, marginTop: 4 }}>
                       {stages.length === 0
@@ -2713,8 +2829,11 @@ function TanimlarPanel({ data, lang, dir }) {
                               {statusLabel}
                             </span>
                             <input
-                              type="number" value={s.cikan}
-                              onChange={(e) => updateOrderStage(o.id, s.id, { cikan: Math.max(0, parseInt(e.target.value) || 0) })}
+                              type="number"
+                              value={stageCikanDraft[s.id] !== undefined ? stageCikanDraft[s.id] : s.cikan}
+                              onChange={(e) => setStageCikanDraft({ ...stageCikanDraft, [s.id]: e.target.value })}
+                              onBlur={(e) => commitStageCikanEdit(o.id, s.id, s.cikan, e.target.value)}
+                              onKeyDown={(e) => { if (e.key === "Enter") e.target.blur(); }}
                               placeholder={t("stageOutputQty", lang)}
                               style={{ ...inputStyle, fontSize: 11, padding: "4px 6px" }}
                             />
@@ -4013,29 +4132,44 @@ function UndoPanel({ data, lang, dir }) {
       </div>
       {undoLog.length === 0 && <div style={{ color: COLORS.textFaint, fontFamily: "'Inter', sans-serif", fontSize: 13 }}>{t("noUndoEntries", lang)}</div>}
       <div style={{ display: "grid", gap: 8 }}>
-        {undoLog.map((entry) => (
-          <div key={entry.id} style={{ background: COLORS.bgPanel, border: `1px solid ${COLORS.border}`, borderRadius: 12, padding: "12px 14px", display: "flex", justifyContent: "space-between", alignItems: "center", flexWrap: "wrap", gap: 10 }}>
-            <div>
-              <div style={{ fontFamily: "'Archivo', sans-serif", fontWeight: 700, fontSize: 13, color: COLORS.text }}>
-                {entry.urun} · {entry.machine}
+        {undoLog.map((entry) => {
+          const delta = (entry.newCikan ?? 0) - (entry.prevCikan ?? 0);
+          const deltaLabel = delta > 0
+            ? `+${delta} ${t("undoExcessOver", lang)}`
+            : delta < 0
+            ? `${delta} ${t("undoExcessUnder", lang)}`
+            : null;
+          const deltaColor = delta > 0 ? COLORS.accentStop : delta < 0 ? COLORS.accentWarn : COLORS.textFaint;
+          return (
+            <div key={entry.id} style={{ background: COLORS.bgPanel, border: `1px solid ${COLORS.border}`, borderRadius: 12, padding: "12px 14px", display: "flex", justifyContent: "space-between", alignItems: "center", flexWrap: "wrap", gap: 10 }}>
+              <div>
+                <div style={{ fontFamily: "'Archivo', sans-serif", fontWeight: 700, fontSize: 13, color: COLORS.text }}>
+                  {entry.urun} · {entry.machine}
+                </div>
+                <div style={{ fontFamily: "'IBM Plex Mono', monospace", fontSize: 11, color: COLORS.textFaint, marginTop: 2 }}>
+                  {entry.orderId} · {new Date(entry.time).toLocaleString("tr-TR")} · {entry.prevCikan} → {entry.newCikan}
+                  {deltaLabel && <span style={{ color: deltaColor, fontWeight: 700 }}> · {deltaLabel}</span>}
+                </div>
+                {entry.reason && (
+                  <div style={{ fontFamily: "'Inter', sans-serif", fontSize: 11.5, color: COLORS.textDim, marginTop: 4 }}>
+                    <span style={{ color: COLORS.textFaint, fontWeight: 600 }}>{t("undoReasonLabel", lang)}:</span> {entry.reason}
+                  </div>
+                )}
               </div>
-              <div style={{ fontFamily: "'IBM Plex Mono', monospace", fontSize: 11, color: COLORS.textFaint, marginTop: 2 }}>
-                {entry.orderId} · {new Date(entry.time).toLocaleString("tr-TR")} · {entry.prevCikan} → {entry.newCikan}
-              </div>
+              {confirmingId === entry.id ? (
+                <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+                  <span style={{ fontFamily: "'Inter', sans-serif", fontSize: 11.5, color: COLORS.textDim }}>{t("undoConfirm", lang)}</span>
+                  <button onClick={() => setConfirmingId(null)} style={{ padding: "7px 12px", borderRadius: 8, border: `1px solid ${COLORS.border}`, background: "transparent", color: COLORS.textDim, fontSize: 12, cursor: "pointer" }}>{t("cancel", lang)}</button>
+                  <button onClick={() => { undoAction(entry.id); setConfirmingId(null); }} style={{ padding: "7px 12px", borderRadius: 8, border: `1px solid ${COLORS.accentStop}50`, background: COLORS.accentStopDim, color: COLORS.accentStop, fontWeight: 700, fontSize: 12, cursor: "pointer" }}>{t("undoButton", lang)}</button>
+                </div>
+              ) : (
+                <button onClick={() => setConfirmingId(entry.id)} style={{ padding: "7px 14px", borderRadius: 8, border: `1px solid ${COLORS.accentStop}50`, background: "transparent", color: COLORS.accentStop, fontWeight: 600, fontSize: 12, cursor: "pointer" }}>
+                  {t("undoButton", lang)}
+                </button>
+              )}
             </div>
-            {confirmingId === entry.id ? (
-              <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
-                <span style={{ fontFamily: "'Inter', sans-serif", fontSize: 11.5, color: COLORS.textDim }}>{t("undoConfirm", lang)}</span>
-                <button onClick={() => setConfirmingId(null)} style={{ padding: "7px 12px", borderRadius: 8, border: `1px solid ${COLORS.border}`, background: "transparent", color: COLORS.textDim, fontSize: 12, cursor: "pointer" }}>{t("cancel", lang)}</button>
-                <button onClick={() => { undoAction(entry.id); setConfirmingId(null); }} style={{ padding: "7px 12px", borderRadius: 8, border: `1px solid ${COLORS.accentStop}50`, background: COLORS.accentStopDim, color: COLORS.accentStop, fontWeight: 700, fontSize: 12, cursor: "pointer" }}>{t("undoButton", lang)}</button>
-              </div>
-            ) : (
-              <button onClick={() => setConfirmingId(entry.id)} style={{ padding: "7px 14px", borderRadius: 8, border: `1px solid ${COLORS.accentStop}50`, background: "transparent", color: COLORS.accentStop, fontWeight: 600, fontSize: 12, cursor: "pointer" }}>
-                {t("undoButton", lang)}
-              </button>
-            )}
-          </div>
-        ))}
+          );
+        })}
       </div>
     </div>
   );
