@@ -4,8 +4,8 @@ import { createClient } from "@supabase/supabase-js";
 import QRCode from "qrcode";
 import {
   Play, Square, AlertTriangle, Wrench, Zap, Package, Clock,
-  ChevronLeft, Check, RefreshCw, Users, Monitor, Settings, Plus, Trash2, X, Download,
-  Menu, QrCode, BarChart3,
+  ChevronLeft, ChevronRight, Check, RefreshCw, Users, Monitor, Settings, Plus, Trash2, X, Download,
+  Menu, QrCode, BarChart3, Layers, ArrowRight, ArrowDown, Factory,
 } from "lucide-react";
 
 // =================================================================
@@ -336,6 +336,20 @@ const STRINGS = {
   kanbanTitle: { tr: "Kanban", en: "Kanban", ar: "كانبان" },
   kanbanDesc: { tr: "Her sipariş, o an aktif olduğu departmanın sütununda görünür. Bir karta tıklayarak izlenebilirlik sayfasını açabilirsiniz.", en: "Each order appears in the column of its currently active department. Click a card to open its traceability page.", ar: "يظهر كل طلب في عمود القسم النشط حاليًا." },
   kanbanEmptyColumn: { tr: "Bu departmanda bekleyen sipariş yok", en: "No pending orders in this department", ar: "لا توجد طلبات معلقة في هذا القسم" },
+
+  // ---- Dijital İkiz ----
+  digitalTwinTitle: { tr: "Dijital İkiz", en: "Digital Twin", ar: "التوأم الرقمي" },
+  digitalTwinDesc: { tr: "Gerçek zamanlı fabrika akışı ve istasyon durumları — her kutu gerçek bir makineyi temsil eder, oklar sıradaki adımı gösterir.", en: "Real-time factory flow and station status — each box is a real machine, arrows show the next step.", ar: "تدفق المصنع الفعلي وحالة المحطات في الوقت الفعلي." },
+  twinQueue: { tr: "Kuyruk", en: "Queue", ar: "قائمة الانتظار" },
+  twinRunning: { tr: "Üretimde", en: "Running", ar: "قيد التشغيل" },
+  twinIdle: { tr: "BOŞTA", en: "IDLE", ar: "خامل" },
+  twinDown: { tr: "DURUŞTA", en: "DOWN", ar: "متوقف" },
+  twinActiveOrders: { tr: "AKTİF SİPARİŞLERİN AKIŞI", en: "ACTIVE ORDER FLOW", ar: "تدفق الطلبات النشطة" },
+  twinNoActiveOrders: { tr: "Şu anda üretimde aktif sipariş yok", en: "No active orders in production right now", ar: "لا توجد طلبات نشطة حاليًا" },
+  twinSummaryOrders: { tr: "TOPLAM AKTİF SİPARİŞ", en: "TOTAL ACTIVE ORDERS", ar: "إجمالي الطلبات النشطة" },
+  twinSummaryRunning: { tr: "ÜRETİMDEKİ İŞ", en: "STAGES RUNNING", ar: "المراحل قيد التشغيل" },
+  twinSummaryCritical: { tr: "KRİTİK STOK", en: "CRITICAL STOCK", ar: "المخزون الحرج" },
+  twinSummaryDown: { tr: "DURUŞTAKİ MAKİNE", en: "MACHINES DOWN", ar: "الماكينات المتوقفة" },
 
   // ---- Çalışma Takvimi ----
   calendarTitle: { tr: "Çalışma Takvimi", en: "Work Calendar", ar: "تقويم العمل" },
@@ -1971,7 +1985,7 @@ function MachineCard({ machine, state, profileToday, now, onClick, lang, dir }) 
 
 function YoneticiMode({ data, onBack, lang, dir, profile }) {
   const now = useNow(2000);
-  const { machines, plan, machineStates, log, refresh, orders, setPolling } = data;
+  const { machines, plan, machineStates, log, refresh, orders, stock, setPolling } = data;
   const [tab, setTab] = useState("durum");
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [openNavGroups, setOpenNavGroups] = useState({ uretim: true, malzeme: true, analiz: true, sistem: true });
@@ -1983,6 +1997,7 @@ function YoneticiMode({ data, onBack, lang, dir, profile }) {
   const NAV_GROUPS = [
     { id: "uretim", labelKey: "navGroupProduction", tabs: [
       { id: "durum", labelKey: "status" },
+      { id: "dijital-ikiz", labelKey: "digitalTwinTitle" },
       { id: "kanban", labelKey: "kanbanTitle" },
       { id: "plan", labelKey: "productionPlan" },
       { id: "takvim", labelKey: "calendarTitle" },
@@ -2007,7 +2022,7 @@ function YoneticiMode({ data, onBack, lang, dir, profile }) {
   // yenilemesi (4s) bu sekmelerde yerel state'i ezip yazılanı kaybettirebilir.
   // Sadece "durum" salt-okunur olduğu için orada canlı kalmasında sakınca yok.
   useEffect(() => {
-    setPolling(tab === "durum");
+    setPolling(tab === "durum" || tab === "dijital-ikiz");
     return () => setPolling(true);
   }, [tab, setPolling]);
 
@@ -2126,6 +2141,34 @@ function YoneticiMode({ data, onBack, lang, dir, profile }) {
             </div>
           )}
 
+          {(() => {
+            const activeOrders = (orders || []).filter((o) => o.durum !== ORDER_STATUS.DELIVERED);
+            const runningStages = activeOrders.reduce((sum, o) => sum + (o.asamalar || []).filter((s) => s.durum === STAGE_STATUS.RUNNING).length, 0);
+            const criticalStockCount = (stock || []).filter((s) => s.qty <= s.criticalLevel).length;
+            const twinCards = [
+              { label: t("twinSummaryOrders", lang), value: activeOrders.length, color: COLORS.accentWarn, icon: Layers },
+              { label: t("twinSummaryRunning", lang), value: runningStages, color: COLORS.accentRun, icon: RefreshCw },
+              { label: t("twinSummaryCritical", lang), value: criticalStockCount, color: criticalStockCount > 0 ? COLORS.accentStop : COLORS.textDim, icon: AlertTriangle },
+              { label: t("twinSummaryDown", lang), value: downCount, color: downCount > 0 ? COLORS.accentStop : COLORS.textDim, icon: AlertTriangle },
+            ];
+            return (
+              <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(180px, 1fr))", gap: 10 }}>
+                {twinCards.map((c) => {
+                  const Icon = c.icon;
+                  return (
+                    <div key={c.label} style={{ background: COLORS.bgPanel, border: `1px solid ${COLORS.border}`, borderRadius: 14, padding: "14px 16px" }}>
+                      <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between" }}>
+                        <span style={{ fontFamily: "'Inter', sans-serif", fontSize: 11, letterSpacing: 1, color: COLORS.textFaint }}>{c.label}</span>
+                        <Icon size={14} color={c.color} />
+                      </div>
+                      <div style={{ fontFamily: "'IBM Plex Mono', monospace", fontSize: 26, fontWeight: 700, color: c.color, marginTop: 4 }}>{c.value}</div>
+                    </div>
+                  );
+                })}
+              </div>
+            );
+          })()}
+
           <div style={{ display: "grid", gridTemplateColumns: "repeat(3, 1fr)", gap: 10 }}>
             {[{ label: t("inProduction", lang), value: runCount, color: COLORS.accentRun }, { label: t("inDowntime", lang), value: downCount, color: COLORS.accentStop }, { label: t("idle", lang), value: idleCount, color: COLORS.accentIdle }].map((it) => (
               <div key={it.label} style={{ background: COLORS.bgPanel, border: `1px solid ${COLORS.border}`, borderRadius: 14, padding: "14px 16px" }}>
@@ -2195,6 +2238,8 @@ function YoneticiMode({ data, onBack, lang, dir, profile }) {
           </div>
         </div>
       )}
+
+      {tab === "dijital-ikiz" && <DigitalTwinPanel data={data} lang={lang} dir={dir} />}
 
       {tab === "kanban" && <KanbanPanel data={data} lang={lang} dir={dir} />}
 
@@ -4170,6 +4215,133 @@ function UndoPanel({ data, lang, dir }) {
             </div>
           );
         })}
+      </div>
+    </div>
+  );
+}
+
+// =================================================================
+// DİJİTAL İKİZ — fabrikanın gerçek departman/makine sırasını akış
+// şeması olarak gösterir. Her kutu gerçek bir makine; oklar o
+// departmandaki bir sonraki makineye işaret eder. Kutunun içindeki
+// kuyruk/üretimde bilgisi, aktif siparişlerin asamalar'ından türetilir
+// (Verimlilik panelindeki darboğaz hesabıyla aynı mantık). Örnek/sahte
+// veri yoktur — hepsi data.orders, data.machineStates, data.departments'tan gelir.
+// =================================================================
+function DigitalTwinPanel({ data, lang, dir }) {
+  const { orders, departments, machineStates } = data;
+  if (!orders || !departments) return <LoadingScreen lang={lang} />;
+
+  const groups = [
+    ...departments.map((d) => ({ id: d.id, name: d.name, machines: d.machines })),
+    { id: "kanat", name: ({ tr: "Kanat Üretimi", en: "Door Panel Production", ar: "إنتاج ألواح الأبواب" }[lang] || "Kanat Üretimi"), machines: KANAT_MACHINES },
+  ];
+
+  // Her makine için: kuyrukta bekleyen adet + o an üretimde olan sipariş (varsa)
+  const machineInfo = {};
+  orders.filter((o) => o.durum === ORDER_STATUS.PENDING).forEach((o) => {
+    (o.asamalar || []).forEach((s) => {
+      if (s.durum === STAGE_STATUS.DONE) return;
+      if (!machineInfo[s.makine]) machineInfo[s.makine] = { queueQty: 0, runningOrder: null };
+      const remaining = Math.max(0, (o.miktar || 0) - (s.cikan || 0));
+      machineInfo[s.makine].queueQty += remaining;
+      if (s.durum === STAGE_STATUS.RUNNING && !machineInfo[s.makine].runningOrder) {
+        machineInfo[s.makine].runningOrder = o;
+      }
+    });
+  });
+
+  const activeOrders = orders.filter((o) => o.durum === ORDER_STATUS.PENDING);
+
+  return (
+    <div dir={dir} style={{ maxWidth: 1180, margin: "0 auto", padding: "18px 20px 60px", display: "grid", gap: 26 }}>
+      <div style={{ fontFamily: "'Inter', sans-serif", fontSize: 13, color: COLORS.textDim, lineHeight: 1.5 }}>
+        {t("digitalTwinDesc", lang)}
+      </div>
+
+      {groups.map((group) => (
+        <div key={group.id}>
+          <div style={{ fontFamily: "'IBM Plex Mono', monospace", fontSize: 11, color: COLORS.textFaint, letterSpacing: 1.5, textTransform: "uppercase", marginBottom: 10 }}>
+            {group.name}
+          </div>
+          <div style={{ display: "flex", flexWrap: "wrap", alignItems: "center", gap: 0 }}>
+            {group.machines.map((m, i) => {
+              const st = (machineStates[m.code] || {}).status || "idle";
+              const info = machineInfo[m.code] || { queueQty: 0, runningOrder: null };
+              const statusColor = st === "run" ? COLORS.accentRun : st === "down_pending" ? COLORS.accentStop : COLORS.textFaint;
+              const statusLabel = st === "run" ? t("twinRunning", lang) : st === "down_pending" ? t("twinDown", lang) : t("twinIdle", lang);
+              return (
+                <div key={m.code} style={{ display: "flex", alignItems: "center" }}>
+                  <div style={{
+                    background: COLORS.bgPanel, border: `1px solid ${info.runningOrder ? COLORS.accentRun + "60" : COLORS.border}`,
+                    borderRadius: 14, padding: "12px 14px", minWidth: 190, display: "grid", gap: 6,
+                  }}>
+                    <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 8 }}>
+                      <span style={{ fontFamily: "'Archivo', sans-serif", fontWeight: 700, fontSize: 12.5, color: COLORS.text }}>{m.name}</span>
+                      <span style={{
+                        fontFamily: "'Inter', sans-serif", fontSize: 9.5, fontWeight: 700, letterSpacing: 0.5,
+                        color: statusColor, border: `1px solid ${statusColor}50`, borderRadius: 99, padding: "2px 7px", flexShrink: 0,
+                      }}>
+                        {statusLabel}
+                      </span>
+                    </div>
+                    <div style={{ fontFamily: "'IBM Plex Mono', monospace", fontSize: 10.5, color: COLORS.textFaint }}>{m.code}</div>
+                    <div style={{ display: "flex", justifyContent: "space-between", fontFamily: "'Inter', sans-serif", fontSize: 11 }}>
+                      <span style={{ color: COLORS.textDim }}>{t("twinQueue", lang)}: <strong style={{ color: COLORS.text }}>{info.queueQty}</strong></span>
+                    </div>
+                    {info.runningOrder && (
+                      <div style={{ fontFamily: "'Inter', sans-serif", fontSize: 10.5, color: COLORS.accentRun, background: COLORS.accentRunDim, borderRadius: 8, padding: "4px 8px" }}>
+                        {info.runningOrder.id} · {info.runningOrder.urun}
+                      </div>
+                    )}
+                  </div>
+                  {i < group.machines.length - 1 && (
+                    <div style={{ padding: "0 6px", flexShrink: 0, color: COLORS.textFaint, display: "flex" }}>
+                      {dir === "rtl" ? <ArrowRight size={16} style={{ transform: "rotate(180deg)" }} /> : <ArrowRight size={16} />}
+                    </div>
+                  )}
+                </div>
+              );
+            })}
+          </div>
+        </div>
+      ))}
+
+      <div>
+        <div style={{ fontFamily: "'IBM Plex Mono', monospace", fontSize: 11, color: COLORS.textFaint, letterSpacing: 1.5, textTransform: "uppercase", marginBottom: 12 }}>
+          {t("twinActiveOrders", lang)}
+        </div>
+        {activeOrders.length === 0 && <div style={{ color: COLORS.textFaint, fontFamily: "'Inter', sans-serif", fontSize: 13 }}>{t("twinNoActiveOrders", lang)}</div>}
+        <div style={{ display: "grid", gap: 10 }}>
+          {activeOrders.map((o) => {
+            const allMachines = allMachinesFrom(departments);
+            function nameOf(code) { return allMachines.find((m) => m.code === code)?.name || code; }
+            const current = currentOrderStage(o);
+            return (
+              <div key={o.id} style={{ background: COLORS.bgPanel, border: `1px solid ${COLORS.border}`, borderRadius: 14, padding: "12px 14px" }}>
+                <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 8, flexWrap: "wrap", gap: 6 }}>
+                  <span style={{ fontFamily: "'Archivo', sans-serif", fontWeight: 700, fontSize: 13, color: COLORS.accentWarn }}>{o.id}</span>
+                  <span style={{ fontFamily: "'Inter', sans-serif", fontSize: 12, color: COLORS.textFaint }}>{o.musteri}</span>
+                </div>
+                <div style={{ display: "flex", flexWrap: "wrap", gap: 6 }}>
+                  {(o.asamalar || []).map((s) => {
+                    const isCurrent = current && s.id === current.id;
+                    const bg = s.durum === STAGE_STATUS.DONE ? COLORS.accentRunDim : isCurrent ? COLORS.accentWarn + "30" : COLORS.bgRaised;
+                    const color = s.durum === STAGE_STATUS.DONE ? COLORS.accentRun : isCurrent ? COLORS.accentWarn : COLORS.textFaint;
+                    return (
+                      <span key={s.id} style={{
+                        fontFamily: "'Inter', sans-serif", fontSize: 11, fontWeight: isCurrent ? 700 : 500,
+                        color, background: bg, border: `1px solid ${color}40`, borderRadius: 99, padding: "4px 10px",
+                      }}>
+                        {nameOf(s.makine)}
+                      </span>
+                    );
+                  })}
+                </div>
+              </div>
+            );
+          })}
+        </div>
       </div>
     </div>
   );
