@@ -5,7 +5,7 @@ import QRCode from "qrcode";
 import {
   Play, Square, AlertTriangle, Wrench, Zap, Package, Clock,
   ChevronLeft, ChevronRight, Check, RefreshCw, Users, Monitor, Settings, Plus, Trash2, X, Download,
-  Menu, QrCode, BarChart3, Layers, ArrowRight, ArrowDown, Factory,
+  Menu, QrCode, BarChart3, Layers, ArrowRight, ArrowDown, ArrowUp, Factory,
 } from "lucide-react";
 
 // =================================================================
@@ -148,6 +148,14 @@ const STRINGS = {
   departmentMachines: { tr: "Makineler", en: "Machines", ar: "الماكينات" },
   departmentProducts: { tr: "Ürün/Profil Listesi", en: "Product/Profile List", ar: "قائمة المنتجات/الملفات" },
   newProductPlaceholder: { tr: "Yeni ürün/profil adı", en: "New product/profile name", ar: "اسم منتج/ملف جديد" },
+  moveMachineUp: { tr: "Yukarı taşı", en: "Move up", ar: "نقل لأعلى" },
+  moveMachineDown: { tr: "Aşağı taşı", en: "Move down", ar: "نقل لأسفل" },
+  handoverGivenBy: { tr: "Teslim Eden Usta", en: "Handed Over By", ar: "الأسطى المُسلِّم" },
+  handoverReceivedBy: { tr: "Teslim Alan Usta", en: "Received By", ar: "الأسطى المُستلِم" },
+  selectForemanPlaceholder: { tr: "— Seçiniz —", en: "— Select —", ar: "— اختر —" },
+  foremenListTitle: { tr: "Usta Listesi", en: "Foremen List", ar: "قائمة الأسطوات" },
+  foremenListNote: { tr: "Buraya eklenen ustalar, her makinedeki \"Teslim Eden / Teslim Alan\" seçeneklerinde görünür.", en: "Foremen added here appear in each machine's \"Handed Over By / Received By\" options.", ar: "الأسطوات المضافون هنا يظهرون في خيارات \"التسليم/الاستلام\" لكل ماكينة." },
+  newForemanPlaceholder: { tr: "Yeni usta adı", en: "New foreman name", ar: "اسم أسطى جديد" },
   orders: { tr: "Siparişler", en: "Orders", ar: "الطلبات" },
   orderProduct: { tr: "Ürün", en: "Product", ar: "المنتج" },
   orderCustomer: { tr: "Müşteri", en: "Customer", ar: "العميل" },
@@ -625,6 +633,9 @@ const DEFAULT_DEPARTMENTS = [
       "DECK 145x22 Fındık Kahve", "DECK 145x22 Antrasit", "DECK 145x22 Krem",
     ],
   },
+  // NOT: "kanat" departmanı burada elle yazılmıyor — KANAT_MACHINES
+  // tanımlandıktan sonra aşağıda KANAT_DEPARTMENT olarak oluşturulup bu
+  // diziye push ediliyor (bkz. "DEFAULT_DEPARTMENTS.push(KANAT_DEPARTMENT)").
 ];
 
 // Kanat (kapı) üretim bölümü — Excel'e Aktar ve makine durumu için
@@ -648,13 +659,31 @@ const KANAT_MACHINES = [
   { code: "MK-KAL", name: "Kalite Kontrol & Paketleme" },
 ];
 
+// Kanat bölümü de artık Tanımlar sayfasından düzenlenebilen normal bir
+// "departman" — böylece Yönetici Kısmı > Tanımlar'da diğer bölümler gibi
+// makine ekleme/çıkarma/sıralama yapılabiliyor. (Eski kayıtlarda bu
+// departman bulunmayabilir; useSharedData.refresh() içindeki göç/migration
+// mantığı ilk yüklemede otomatik ekler.)
+const KANAT_DEPARTMENT = {
+  id: "kanat",
+  name: "Kanat (Kapı) Üretimi",
+  machines: KANAT_MACHINES.map((m) => ({ ...m })),
+  products: [],
+};
+// Yeni (sıfırdan) kurulumlarda "kanat" da baştan diğer bölümler gibi
+// DEFAULT_DEPARTMENTS içinde yer alsın (const olsa da dizi mutasyonu geçerli).
+DEFAULT_DEPARTMENTS.push(KANAT_DEPARTMENT);
+
 // Tüm makineler tek bir düz liste olarak da gerekiyor (Usta Modu makine
 // seçimi, anlık durum ekranı, Excel raporu — departman ayrımına
 // bakmadan tüm fabrikayı gösterir).
 function allMachinesFrom(departments) {
+  const hasKanatDept = (departments || []).some((d) => d.id === "kanat");
   return [
-    ...departments.flatMap((d) => d.machines.map((m) => ({ ...m, departmentId: d.id }))),
-    ...KANAT_MACHINES.map((m) => ({ ...m, departmentId: "kanat" })),
+    ...(departments || []).flatMap((d) => d.machines.map((m) => ({ ...m, departmentId: d.id }))),
+    // Geriye dönük uyumluluk: departman listesi henüz göçmemişse (kanat
+    // yoksa) sabit listeden tamamla.
+    ...(hasKanatDept ? [] : KANAT_MACHINES.map((m) => ({ ...m, departmentId: "kanat" }))),
   ];
 }
 
@@ -971,6 +1000,9 @@ function useSharedData() {
   const [shipments, setShipmentsState] = useState(null);
   const [calendarExceptions, setCalendarExceptionsState] = useState(null);
   const [undoLog, setUndoLogState] = useState([]);
+  // Ustalar (Teslim Eden / Teslim Alan) — makine devir-teslim seçenekleri
+  // için Tanımlar sayfasında yönetilen paylaşımlı usta adı listesi.
+  const [foremen, setForemenState] = useState([]);
   const [loading, setLoading] = useState(true);
   // Tracks machine codes with a write in flight, plus a version counter,
   // so a slow background refresh() can never overwrite a newer local change.
@@ -986,7 +1018,7 @@ function useSharedData() {
     isRefreshing.current = true;
     try {
       const versionAtStart = writeVersion.current;
-      const [dep, ord, p, l, sk, skMoves, pr, routes, ships, calExc, undo] = await Promise.all([
+      const [dep0, ord, p, l, sk, skMoves, pr, routes, ships, calExc, undo, fore] = await Promise.all([
         loadShared("departments", DEFAULT_DEPARTMENTS),
         loadShared("orders", DEFAULT_ORDERS),
         loadShared("plan", {}),
@@ -998,7 +1030,21 @@ function useSharedData() {
         loadShared("shipments", []),
         loadShared("calendar-exceptions", {}),
         loadShared("undo-log", []),
+        loadShared("foremen", []),
       ]);
+
+      // Göç/migration: daha önce kaydedilmiş departman listelerinde "kanat"
+      // (Kanat Üretimi) bölümü bulunmayabilir — çünkü eskiden bu bölümün
+      // makineleri Tanımlar sayfasından bağımsız, sabit bir listeydi. İlk
+      // yüklemede eksikse otomatik ekleyip geri kaydediyoruz; böylece
+      // Yönetici Kısmı > Tanımlar'da diğer bölümler gibi düzenlenebilir hâle
+      // gelir ve tüm kullanıcılar aynı (paylaşılan) veriyi görür.
+      let dep = dep0;
+      if (!dep.some((d) => d.id === "kanat")) {
+        dep = [...dep, KANAT_DEPARTMENT];
+        saveShared("departments", dep); // arka planda kaydet, akışı bloklamaz
+      }
+
       const m = allMachinesFrom(dep);
       const stateEntries = await Promise.all(
         m.map((mach) => loadShared(`machine-state:${mach.code}`, { status: "idle" }).then((s) => [mach.code, s]))
@@ -1028,6 +1074,7 @@ function useSharedData() {
       setShipmentsState(ships);
       setCalendarExceptionsState(calExc);
       setUndoLogState(undo);
+      setForemenState(fore);
       setLoading(false);
     } finally {
       isRefreshing.current = false;
@@ -1061,11 +1108,17 @@ function useSharedData() {
     await saveShared("log", newLog);
   }
 
-  // Bölüm + makine listesini güncelle (ekleme/çıkarma dahil).
+  // Bölüm + makine listesini güncelle (ekleme/çıkarma/sıralama dahil).
   async function updateDepartments(newDepartments) {
     setDepartments(newDepartments);
     setMachines(allMachinesFrom(newDepartments));
     await saveShared("departments", newDepartments);
+  }
+
+  // Usta listesini güncelle (Tanımlar > Usta Listesi'nden ekleme/çıkarma).
+  async function updateForemen(newForemen) {
+    setForemenState(newForemen);
+    await saveShared("foremen", newForemen);
   }
 
   const ordersRef = useRef(orders);
@@ -1377,8 +1430,8 @@ function useSharedData() {
   return {
     departments, machines, orders, plan, machineStates, log, loading,
     stock, stockMovements, purchaseRequests, productRoutes,
-    shipments, calendarExceptions, undoLog,
-    refresh, setMachineState, appendLog, updateDepartments, setPlanCell, setPolling,
+    shipments, calendarExceptions, undoLog, foremen,
+    refresh, setMachineState, appendLog, updateDepartments, updateForemen, setPlanCell, setPolling,
     addOrder, removeOrder, markOrderDelivered, addOrderStage, removeOrderStage, updateOrderStage, updateOrders,
     addStockItem, removeStockItem, adjustStockQty,
     addPurchaseRequest, removePurchaseRequest, advancePurchaseStatus,
@@ -2478,8 +2531,9 @@ function PlanCellEditor({ dept, dateIso, machine, currentCell, orders, lang, onS
 
 
 function TanimlarPanel({ data, lang, dir }) {
-  const { departments, updateDepartments, orders, addOrder, removeOrder, markOrderDelivered, addOrderStage, removeOrderStage, updateOrderStage, productRoutes } = data;
+  const { departments, updateDepartments, orders, addOrder, removeOrder, markOrderDelivered, addOrderStage, removeOrderStage, updateOrderStage, productRoutes, foremen, updateForemen } = data;
   const [localDepartments, setLocalDepartments] = useState(departments);
+  const [newForemanText, setNewForemanText] = useState("");
   const [activeDept, setActiveDept] = useState(departments?.[0]?.id || "extruder");
   const [savedMsg, setSavedMsg] = useState(null);
   const [newProductText, setNewProductText] = useState("");
@@ -2544,6 +2598,37 @@ function TanimlarPanel({ data, lang, dir }) {
   }
   function commitMachine() {
     saveDepartments(localDepartments);
+  }
+  // Makineler arası sıralamayı değiştirir (yukarı/aşağı taşı). direction: -1 veya +1.
+  function moveMachine(idx, direction) {
+    const targetIdx = idx + direction;
+    const list = [...localDepartments];
+    const machines = [...list[deptIndex].machines];
+    if (targetIdx < 0 || targetIdx >= machines.length) return;
+    [machines[idx], machines[targetIdx]] = [machines[targetIdx], machines[idx]];
+    list[deptIndex] = { ...list[deptIndex], machines };
+    saveDepartments(list);
+  }
+  // Seçim (select) gibi tek adımda tamamlanan alan değişikliklerini
+  // (blur beklemeden) hemen kaydeder — Teslim Eden/Teslim Alan usta seçimi gibi.
+  function editMachineAndSave(idx, field, value) {
+    const list = [...localDepartments];
+    const machines = [...list[deptIndex].machines];
+    machines[idx] = { ...machines[idx], [field]: value };
+    list[deptIndex] = { ...list[deptIndex], machines };
+    saveDepartments(list);
+  }
+
+  // Usta Listesi (Teslim Eden / Teslim Alan seçeneklerinin kaynağı).
+  function addForeman() {
+    const name = newForemanText.trim();
+    if (!name) return;
+    if ((foremen || []).includes(name)) { setNewForemanText(""); return; }
+    updateForemen([...(foremen || []), name]);
+    setNewForemanText("");
+  }
+  function removeForeman(name) {
+    updateForemen((foremen || []).filter((f) => f !== name));
   }
 
   function addProduct() {
@@ -2651,14 +2736,83 @@ function TanimlarPanel({ data, lang, dir }) {
             </div>
             <div style={{ display: "grid", gap: 6 }}>
               {dept.machines.map((m, i) => (
-                <div key={i} style={{ display: "grid", gridTemplateColumns: "80px 1fr 30px", gap: 6, alignItems: "center", background: COLORS.bgPanel, border: `1px solid ${COLORS.border}`, borderRadius: 9, padding: 8 }}>
-                  <input value={m.code} onChange={(e) => editMachine(i, "code", e.target.value)} onBlur={commitMachine} style={{ ...inputStyle, fontSize: 11.5 }} />
-                  <input value={m.name} onChange={(e) => editMachine(i, "name", e.target.value)} onBlur={commitMachine} style={{ ...inputStyle, fontSize: 12 }} />
-                  <button onClick={() => removeMachine(i)} style={{ background: "none", border: "none", color: COLORS.accentStop, cursor: "pointer", display: "flex", justifyContent: "center" }}>
-                    <Trash2 size={14} />
-                  </button>
+                <div key={i} style={{ display: "grid", gap: 6, background: COLORS.bgPanel, border: `1px solid ${COLORS.border}`, borderRadius: 9, padding: 8 }}>
+                  <div style={{ display: "grid", gridTemplateColumns: "auto 80px 1fr 30px", gap: 6, alignItems: "center" }}>
+                    <div style={{ display: "flex", flexDirection: "column", gap: 1 }}>
+                      <button
+                        onClick={() => moveMachine(i, -1)} disabled={i === 0}
+                        title={t("moveMachineUp", lang)}
+                        style={{ background: "none", border: "none", color: i === 0 ? COLORS.textFaint : COLORS.textDim, cursor: i === 0 ? "default" : "pointer", display: "flex", padding: 1 }}
+                      >
+                        <ArrowUp size={12} />
+                      </button>
+                      <button
+                        onClick={() => moveMachine(i, 1)} disabled={i === dept.machines.length - 1}
+                        title={t("moveMachineDown", lang)}
+                        style={{ background: "none", border: "none", color: i === dept.machines.length - 1 ? COLORS.textFaint : COLORS.textDim, cursor: i === dept.machines.length - 1 ? "default" : "pointer", display: "flex", padding: 1 }}
+                      >
+                        <ArrowDown size={12} />
+                      </button>
+                    </div>
+                    <input value={m.code} onChange={(e) => editMachine(i, "code", e.target.value)} onBlur={commitMachine} style={{ ...inputStyle, fontSize: 11.5 }} />
+                    <input value={m.name} onChange={(e) => editMachine(i, "name", e.target.value)} onBlur={commitMachine} style={{ ...inputStyle, fontSize: 12 }} />
+                    <button onClick={() => removeMachine(i)} style={{ background: "none", border: "none", color: COLORS.accentStop, cursor: "pointer", display: "flex", justifyContent: "center" }}>
+                      <Trash2 size={14} />
+                    </button>
+                  </div>
+                  <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 6, paddingLeft: 20 }}>
+                    <div>
+                      <div style={{ fontSize: 10, color: COLORS.textFaint, marginBottom: 2 }}>{t("handoverGivenBy", lang)}</div>
+                      <select
+                        value={m.teslimEden || ""}
+                        onChange={(e) => editMachineAndSave(i, "teslimEden", e.target.value)}
+                        style={{ ...inputStyle, fontSize: 11.5, width: "100%" }}
+                      >
+                        <option value="">{t("selectForemanPlaceholder", lang)}</option>
+                        {(foremen || []).map((f) => <option key={f} value={f}>{f}</option>)}
+                      </select>
+                    </div>
+                    <div>
+                      <div style={{ fontSize: 10, color: COLORS.textFaint, marginBottom: 2 }}>{t("handoverReceivedBy", lang)}</div>
+                      <select
+                        value={m.teslimAlan || ""}
+                        onChange={(e) => editMachineAndSave(i, "teslimAlan", e.target.value)}
+                        style={{ ...inputStyle, fontSize: 11.5, width: "100%" }}
+                      >
+                        <option value="">{t("selectForemanPlaceholder", lang)}</option>
+                        {(foremen || []).map((f) => <option key={f} value={f}>{f}</option>)}
+                      </select>
+                    </div>
+                  </div>
                 </div>
               ))}
+            </div>
+
+            {/* Usta Listesi — Teslim Eden/Teslim Alan seçeneklerinin kaynağı */}
+            <div style={{ marginTop: 18 }}>
+              <div style={{ fontFamily: "'Archivo', sans-serif", fontWeight: 700, fontSize: 14, color: COLORS.text, marginBottom: 4 }}>{t("foremenListTitle", lang)}</div>
+              <div style={{ fontSize: 11.5, color: COLORS.textDim, marginBottom: 10 }}>{t("foremenListNote", lang)}</div>
+              <div style={{ display: "flex", gap: 6, marginBottom: 10 }}>
+                <input
+                  value={newForemanText} onChange={(e) => setNewForemanText(e.target.value)}
+                  onKeyDown={(e) => { if (e.key === "Enter") addForeman(); }}
+                  placeholder={t("newForemanPlaceholder", lang)}
+                  style={{ ...inputStyle, flex: 1 }}
+                />
+                <button onClick={addForeman} style={{ display: "flex", alignItems: "center", gap: 4, background: COLORS.accentRunDim, border: `1px solid ${COLORS.accentRun}50`, color: COLORS.accentRun, padding: "0 12px", borderRadius: 8, cursor: "pointer" }}>
+                  <Plus size={14} />
+                </button>
+              </div>
+              <div style={{ display: "flex", flexWrap: "wrap", gap: 6 }}>
+                {(foremen || []).map((f) => (
+                  <div key={f} style={{ display: "flex", alignItems: "center", gap: 6, background: COLORS.bgPanel, border: `1px solid ${COLORS.border}`, borderRadius: 20, padding: "5px 6px 5px 12px", fontSize: 12, color: COLORS.text }}>
+                    {f}
+                    <button onClick={() => removeForeman(f)} style={{ background: "none", border: "none", color: COLORS.accentStop, cursor: "pointer", display: "flex" }}>
+                      <X size={12} />
+                    </button>
+                  </div>
+                ))}
+              </div>
             </div>
           </div>
 
@@ -4232,9 +4386,12 @@ function DigitalTwinPanel({ data, lang, dir }) {
   const { orders, departments, machineStates } = data;
   if (!orders || !departments) return <LoadingScreen lang={lang} />;
 
+  const hasKanatDept = departments.some((d) => d.id === "kanat");
   const groups = [
     ...departments.map((d) => ({ id: d.id, name: d.name, machines: d.machines })),
-    { id: "kanat", name: ({ tr: "Kanat Üretimi", en: "Door Panel Production", ar: "إنتاج ألواح الأبواب" }[lang] || "Kanat Üretimi"), machines: KANAT_MACHINES },
+    // Geriye dönük uyumluluk: departman listesi henüz göçmemişse (kanat
+    // yoksa) sabit listeden tamamla. Normalde artık "departments" içinde yer alır.
+    ...(hasKanatDept ? [] : [{ id: "kanat", name: ({ tr: "Kanat Üretimi", en: "Door Panel Production", ar: "إنتاج ألواح الأبواب" }[lang] || "Kanat Üretimi"), machines: KANAT_MACHINES }]),
   ];
 
   // Her makine için: kuyrukta bekleyen adet + o an üretimde olan sipariş (varsa)
