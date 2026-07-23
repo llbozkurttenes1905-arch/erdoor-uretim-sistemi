@@ -261,25 +261,26 @@ const STRINGS = {
   noOrdersReady: { tr: "Sevkiyata hazır sipariş yok", en: "No orders ready to ship", ar: "لا توجد طلبات جاهزة للشحن" },
   readyBadge: { tr: "SEVKİYATA HAZIR", en: "READY TO SHIP", ar: "جاهز للشحن" },
 
-  // ---- Üretim Grafiği (ürün bazlı üretilen adet + manuel ekle/çıkar) ----
-  productionChart: { tr: "Üretim Grafiği", en: "Production Chart", ar: "رسم الإنتاج" },
-  productionChartDesc: { tr: "Ürün başına üretilen toplam adet — üretim kayıtlarından (log) otomatik hesaplanır. Gerekirse aşağıdan elle ekleme/çıkarma yapabilirsiniz.", en: "Total units produced per product — calculated automatically from production logs. You can manually add or subtract below if needed.", ar: "إجمالي الوحدات المنتجة لكل منتج — محسوبة تلقائيًا من سجلات الإنتاج. يمكنك الإضافة أو الطرح يدويًا أدناه." },
-  noProductionData: { tr: "Henüz üretim kaydı yok", en: "No production records yet", ar: "لا توجد سجلات إنتاج بعد" },
-  manualAdjustTitle: { tr: "Elle Ekle / Çıkar", en: "Manual Add / Subtract", ar: "إضافة / طرح يدوي" },
-  manualAdjustDesc: { tr: "Bir ürün seçip miktarı girerek üretilen adede elle ekleme veya çıkarma yapın.", en: "Pick a product and enter a quantity to manually add to or subtract from produced units.", ar: "اختر منتجًا وأدخل كمية للإضافة أو الطرح يدويًا." },
-  selectProductShort: { tr: "Ürün", en: "Product", ar: "المنتج" },
-  quantity: { tr: "Miktar", en: "Quantity", ar: "الكمية" },
-  addQty: { tr: "Ekle", en: "Add", ar: "إضافة" },
-  subtractQty: { tr: "Çıkar", en: "Subtract", ar: "طرح" },
-  manualAdjustSaved: { tr: "Kaydedildi", en: "Saved", ar: "تم الحفظ" },
-  totalProduced: { tr: "toplam üretilen", en: "total produced", ar: "إجمالي المنتج" },
-
   // ---- Verimlilik (gerçek hesaplamalar) ----
   efficiency: { tr: "Verimlilik", en: "Efficiency", ar: "الكفاءة" },
   efficiencyDesc: { tr: "Aşağıdaki hesaplamalar gerçek üretim/duruş/sipariş verinizden anlık olarak hesaplanır — örnek veri değildir.", en: "The calculations below are computed live from your real production/downtime/order data — not sample data.", ar: "الحسابات أدناه محسوبة مباشرة من بياناتك الحقيقية." },
   bottleneckTitle: { tr: "Darboğaz — Makine Başına Bekleyen İş", en: "Bottleneck — Pending Work per Machine", ar: "عنق الزجاجة" },
   bottleneckDesc: { tr: "Her makinenin önünde, henüz tamamlanmamış aşamalardaki toplam bekleyen adet. En yüksek olan, hattın gerçek kısıtıdır.", en: "Total pending units across incomplete stages for each machine. The highest is the real constraint of the line.", ar: "إجمالي العمل المعلق لكل آلة." },
   noBottleneckData: { tr: "Henüz aktif sipariş aşaması yok", en: "No active order stages yet", ar: "لا توجد مراحل نشطة بعد" },
+
+  // ---- Üretim Grafiği (ürün bazlı, zaman içinde) ----
+  productionChartTab: { tr: "Üretim Grafiği", en: "Production Chart", ar: "رسم الإنتاج" },
+  productionChartDesc: { tr: "Tüm bölümlerde (Extruder, Laminasyon, Deck, Kanat) üretilen ürünlerin zaman içindeki değişimi — gerçek üretim kayıtlarından hesaplanır.", en: "Change over time of products produced across all departments (Extruder, Laminating, Deck, Wing) — computed from real production records.", ar: "تغيّر المنتجات المصنّعة عبر جميع الأقسام بمرور الوقت." },
+  productionChartRangeLabel: { tr: "Aralık", en: "Range", ar: "المدى" },
+  productionChartRange7: { tr: "Son 7 gün", en: "Last 7 days", ar: "آخر 7 أيام" },
+  productionChartRange30: { tr: "Son 30 gün", en: "Last 30 days", ar: "آخر 30 يومًا" },
+  productionChartRange90: { tr: "Son 90 gün", en: "Last 90 days", ar: "آخر 90 يومًا" },
+  productionChartNoData: { tr: "Henüz üretim kaydı yok — makineler üretim yaptıkça grafik burada oluşacak.", en: "No production records yet — the chart will populate as machines produce.", ar: "لا توجد سجلات إنتاج بعد." },
+  productionChartAddProduct: { tr: "Grafiğe ürün ekle", en: "Add product to chart", ar: "أضف منتجًا إلى الرسم" },
+  productionChartSelectPlaceholder: { tr: "— Ürün seçin —", en: "— Select a product —", ar: "— اختر منتجًا —" },
+  productionChartShownProducts: { tr: "Grafikte gösterilen ürünler", en: "Products shown on chart", ar: "المنتجات المعروضة في الرسم" },
+  productionChartTotalUnit: { tr: "adet", en: "units", ar: "وحدة" },
+  productionChartRemoveHint: { tr: "Kaldırmak için ürüne tıklayın", en: "Click a product to remove it", ar: "انقر على منتج لإزالته" },
   terminPanelTab: { tr: "Termin Hesaplama", en: "Due Date Calc", ar: "حساب الموعد" },
   terminPanelDesc: { tr: "Smart production and logistics management dashboard", en: "Smart production and logistics management dashboard", ar: "لوحة إدارة الإنتاج والخدمات اللوجستية الذكية" },
   terminRemainingStages: { tr: "Kalan Aşamalar", en: "Remaining Stages", ar: "المراحل المتبقية" },
@@ -1115,7 +1116,11 @@ function useSharedData() {
   useEffect(() => { logRef.current = log; }, [log]);
 
   async function appendLog(entry) {
-    const newLog = [entry, ...logRef.current].slice(0, 100);
+    // NOT: Sınır önceden 100'dü; "Üretim Grafiği" (zaman içinde ürün bazlı
+    // üretim) için yeterli geçmiş veri gerektiğinden 2000'e çıkarıldı. Son
+    // etkinlik listesi zaten sadece log.slice(0, 8) kullanıyor, bu değişiklik
+    // onu etkilemez.
+    const newLog = [entry, ...logRef.current].slice(0, 2000);
     logRef.current = newLog;
     setLog(newLog);
     await saveShared("log", newLog);
@@ -2076,7 +2081,7 @@ function YoneticiMode({ data, onBack, lang, dir, profile }) {
     { id: "analiz", labelKey: "navGroupAnalysis", tabs: [
       { id: "termin", labelKey: "terminPanelTab" },
       { id: "verimlilik", labelKey: "efficiency" },
-      { id: "uretim-grafik", labelKey: "productionChart" },
+      { id: "uretim-grafik", labelKey: "productionChartTab" },
       { id: "sevkiyat", labelKey: "shipment" },
     ]},
     { id: "sistem", labelKey: "navGroupSystem", tabs: [
@@ -2328,7 +2333,7 @@ function YoneticiMode({ data, onBack, lang, dir, profile }) {
 
       {tab === "verimlilik" && <VerimlilikPanel data={data} lang={lang} dir={dir} />}
 
-      {tab === "uretim-grafik" && <ProductionChartPanel data={data} lang={lang} dir={dir} />}
+      {tab === "uretim-grafik" && <UretimGrafigiPanel data={data} lang={lang} dir={dir} />}
 
       {tab === "ayarlar" && <TanimlarPanel data={data} lang={lang} dir={dir} />}
     </div>
@@ -4120,7 +4125,192 @@ function VerimlilikPanel({ data, lang, dir }) {
 }
 
 // =================================================================
-// QR MODAL — sipariş için gerçek bir QR kod üretir (qrcode kütüphanesi).
+// ÜRETİM GRAFİĞİ — tüm bölümlerdeki (Extruder, Laminasyon, Deck, Kanat)
+// ürünlerin zaman içindeki üretim adedini gösteren çizgi grafik.
+// Veri kaynağı: appendLog ile kaydedilen gerçek "üretim" olayları
+// (detail.profile = ürün adı, detail.qty = o olayda üretilen adet).
+// Admin, grafiğe hangi ürünlerin dahil olacağını serbestçe ekleyip
+// çıkarabilir (aşağıdaki "Grafiğe ürün ekle" ve etiketlere tıklama).
+// =================================================================
+const CHART_LINE_COLORS = ["#5FB87A", "#E8533D", "#3DA5E8", "#E8A33D", "#B87AE8", "#E87AB8", "#7AE8D8", "#C9CF3D"];
+
+function UretimGrafigiPanel({ data, lang, dir }) {
+  const { log, departments } = data;
+  const [rangeDays, setRangeDays] = useState(30);
+  const [selectedProducts, setSelectedProducts] = useState(null); // null = henüz varsayılan seçilmedi
+  const [pendingAdd, setPendingAdd] = useState("");
+
+  const safeLog = log || [];
+  const safeDepartments = departments || [];
+  const allProducts = allProductsFrom(safeDepartments);
+
+  // Son N günün ISO tarihlerini oluştur (bugün dahil).
+  const todayMid = new Date(); todayMid.setHours(0, 0, 0, 0);
+  const days = [];
+  for (let i = rangeDays - 1; i >= 0; i--) {
+    const d = new Date(todayMid); d.setDate(d.getDate() - i);
+    days.push(isoDate(d));
+  }
+  const daySet = new Set(days);
+
+  // Gün × ürün bazında üretilen adet toplamı + ürün başına toplam (sıralama için).
+  const dayMap = {};
+  days.forEach((d) => { dayMap[d] = {}; });
+  const productTotals = {};
+  safeLog.filter((l) => l.type === "üretim" && l.detail?.profile).forEach((l) => {
+    const iso = isoDate(new Date(l.time));
+    const profile = l.detail.profile;
+    const qty = l.detail.qty || 0;
+    productTotals[profile] = (productTotals[profile] || 0) + qty;
+    if (!daySet.has(iso)) return;
+    dayMap[iso][profile] = (dayMap[iso][profile] || 0) + qty;
+  });
+  const productsWithData = Object.keys(productTotals).sort((a, b) => productTotals[b] - productTotals[a]);
+
+  // İlk veri geldiğinde varsayılan olarak en çok üretilen 6 ürünü göster.
+  useEffect(() => {
+    if (selectedProducts === null && productsWithData.length > 0) {
+      setSelectedProducts(productsWithData.slice(0, 6));
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [productsWithData.join("|")]);
+
+  if (!log || !departments) return <LoadingScreen lang={lang} />;
+
+  const shown = selectedProducts || [];
+  const addableProducts = [...new Set([...productsWithData, ...allProducts])].filter((p) => !shown.includes(p));
+
+  function addProduct() {
+    if (!pendingAdd) return;
+    setSelectedProducts([...shown, pendingAdd]);
+    setPendingAdd("");
+  }
+  function removeProduct(name) {
+    setSelectedProducts(shown.filter((p) => p !== name));
+  }
+
+  // ---- SVG çizgi grafik geometrisi ----
+  const W = 900, H = 300, padL = 40, padR = 16, padT = 16, padB = 30;
+  const plotW = W - padL - padR, plotH = H - padT - padB;
+  const maxQty = Math.max(1, ...shown.map((p) => Math.max(...days.map((d) => dayMap[d][p] || 0))));
+  const xFor = (i) => padL + (days.length > 1 ? (i / (days.length - 1)) * plotW : plotW / 2);
+  const yFor = (v) => padT + plotH - (v / maxQty) * plotH;
+  // Kalabalık olmasın diye X ekseni etiketleri seyreltilir (7 günde hepsi, 90 günde ~9 tanesi).
+  const labelStep = Math.max(1, Math.ceil(days.length / 8));
+
+  return (
+    <div dir={dir} style={{ maxWidth: 1000, margin: "0 auto", padding: "18px 20px 60px", display: "grid", gap: 22 }}>
+      <div style={{ fontFamily: "'Inter', sans-serif", fontSize: 13, color: COLORS.textDim, lineHeight: 1.5 }}>
+        {t("productionChartDesc", lang)}
+      </div>
+
+      <div style={{ background: COLORS.bgPanel, border: `1px solid ${COLORS.border}`, borderRadius: 16, padding: 18 }}>
+        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", flexWrap: "wrap", gap: 10, marginBottom: 14 }}>
+          <div style={{ fontFamily: "'Archivo', sans-serif", fontWeight: 700, fontSize: 15, color: COLORS.text }}>{t("productionChartTab", lang)}</div>
+          <div style={{ display: "flex", gap: 6 }}>
+            {[7, 30, 90].map((d) => (
+              <button
+                key={d} onClick={() => setRangeDays(d)}
+                style={{
+                  background: rangeDays === d ? COLORS.accentRunDim : COLORS.bgRaised,
+                  border: `1px solid ${rangeDays === d ? COLORS.accentRun + "50" : COLORS.border}`,
+                  color: rangeDays === d ? COLORS.accentRun : COLORS.textDim,
+                  padding: "6px 12px", borderRadius: 8, fontFamily: "'Inter', sans-serif", fontSize: 12, fontWeight: 600, cursor: "pointer",
+                }}
+              >
+                {t(`productionChartRange${d}`, lang)}
+              </button>
+            ))}
+          </div>
+        </div>
+
+        {productsWithData.length === 0 ? (
+          <div style={{ color: COLORS.textFaint, fontFamily: "'Inter', sans-serif", fontSize: 13 }}>{t("productionChartNoData", lang)}</div>
+        ) : (
+          <>
+            <svg viewBox={`0 0 ${W} ${H}`} style={{ width: "100%", height: "auto", display: "block" }}>
+              {/* Yatay ızgara çizgileri (0%, 25%, 50%, 75%, 100%) */}
+              {[0, 0.25, 0.5, 0.75, 1].map((frac) => (
+                <line key={frac} x1={padL} x2={W - padR} y1={padT + plotH * (1 - frac)} y2={padT + plotH * (1 - frac)} stroke={COLORS.border} strokeWidth={1} />
+              ))}
+              {[0, 0.25, 0.5, 0.75, 1].map((frac) => (
+                <text key={frac} x={padL - 6} y={padT + plotH * (1 - frac) + 3} textAnchor="end" fontSize={9} fontFamily="'IBM Plex Mono', monospace" fill={COLORS.textFaint}>
+                  {Math.round(maxQty * frac)}
+                </text>
+              ))}
+              {/* X ekseni tarih etiketleri */}
+              {days.map((d, i) => (i % labelStep === 0 ? (
+                <text key={d} x={xFor(i)} y={H - 8} textAnchor="middle" fontSize={9} fontFamily="'IBM Plex Mono', monospace" fill={COLORS.textFaint}>
+                  {d.slice(5)}
+                </text>
+              ) : null))}
+              {/* Ürün başına çizgi */}
+              {shown.map((profile, pi) => {
+                const color = CHART_LINE_COLORS[pi % CHART_LINE_COLORS.length];
+                const points = days.map((d, i) => `${xFor(i)},${yFor(dayMap[d][profile] || 0)}`).join(" ");
+                return (
+                  <g key={profile}>
+                    <polyline points={points} fill="none" stroke={color} strokeWidth={2} strokeLinejoin="round" strokeLinecap="round" />
+                    {days.map((d, i) => (dayMap[d][profile] ? (
+                      <circle key={d} cx={xFor(i)} cy={yFor(dayMap[d][profile] || 0)} r={2.5} fill={color} />
+                    ) : null))}
+                  </g>
+                );
+              })}
+            </svg>
+
+            <div style={{ marginTop: 14 }}>
+              <div style={{ fontFamily: "'Inter', sans-serif", fontSize: 11, color: COLORS.textFaint, marginBottom: 8 }}>
+                {t("productionChartShownProducts", lang)} — <span style={{ opacity: 0.8 }}>{t("productionChartRemoveHint", lang)}</span>
+              </div>
+              <div style={{ display: "flex", flexWrap: "wrap", gap: 8 }}>
+                {shown.map((profile, pi) => (
+                  <button
+                    key={profile} onClick={() => removeProduct(profile)}
+                    style={{
+                      display: "flex", alignItems: "center", gap: 6, background: COLORS.bgRaised,
+                      border: `1px solid ${COLORS.border}`, borderRadius: 20, padding: "5px 10px 5px 8px",
+                      fontFamily: "'Inter', sans-serif", fontSize: 12, color: COLORS.text, cursor: "pointer",
+                    }}
+                  >
+                    <span style={{ width: 8, height: 8, borderRadius: 99, background: CHART_LINE_COLORS[pi % CHART_LINE_COLORS.length], flexShrink: 0 }} />
+                    {profile}
+                    <span style={{ color: COLORS.textFaint, fontFamily: "'IBM Plex Mono', monospace", fontSize: 11 }}>
+                      {productTotals[profile] || 0} {t("productionChartTotalUnit", lang)}
+                    </span>
+                    <X size={11} color={COLORS.textFaint} />
+                  </button>
+                ))}
+              </div>
+            </div>
+          </>
+        )}
+
+        {/* Grafiğe ürün ekle */}
+        <div style={{ marginTop: 18, paddingTop: 16, borderTop: `1px solid ${COLORS.border}`, display: "flex", gap: 8, alignItems: "center", flexWrap: "wrap" }}>
+          <div style={{ fontFamily: "'Inter', sans-serif", fontSize: 12.5, color: COLORS.textDim, flexShrink: 0 }}>{t("productionChartAddProduct", lang)}</div>
+          <select
+            value={pendingAdd} onChange={(e) => setPendingAdd(e.target.value)}
+            style={{ background: COLORS.bgRaised, border: `1px solid ${COLORS.border}`, color: COLORS.text, borderRadius: 8, padding: "7px 10px", fontFamily: "'Inter', sans-serif", fontSize: 12.5, flex: 1, minWidth: 160 }}
+          >
+            <option value="">{t("productionChartSelectPlaceholder", lang)}</option>
+            {addableProducts.map((p) => <option key={p} value={p}>{p}</option>)}
+          </select>
+          <button
+            onClick={addProduct} disabled={!pendingAdd}
+            style={{
+              display: "flex", alignItems: "center", gap: 4, background: COLORS.accentRunDim,
+              border: `1px solid ${COLORS.accentRun}50`, color: COLORS.accentRun, padding: "7px 14px", borderRadius: 8,
+              fontFamily: "'Inter', sans-serif", fontSize: 12.5, fontWeight: 600, cursor: pendingAdd ? "pointer" : "default", opacity: pendingAdd ? 1 : 0.5,
+            }}
+          >
+            <Plus size={13} /> {t("add", lang)}
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
 // QR, uygulama içi #/urun/<id> adresine gider; okutulduğunda (ya da
 // tıklanınca) giriş yapmış kullanıcıya o siparişin izlenebilirlik
 // sayfasını açar.
@@ -4153,131 +4343,6 @@ function QrModal({ order, lang, onClose }) {
           <button onClick={() => { window.location.hash = `/urun/${order.id}`; }} style={{ flex: 1, padding: "10px 0", borderRadius: 9, border: `1px solid ${COLORS.accentRun}50`, background: COLORS.accentRunDim, color: COLORS.accentRun, fontFamily: "'Inter', sans-serif", fontSize: 12.5, fontWeight: 600, cursor: "pointer" }}>
             {t("traceTitle", lang)}
           </button>
-        </div>
-      </div>
-    </div>
-  );
-}
-
-// =================================================================
-// ÜRETİM GRAFİĞİ — ürün (profil) başına toplam üretilen adet, log
-// kayıtlarından (type: "üretim") otomatik toplanır ve bar grafik olarak
-// gösterilir. Ayrıca yöneticinin elle ekleme/çıkarma yapabilmesi için
-// bir form vardır; bu da normal bir "üretim" log kaydı olarak (machine:
-// "MANUEL") eklenir, böylece toplamlara otomatik dahil olur.
-// =================================================================
-function ProductionChartPanel({ data, lang, dir }) {
-  const { log, departments, appendLog } = data;
-  const [selectedProduct, setSelectedProduct] = useState("");
-  const [qty, setQty] = useState("");
-  const [toast, setToast] = useState(null);
-  const toastTimer = useRef(null);
-
-  if (!log || !departments) return <LoadingScreen lang={lang} />;
-
-  const productList = allProductsFrom(departments);
-
-  // Ürün başına toplam: tüm "üretim" tipi log kayıtlarındaki qty toplanır
-  // (manuel ekle/çıkar kayıtları da aynı toplamın içindedir, negatif qty ile).
-  const totals = {};
-  log.filter((l) => l.type === "üretim" && l.detail?.profile).forEach((l) => {
-    const key = l.detail.profile;
-    totals[key] = (totals[key] || 0) + (l.detail.qty || 0);
-  });
-  const totalsList = Object.entries(totals)
-    .filter(([, v]) => v !== 0)
-    .sort((a, b) => b[1] - a[1]);
-  const maxVal = Math.max(1, ...totalsList.map(([, v]) => Math.abs(v)));
-
-  function showToast(text) {
-    setToast(text);
-    clearTimeout(toastTimer.current);
-    toastTimer.current = setTimeout(() => setToast(null), 2200);
-  }
-
-  async function applyAdjustment(sign) {
-    const n = parseInt(qty, 10);
-    if (!selectedProduct || !n || n <= 0) return;
-    const delta = sign * n;
-    await appendLog({
-      time: Date.now(), type: "üretim", machine: "MANUEL",
-      label: `${delta > 0 ? "+" : ""}${delta} adet · ${selectedProduct}`,
-      detail: { qty: delta, profile: selectedProduct, manual: true },
-    });
-    setQty("");
-    showToast(t("manualAdjustSaved", lang));
-  }
-
-  const inputStyle = {
-    width: "100%", background: COLORS.bgRaised, border: `1px solid ${COLORS.border}`,
-    borderRadius: 10, color: COLORS.text, fontFamily: "'Inter', sans-serif", fontSize: 14,
-    padding: "10px 12px", outline: "none",
-  };
-
-  return (
-    <div dir={dir} style={{ maxWidth: 1000, margin: "0 auto", padding: "18px 20px 60px", display: "grid", gap: 22 }}>
-      <SavedToast text={toast} />
-      <div style={{ fontFamily: "'Inter', sans-serif", fontSize: 13, color: COLORS.textDim, lineHeight: 1.5 }}>
-        {t("productionChartDesc", lang)}
-      </div>
-
-      {/* Bar grafik */}
-      <div style={{ background: COLORS.bgPanel, border: `1px solid ${COLORS.border}`, borderRadius: 16, padding: 18 }}>
-        <div style={{ fontFamily: "'Archivo', sans-serif", fontWeight: 700, fontSize: 15, color: COLORS.text, marginBottom: 14 }}>
-          {t("productionChart", lang)}
-        </div>
-        {totalsList.length === 0 && (
-          <div style={{ color: COLORS.textFaint, fontFamily: "'Inter', sans-serif", fontSize: 13 }}>{t("noProductionData", lang)}</div>
-        )}
-        <div style={{ display: "grid", gap: 10 }}>
-          {totalsList.map(([product, value]) => (
-            <div key={product} className="browlike" style={{ display: "grid", gridTemplateColumns: "160px 1fr 70px", alignItems: "center", gap: 12 }}>
-              <div style={{ fontFamily: "'Inter', sans-serif", fontSize: 12.5, color: COLORS.textDim, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
-                {product}
-              </div>
-              <div style={{ height: 16, background: COLORS.bgRaised, borderRadius: 6, overflow: "hidden" }}>
-                <div style={{
-                  height: "100%", width: `${Math.round((Math.abs(value) / maxVal) * 100)}%`,
-                  background: value >= 0 ? COLORS.accentRun : COLORS.accentStop, borderRadius: 6,
-                  transition: "width 0.25s ease",
-                }} />
-              </div>
-              <div style={{ fontFamily: "'IBM Plex Mono', monospace", fontSize: 12, textAlign: "right", color: COLORS.text }}>
-                {value} {t("units", lang)}
-              </div>
-            </div>
-          ))}
-        </div>
-      </div>
-
-      {/* Elle ekle / çıkar */}
-      <div style={{ background: COLORS.bgPanel, border: `1px solid ${COLORS.border}`, borderRadius: 16, padding: 18 }}>
-        <div style={{ fontFamily: "'Archivo', sans-serif", fontWeight: 700, fontSize: 15, color: COLORS.text, marginBottom: 4 }}>
-          {t("manualAdjustTitle", lang)}
-        </div>
-        <div style={{ fontFamily: "'Inter', sans-serif", fontSize: 12, color: COLORS.textFaint, marginBottom: 16 }}>
-          {t("manualAdjustDesc", lang)}
-        </div>
-        <div style={{ display: "grid", gridTemplateColumns: "2fr 1fr", gap: 12, marginBottom: 14 }}>
-          <div>
-            <div style={{ fontFamily: "'Inter', sans-serif", fontSize: 11.5, color: COLORS.textFaint, marginBottom: 6 }}>{t("selectProductShort", lang)}</div>
-            <select value={selectedProduct} onChange={(e) => setSelectedProduct(e.target.value)} style={inputStyle}>
-              <option value="">{t("selectProduct", lang)}</option>
-              {productList.map((p) => <option key={p} value={p}>{p}</option>)}
-            </select>
-          </div>
-          <div>
-            <div style={{ fontFamily: "'Inter', sans-serif", fontSize: 11.5, color: COLORS.textFaint, marginBottom: 6 }}>{t("quantity", lang)}</div>
-            <input type="number" min="1" value={qty} onChange={(e) => setQty(e.target.value)} style={inputStyle} placeholder="0" />
-          </div>
-        </div>
-        <div style={{ display: "flex", gap: 10 }}>
-          <BigButton onClick={() => applyAdjustment(1)} variant="run" disabled={!selectedProduct || !qty} style={{ flex: 1, padding: "12px 0", fontSize: 14, display: "flex", alignItems: "center", justifyContent: "center", gap: 8 }}>
-            <Plus size={16} /> {t("addQty", lang)}
-          </BigButton>
-          <BigButton onClick={() => applyAdjustment(-1)} variant="stop" disabled={!selectedProduct || !qty} style={{ flex: 1, padding: "12px 0", fontSize: 14, display: "flex", alignItems: "center", justifyContent: "center", gap: 8 }}>
-            <Trash2 size={16} /> {t("subtractQty", lang)}
-          </BigButton>
         </div>
       </div>
     </div>
