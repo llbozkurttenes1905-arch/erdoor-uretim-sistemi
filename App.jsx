@@ -5,7 +5,7 @@ import QRCode from "qrcode";
 import {
   Play, Square, AlertTriangle, Wrench, Zap, Package, Clock,
   ChevronLeft, ChevronRight, Check, RefreshCw, Users, Monitor, Settings, Plus, Trash2, X, Download,
-  Menu, QrCode, BarChart3, Layers, ArrowRight, ArrowDown, ArrowUp, Factory,
+  Menu, QrCode, BarChart3, Layers, ArrowRight, ArrowDown, ArrowUp, Factory, Search,
 } from "lucide-react";
 
 // =================================================================
@@ -86,6 +86,20 @@ const STRINGS = {
   fieldEntry: { tr: "Saha Vardiya Girişi", en: "Shift Floor Entry", ar: "تسجيل دخول الورشة" },
   whichMachine: { tr: "Hangi makinedesin?", en: "Which machine are you on?", ar: "في أي ماكينة أنت؟" },
   whichOrder: { tr: "Hangi sipariş üzerinde çalışıyorsun?", en: "Which order are you working on?", ar: "على أي طلب تعمل؟" },
+  // ---- Usta Modu iyileştirmeleri ----
+  whichForemanWorking: { tr: "Bu makinede kim çalışıyor?", en: "Who is working on this machine?", ar: "من يعمل على هذه الماكينة؟" },
+  changeForeman: { tr: "Değiştir", en: "Change", ar: "تغيير" },
+  searchMachinePlaceholder: { tr: "Makine ara (kod veya ad)…", en: "Search machine (code or name)…", ar: "ابحث عن ماكينة…" },
+  noMachineMatch: { tr: "Eşleşen makine yok", en: "No matching machine", ar: "لا توجد ماكينة مطابقة" },
+  undoLastAdjustment: { tr: "Geri Al", en: "Undo", ar: "تراجع" },
+  scrapQtyLabel: { tr: "Fire / Iskarta", en: "Scrap", ar: "الهالك" },
+  downtimeNoteTitle: { tr: "Not ekle (opsiyonel)", en: "Add a note (optional)", ar: "أضف ملاحظة (اختياري)" },
+  downtimeNotePlaceholder: { tr: "Örn: yedek parça bekleniyor, tedarikçi arandı…", en: "e.g. waiting for spare part, supplier contacted…", ar: "مثال: بانتظار قطعة غيار…" },
+  saveDowntimeWithNote: { tr: "Kaydet", en: "Save", ar: "حفظ" },
+  resumeWhereLeftOff: { tr: "Kaldığın Yerden Devam Et", en: "Resume Where You Left Off", ar: "المتابعة من حيث توقفت" },
+  longRunningWarningPrefix: { tr: "Bu makine", en: "This machine has been", ar: "هذه الماكينة تعمل منذ" },
+  longRunningWarningSuffix: { tr: "saattir üretimde — unutulmuş olabilir mi?", en: "hours in production — could it have been forgotten?", ar: "ساعة — هل تم نسيانها؟" },
+  saveFailedToast: { tr: "Kaydedilemedi — bağlantınızı kontrol edin", en: "Save failed — check your connection", ar: "فشل الحفظ — تحقق من اتصالك" },
   chooseMode: { tr: "Mod Seç", en: "Choose Mode", ar: "اختر الوضع" },
   inProduction: { tr: "Üretimde", en: "In Production", ar: "قيد الإنتاج" },
   inDowntime: { tr: "Duruşta", en: "In Downtime", ar: "متوقف" },
@@ -956,17 +970,18 @@ function BigButton({ children, onClick, variant = "default", style, disabled }) 
   );
 }
 
-function SavedToast({ text }) {
+function SavedToast({ text, variant = "ok" }) {
   if (!text) return null;
+  const isError = variant === "error";
   return (
     <div style={{
       position: "fixed", top: 16, left: "50%", transform: "translateX(-50%)",
-      background: COLORS.bgRaised, border: `1px solid ${COLORS.accentRun}60`, borderRadius: 12,
+      background: COLORS.bgRaised, border: `1px solid ${isError ? COLORS.accentStop + "60" : COLORS.accentRun + "60"}`, borderRadius: 12,
       padding: "12px 18px", display: "flex", alignItems: "center", gap: 8,
       fontFamily: "'Inter', sans-serif", fontSize: 14, color: COLORS.text, zIndex: 200,
       boxShadow: "0 8px 24px rgba(0,0,0,0.4)",
     }}>
-      <Check size={16} color={COLORS.accentRun} /> {text}
+      {isError ? <AlertTriangle size={16} color={COLORS.accentStop} /> : <Check size={16} color={COLORS.accentRun} />} {text}
     </div>
   );
 }
@@ -1467,12 +1482,25 @@ function useSharedData() {
 
 function UstaMode({ data, onBack, lang, dir }) {
   const now = useNow();
-  const { machines, plan, machineStates, setMachineState, appendLog, setPolling, orders, updateOrderStage } = data;
+  const { machines, plan, machineStates, setMachineState, appendLog, setPolling, orders, updateOrderStage, foremen } = data;
   const [selectedMachine, setSelectedMachine] = useState(null);
   const [selectedOrderId, setSelectedOrderId] = useState(null);
   const [confirmingStop, setConfirmingStop] = useState(false);
   const [toast, setToast] = useState(null);
+  const [toastVariant, setToastVariant] = useState("ok");
   const toastTimer = useRef(null);
+  // Usta kimliği: makineye her girişte (vardiya/devir-teslim) kim çalıştığı
+  // sorulur — üretim/duruş kayıtlarına işlenir. Usta listesi boşsa (admin
+  // henüz Tanımlar'dan usta eklememişse) bu adım tamamen atlanır.
+  const [activeForeman, setActiveForeman] = useState(null);
+  // Duruş nedeni seçildikten sonra isteğe bağlı not girme adımı.
+  const [pendingDowntimeReason, setPendingDowntimeReason] = useState(null);
+  const [downtimeNote, setDowntimeNote] = useState("");
+  // Makine listesinde arama/filtre.
+  const [machineSearch, setMachineSearch] = useState("");
+  // Son yapılan +/- düzeltmeyi geri almak için.
+  const [lastAdjustment, setLastAdjustment] = useState(null);
+  const vibratedOrderRef = useRef(null);
 
   // While the operator is on a machine screen, stop the background poll entirely.
   // The operator already sees their own writes instantly via local state, so
@@ -1482,10 +1510,11 @@ function UstaMode({ data, onBack, lang, dir }) {
     return () => setPolling(true);
   }, [selectedMachine, setPolling]);
 
-  function showToast(text) {
+  function showToast(text, variant = "ok") {
     setToast(text);
+    setToastVariant(variant);
     clearTimeout(toastTimer.current);
-    toastTimer.current = setTimeout(() => setToast(null), 2200);
+    toastTimer.current = setTimeout(() => setToast(null), variant === "error" ? 3600 : 2200);
   }
 
   if (!machines) return <LoadingScreen lang={lang} />;
@@ -1499,6 +1528,12 @@ function UstaMode({ data, onBack, lang, dir }) {
   const todayIso = isoDate(now);
   const todaysCell = selectedMachine ? normalizeCell((plan[todayIso] || {})[selectedMachine.code]) : null;
   const linkedOrder = todaysCell?.orderId ? (data.orders || []).find((o) => o.id === todaysCell.orderId) : null;
+  // Makine üretimde ve çok uzun süredir (8+ saat) duruyor mu — unutulmuş olabilir.
+  const runElapsedMs = state?.status === "run" ? now - state.startedAt : 0;
+  const isLongRunning = state?.status === "run" && runElapsedMs > 8 * 3600 * 1000;
+
+  // Vardiya devir-teslim usta seçimi gerekiyor mu? (Usta listesi boşsa hiç sorulmaz.)
+  const needsForemanPick = !!selectedMachine && (foremen || []).length > 0 && !activeForeman;
 
   // Bu makinede sırası gelmiş (bir önceki aşamaları tamamlanmış, bu makinedeki
   // aşaması henüz bitmemiş) siparişler — usta birden çok sipariş arasından seçer.
@@ -1509,85 +1544,158 @@ function UstaMode({ data, onBack, lang, dir }) {
         .filter((x) => x.stage && x.stage.makine === selectedMachine.code)
     : [];
   const selectedEntry = selectedOrderId ? machineOrders.find((x) => x.order.id === selectedOrderId) : null;
+  // "Kaldığın yerden devam et" — bir önceki duruştan hemen önce üzerinde
+  // çalışılan sipariş/aşama hâlâ bu makinenin kuyruğunda mı?
+  const resumeEntry = (state?.lastOrderId && !selectedEntry)
+    ? machineOrders.find((x) => x.order.id === state.lastOrderId && x.stage.id === state.lastStageId)
+    : null;
+
+  // Makine arama/filtre için normalize edilmiş metin karşılaştırması.
+  function matchesSearch(m) {
+    if (!machineSearch.trim()) return true;
+    const q = machineSearch.trim().toLocaleLowerCase("tr");
+    return m.code.toLocaleLowerCase("tr").includes(q) || m.name.toLocaleLowerCase("tr").includes(q);
+  }
 
   async function pickMachine(m) {
     setSelectedMachine(m);
     setSelectedOrderId(null);
+    setActiveForeman(null); // her makineye girişte kimlik yeniden sorulur (devir-teslim)
+    setLastAdjustment(null);
   }
 
   async function startProduction() {
-    const newState = {
-      status: "run", profile: todaysCell?.profile || "—", orderId: todaysCell?.orderId || null, stageId: null,
-      startedAt: Date.now(), produced: 0,
-    };
-    await setMachineState(selectedMachine.code, newState);
+    try {
+      const newState = {
+        status: "run", profile: todaysCell?.profile || "—", orderId: todaysCell?.orderId || null, stageId: null,
+        startedAt: Date.now(), produced: 0, scrap: 0,
+      };
+      await setMachineState(selectedMachine.code, newState);
+    } catch { showToast(t("saveFailedToast", lang), "error"); }
   }
 
   async function startProductionForOrder() {
     if (!selectedEntry) return;
-    const { order, stage } = selectedEntry;
-    const newState = {
-      status: "run", profile: order.urun, orderId: order.id, stageId: stage.id,
-      startedAt: Date.now(), produced: stage.cikan || 0,
-    };
-    await setMachineState(selectedMachine.code, newState);
-    if (stage.durum !== STAGE_STATUS.RUNNING) {
-      await updateOrderStage(order.id, stage.id, { durum: STAGE_STATUS.RUNNING });
-    }
+    try {
+      const { order, stage } = selectedEntry;
+      const newState = {
+        status: "run", profile: order.urun, orderId: order.id, stageId: stage.id,
+        startedAt: Date.now(), produced: stage.cikan || 0, scrap: stage.fire || 0,
+      };
+      await setMachineState(selectedMachine.code, newState);
+      if (stage.durum !== STAGE_STATUS.RUNNING) {
+        await updateOrderStage(order.id, stage.id, { durum: STAGE_STATUS.RUNNING });
+      }
+    } catch { showToast(t("saveFailedToast", lang), "error"); }
   }
 
-  async function adjustProduced(delta) {
-    const cap = runningOrder ? (runningOrder.miktar || Infinity) : Infinity;
-    const newProduced = Math.min(cap, Math.max(0, (state.produced || 0) + delta));
-    const newState = { ...state, produced: newProduced };
-    await setMachineState(selectedMachine.code, newState);
+  async function adjustProduced(delta, { track = true } = {}) {
+    try {
+      const cap = runningOrder ? (runningOrder.miktar || Infinity) : Infinity;
+      const newProduced = Math.min(cap, Math.max(0, (state.produced || 0) + delta));
+      const appliedDelta = newProduced - (state.produced || 0);
+      const newState = { ...state, produced: newProduced };
+      await setMachineState(selectedMachine.code, newState);
+      if (track && appliedDelta !== 0) setLastAdjustment({ type: "produced", delta: appliedDelta });
+    } catch { showToast(t("saveFailedToast", lang), "error"); }
+  }
+
+  async function adjustScrap(delta, { track = true } = {}) {
+    try {
+      const newScrap = Math.max(0, (state.scrap || 0) + delta);
+      const appliedDelta = newScrap - (state.scrap || 0);
+      const newState = { ...state, scrap: newScrap };
+      await setMachineState(selectedMachine.code, newState);
+      if (track && appliedDelta !== 0) setLastAdjustment({ type: "scrap", delta: appliedDelta });
+    } catch { showToast(t("saveFailedToast", lang), "error"); }
+  }
+
+  function undoLastAdjustment() {
+    if (!lastAdjustment) return;
+    if (lastAdjustment.type === "produced") adjustProduced(-lastAdjustment.delta, { track: false });
+    else adjustScrap(-lastAdjustment.delta, { track: false });
+    setLastAdjustment(null);
   }
 
   // Sipariş miktarı tamamlandığında (örn. 500/500) çağrılır. Bu bir "duruş"
   // değildir — makine boşta kalır ve sipariş, rotaya göre bir sonraki
   // makinenin kuyruğuna otomatik düşer (updateOrderStage zaten bunu yapıyor).
   async function completeOrderNow() {
-    await appendLog({
-      time: Date.now(), type: "üretim", machine: selectedMachine.code,
-      label: `${state.produced} adet · ${state.profile} · ${state.orderId} (tamamlandı, onaylandı)`,
-      detail: { qty: state.produced, profile: state.profile, orderId: state.orderId || null, stageId: state.stageId || null, durationMs: Date.now() - state.startedAt },
-    });
-    if (state.orderId && state.stageId) {
-      await updateOrderStage(state.orderId, state.stageId, { cikan: state.produced });
-    }
-    await setMachineState(selectedMachine.code, { status: "idle" });
-    setConfirmingStop(false);
-    setSelectedOrderId(null);
-    showToast(t("orderCompletedToast", lang));
+    try {
+      await appendLog({
+        time: Date.now(), type: "üretim", machine: selectedMachine.code,
+        label: `${state.produced} adet · ${state.profile} · ${state.orderId} (tamamlandı, onaylandı)`,
+        detail: { qty: state.produced, profile: state.profile, orderId: state.orderId || null, stageId: state.stageId || null, durationMs: Date.now() - state.startedAt, scrapQty: state.scrap || 0, usta: activeForeman || null },
+      });
+      if (state.orderId && state.stageId) {
+        await updateOrderStage(state.orderId, state.stageId, { cikan: state.produced, fire: state.scrap || 0 });
+      }
+      await setMachineState(selectedMachine.code, { status: "idle" });
+      setConfirmingStop(false);
+      setSelectedOrderId(null);
+      setLastAdjustment(null);
+      showToast(t("orderCompletedToast", lang));
+    } catch { showToast(t("saveFailedToast", lang), "error"); }
   }
 
   async function confirmStop() {
-    await appendLog({
-      time: Date.now(), type: "üretim", machine: selectedMachine.code,
-      label: state.orderId ? `${state.produced} adet · ${state.profile} · ${state.orderId}` : `${state.produced} adet · ${state.profile}`,
-      detail: { qty: state.produced, profile: state.profile, orderId: state.orderId || null, stageId: state.stageId || null, durationMs: Date.now() - state.startedAt },
-    });
-    if (state.orderId && state.stageId) {
-      await updateOrderStage(state.orderId, state.stageId, { cikan: state.produced });
-    }
-    await setMachineState(selectedMachine.code, { status: "down_pending", prevProfile: state.profile, prevProduced: state.produced, startedAt: Date.now() });
-    setConfirmingStop(false);
-    setSelectedOrderId(null);
-    showToast(`${state.produced} ${t("unitsSaved", lang)}`);
+    try {
+      await appendLog({
+        time: Date.now(), type: "üretim", machine: selectedMachine.code,
+        label: state.orderId ? `${state.produced} adet · ${state.profile} · ${state.orderId}` : `${state.produced} adet · ${state.profile}`,
+        detail: { qty: state.produced, profile: state.profile, orderId: state.orderId || null, stageId: state.stageId || null, durationMs: Date.now() - state.startedAt, scrapQty: state.scrap || 0, usta: activeForeman || null },
+      });
+      if (state.orderId && state.stageId) {
+        await updateOrderStage(state.orderId, state.stageId, { cikan: state.produced, fire: state.scrap || 0 });
+      }
+      await setMachineState(selectedMachine.code, {
+        status: "down_pending", prevProfile: state.profile, prevProduced: state.produced, startedAt: Date.now(),
+        lastOrderId: state.orderId || null, lastStageId: state.stageId || null,
+      });
+      setConfirmingStop(false);
+      setSelectedOrderId(null);
+      setLastAdjustment(null);
+      showToast(`${state.produced} ${t("unitsSaved", lang)}`);
+    } catch { showToast(t("saveFailedToast", lang), "error"); }
   }
 
-  async function pickDowntimeReason(reason) {
-    // Canonical label stored is always Turkish; UI resolves translation by id.
-    // Duruşun ne zaman başladığı machine state'teki startedAt alanında tutuluyor
-    // (confirmStop / önceki duruş anında set edilir) — süreyi buradan hesaplıyoruz.
-    const downtimeMs = state?.startedAt ? Date.now() - state.startedAt : null;
-    await appendLog({
-      time: Date.now(), type: "duruş", machine: selectedMachine.code, label: reason.label,
-      detail: { reason: reason.label, durationMs: downtimeMs },
-    });
-    await setMachineState(selectedMachine.code, { status: "idle" });
-    showToast(`${t("downtimeSaved", lang)} ${downtimeLabel(reason.id, lang)}`);
+  // Duruş nedenine tıklanınca doğrudan kaydetmek yerine, isteğe bağlı bir not
+  // eklenebilecek küçük bir onay ekranı açılır (confirmDowntimeReason kaydeder).
+  function pickDowntimeReason(reason) {
+    setDowntimeNote("");
+    setPendingDowntimeReason(reason);
   }
+
+  async function confirmDowntimeReason() {
+    if (!pendingDowntimeReason) return;
+    try {
+      const reason = pendingDowntimeReason;
+      // Canonical label stored is always Turkish; UI resolves translation by id.
+      // Duruşun ne zaman başladığı machine state'teki startedAt alanında tutuluyor
+      // (confirmStop / önceki duruş anında set edilir) — süreyi buradan hesaplıyoruz.
+      const downtimeMs = state?.startedAt ? Date.now() - state.startedAt : null;
+      const note = downtimeNote.trim();
+      await appendLog({
+        time: Date.now(), type: "duruş", machine: selectedMachine.code,
+        label: note ? `${reason.label} — ${note}` : reason.label,
+        detail: { reason: reason.label, durationMs: downtimeMs, note: note || null, usta: activeForeman || null },
+      });
+      await setMachineState(selectedMachine.code, { status: "idle", lastOrderId: state.lastOrderId || null, lastStageId: state.lastStageId || null });
+      setPendingDowntimeReason(null);
+      setDowntimeNote("");
+      showToast(`${t("downtimeSaved", lang)} ${downtimeLabel(reason.id, lang)}`);
+    } catch { showToast(t("saveFailedToast", lang), "error"); }
+  }
+
+  // Sipariş tamamlandığında (ve makine ekranında) fark edilmesi kolay olsun
+  // diye kısa bir titreşim tetiklenir (destekleyen cihazlarda).
+  useEffect(() => {
+    if (orderComplete && state?.orderId && vibratedOrderRef.current !== state.orderId) {
+      vibratedOrderRef.current = state.orderId;
+      if (typeof navigator !== "undefined" && navigator.vibrate) navigator.vibrate([200, 100, 200]);
+    }
+    if (!orderComplete) vibratedOrderRef.current = null;
+  }, [orderComplete, state?.orderId]);
 
   return (
     <div dir={dir} style={{ minHeight: "100vh", background: COLORS.bg }}>
@@ -1606,8 +1714,40 @@ function UstaMode({ data, onBack, lang, dir }) {
           <ChevronLeft size={16} style={backIcon} />
           {selectedMachine ? selectedMachine.code : t("chooseMode", lang)}
         </button>
-        <span style={{ fontFamily: "'IBM Plex Mono', monospace", fontSize: 16, color: COLORS.text }}>{fmtTime(now)}</span>
+        <span style={{ display: "flex", alignItems: "center", gap: 12 }}>
+          {activeForeman && (
+            <button
+              onClick={() => setActiveForeman(null)}
+              style={{ display: "flex", alignItems: "center", gap: 6, background: COLORS.bgRaised, border: `1px solid ${COLORS.border}`, borderRadius: 20, padding: "4px 10px", cursor: "pointer" }}
+              title={t("changeForeman", lang)}
+            >
+              <Users size={12} color={COLORS.textDim} />
+              <span style={{ fontFamily: "'Inter', sans-serif", fontSize: 12, color: COLORS.text }}>{activeForeman}</span>
+            </button>
+          )}
+          <span style={{ fontFamily: "'IBM Plex Mono', monospace", fontSize: 16, color: COLORS.text }}>{fmtTime(now)}</span>
+        </span>
       </div>
+
+      {needsForemanPick ? (
+        <div style={{ padding: "24px 20px" }}>
+          <div style={{ fontFamily: "'IBM Plex Mono', monospace", fontSize: 12, color: COLORS.textDim, letterSpacing: 2, textTransform: "uppercase" }}>
+            {selectedMachine.code}
+          </div>
+          <div style={{ fontFamily: "'Archivo', sans-serif", fontWeight: 800, fontSize: 24, color: COLORS.text, margin: "4px 0 22px" }}>
+            {t("whichForemanWorking", lang)}
+          </div>
+          <div style={{ display: "grid", gap: 12 }}>
+            {foremen.map((f) => (
+              <BigButton key={f} onClick={() => setActiveForeman(f)} style={{ padding: "18px 20px", display: "flex", alignItems: "center", gap: 12 }}>
+                <Users size={18} color={COLORS.textDim} />
+                <span style={{ fontFamily: "'Archivo', sans-serif", fontSize: 16 }}>{f}</span>
+              </BigButton>
+            ))}
+          </div>
+        </div>
+      ) : (
+      <>
 
       {!selectedMachine && (
         <div style={{ padding: "24px 20px" }}>
@@ -1617,8 +1757,19 @@ function UstaMode({ data, onBack, lang, dir }) {
           <div style={{ fontFamily: "'Archivo', sans-serif", fontWeight: 800, fontSize: 26, color: COLORS.text, margin: "4px 0 22px" }}>
             {t("whichMachine", lang)}
           </div>
+          <div style={{ position: "relative", marginBottom: 20 }}>
+            <Search size={16} color={COLORS.textFaint} style={{ position: "absolute", top: "50%", transform: "translateY(-50%)", [dir === "rtl" ? "right" : "left"]: 14 }} />
+            <input
+              value={machineSearch} onChange={(e) => setMachineSearch(e.target.value)}
+              placeholder={t("searchMachinePlaceholder", lang)}
+              style={{
+                width: "100%", boxSizing: "border-box", background: COLORS.bgPanel, border: `1px solid ${COLORS.border}`, borderRadius: 12,
+                padding: dir === "rtl" ? "12px 40px 12px 14px" : "12px 14px 12px 40px", color: COLORS.text, fontFamily: "'Inter', sans-serif", fontSize: 14,
+              }}
+            />
+          </div>
           {DEPARTMENT_GROUPS.map((group) => {
-            const groupMachines = machines.filter((m) => m.departmentId === group.id);
+            const groupMachines = machines.filter((m) => m.departmentId === group.id).filter(matchesSearch);
             if (groupMachines.length === 0) return null;
             return (
               <div key={group.id} style={{ marginBottom: 22 }}>
@@ -1656,6 +1807,27 @@ function UstaMode({ data, onBack, lang, dir }) {
               </div>
             );
           })}
+          {machineSearch.trim() && machines.filter(matchesSearch).length === 0 && (
+            <div style={{ color: COLORS.textFaint, fontFamily: "'Inter', sans-serif", fontSize: 13, textAlign: "center", padding: "20px 0" }}>
+              {t("noMachineMatch", lang)}
+            </div>
+          )}
+        </div>
+      )}
+
+      {selectedMachine && state.status === "idle" && resumeEntry && (
+        <div style={{ padding: "24px 20px 0" }}>
+          <BigButton
+            onClick={() => setSelectedOrderId(resumeEntry.order.id)}
+            variant="run"
+            style={{ padding: "18px 20px", width: "100%", display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 4 }}
+          >
+            <span style={{ display: "flex", flexDirection: "column", alignItems: dir === "rtl" ? "flex-end" : "flex-start", gap: 2 }}>
+              <span style={{ fontFamily: "'IBM Plex Mono', monospace", fontSize: 11, opacity: 0.85 }}>{t("resumeWhereLeftOff", lang)}</span>
+              <span style={{ fontFamily: "'Archivo', sans-serif", fontSize: 16 }}>{resumeEntry.order.urun} · {resumeEntry.order.id}</span>
+            </span>
+            <Play size={20} fill="currentColor" />
+          </BigButton>
         </div>
       )}
 
@@ -1761,6 +1933,14 @@ function UstaMode({ data, onBack, lang, dir }) {
 
       {selectedMachine && state.status === "run" && (
         <div style={{ padding: "24px 20px", display: "grid", gap: 20 }}>
+          {isLongRunning && (
+            <div style={{ display: "flex", alignItems: "center", gap: 10, background: COLORS.accentWarnDim, border: `1px solid ${COLORS.accentWarn}50`, borderRadius: 12, padding: "10px 14px" }}>
+              <AlertTriangle size={16} color={COLORS.accentWarn} style={{ flexShrink: 0 }} />
+              <div style={{ fontFamily: "'Inter', sans-serif", fontSize: 12.5, color: COLORS.text }}>
+                {t("longRunningWarningPrefix", lang)} {Math.floor(runElapsedMs / 3600000)} {t("longRunningWarningSuffix", lang)}
+              </div>
+            </div>
+          )}
           <div style={{ background: COLORS.accentRunDim, border: `1px solid ${COLORS.accentRun}40`, borderRadius: 18, padding: 24, textAlign: "center" }}>
             <div style={{ display: "flex", alignItems: "center", justifyContent: "center", gap: 8, marginBottom: 10 }}>
               <div style={{ width: 9, height: 9, borderRadius: 99, background: COLORS.accentRun, boxShadow: `0 0 0 4px ${COLORS.accentRun}30` }} />
@@ -1786,11 +1966,21 @@ function UstaMode({ data, onBack, lang, dir }) {
           <div>
             <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 10 }}>
               <div style={{ fontFamily: "'Inter', sans-serif", fontSize: 14, color: COLORS.textDim }}>{t("producedQty", lang)}</div>
-              {runningOrder && (
-                <div style={{ fontFamily: "'IBM Plex Mono', monospace", fontSize: 12.5, color: orderComplete ? COLORS.accentRun : COLORS.textFaint }}>
-                  {state.produced} / {runningOrder.miktar}
-                </div>
-              )}
+              <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+                {lastAdjustment && (
+                  <button
+                    onClick={undoLastAdjustment}
+                    style={{ display: "flex", alignItems: "center", gap: 4, background: "none", border: "none", color: COLORS.accentWarn, fontFamily: "'Inter', sans-serif", fontSize: 12, cursor: "pointer", padding: 0 }}
+                  >
+                    <RefreshCw size={12} /> {t("undoLastAdjustment", lang)}
+                  </button>
+                )}
+                {runningOrder && (
+                  <div style={{ fontFamily: "'IBM Plex Mono', monospace", fontSize: 12.5, color: orderComplete ? COLORS.accentRun : COLORS.textFaint }}>
+                    {state.produced} / {runningOrder.miktar}
+                  </div>
+                )}
+              </div>
             </div>
             <div style={{ display: "flex", alignItems: "center", gap: 14 }}>
               <BigButton onClick={() => adjustProduced(-1)} style={{ width: 56, height: 56, fontSize: 26, display: "flex", alignItems: "center", justifyContent: "center" }}>−</BigButton>
@@ -1812,6 +2002,20 @@ function UstaMode({ data, onBack, lang, dir }) {
                 {t("orderQtyReached", lang)}
               </div>
             )}
+          </div>
+
+          <div style={{ background: COLORS.bgPanel, border: `1px solid ${COLORS.border}`, borderRadius: 14, padding: "14px 16px" }}>
+            <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 10 }}>
+              <div style={{ fontFamily: "'Inter', sans-serif", fontSize: 13, color: COLORS.textDim }}>{t("scrapQtyLabel", lang)}</div>
+              <div style={{ fontFamily: "'IBM Plex Mono', monospace", fontSize: 12, color: COLORS.accentStop }}>{state.scrap || 0}</div>
+            </div>
+            <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+              <BigButton onClick={() => adjustScrap(-1)} style={{ width: 42, height: 42, fontSize: 20, display: "flex", alignItems: "center", justifyContent: "center" }}>−</BigButton>
+              <div style={{ flex: 1, textAlign: "center", fontFamily: "'IBM Plex Mono', monospace", fontSize: 20, fontWeight: 700, color: COLORS.text }}>
+                {state.scrap || 0}
+              </div>
+              <BigButton onClick={() => adjustScrap(1)} style={{ width: 42, height: 42, fontSize: 20, display: "flex", alignItems: "center", justifyContent: "center" }}>+</BigButton>
+            </div>
           </div>
 
           <BigButton onClick={() => setConfirmingStop(true)} variant={orderComplete ? "run" : "stop"} style={{ padding: "20px 0", fontSize: 18, display: "flex", alignItems: "center", justifyContent: "center", gap: 10 }}>
@@ -1849,6 +2053,35 @@ function UstaMode({ data, onBack, lang, dir }) {
         </div>
       )}
 
+      {pendingDowntimeReason && (
+        <div style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,0.6)", display: "flex", alignItems: "flex-end", justifyContent: "center", zIndex: 50 }}>
+          <div style={{ background: COLORS.bgPanel, borderTop: `1px solid ${COLORS.border}`, borderRadius: "20px 20px 0 0", padding: "26px 22px 30px", width: "100%", maxWidth: 480 }}>
+            <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 16 }}>
+              <pendingDowntimeReason.icon size={22} color={pendingDowntimeReason.color} />
+              <div style={{ fontFamily: "'Archivo', sans-serif", fontWeight: 800, fontSize: 18, color: COLORS.text }}>
+                {downtimeLabel(pendingDowntimeReason.id, lang)}
+              </div>
+            </div>
+            <div style={{ fontFamily: "'Inter', sans-serif", fontSize: 12.5, color: COLORS.textDim, marginBottom: 8 }}>{t("downtimeNoteTitle", lang)}</div>
+            <textarea
+              value={downtimeNote} onChange={(e) => setDowntimeNote(e.target.value)}
+              placeholder={t("downtimeNotePlaceholder", lang)} rows={3}
+              style={{
+                width: "100%", boxSizing: "border-box", background: COLORS.bgRaised, border: `1px solid ${COLORS.border}`, borderRadius: 12,
+                padding: "10px 12px", color: COLORS.text, fontFamily: "'Inter', sans-serif", fontSize: 14, resize: "none", marginBottom: 18,
+              }}
+            />
+            <div style={{ display: "flex", gap: 10 }}>
+              <BigButton onClick={() => { setPendingDowntimeReason(null); setDowntimeNote(""); }} variant="ghost" style={{ flex: 1, padding: "16px 0" }}>{t("cancel", lang)}</BigButton>
+              <BigButton onClick={confirmDowntimeReason} variant="stop" style={{ flex: 1, padding: "16px 0" }}>{t("saveDowntimeWithNote", lang)}</BigButton>
+            </div>
+          </div>
+        </div>
+      )}
+
+      </>
+      )}
+
       {confirmingStop && (
         <div style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,0.6)", display: "flex", alignItems: "flex-end", justifyContent: "center", zIndex: 50 }}>
           <div style={{ background: COLORS.bgPanel, borderTop: `1px solid ${COLORS.border}`, borderRadius: "20px 20px 0 0", padding: "26px 22px 30px", width: "100%", maxWidth: 480 }}>
@@ -1872,7 +2105,7 @@ function UstaMode({ data, onBack, lang, dir }) {
         </div>
       )}
 
-      <SavedToast text={toast} />
+      <SavedToast text={toast} variant={toastVariant} />
     </div>
   );
 }
