@@ -280,7 +280,8 @@ const STRINGS = {
   productionChartSelectPlaceholder: { tr: "— Ürün seçin —", en: "— Select a product —", ar: "— اختر منتجًا —" },
   productionChartShownProducts: { tr: "Grafikte gösterilen ürünler", en: "Products shown on chart", ar: "المنتجات المعروضة في الرسم" },
   productionChartTotalUnit: { tr: "adet", en: "units", ar: "وحدة" },
-  productionChartRemoveHint: { tr: "Kaldırmak için ürüne tıklayın", en: "Click a product to remove it", ar: "انقر على منتج لإزالته" },
+  productionChartRemoveHint: { tr: "Tek başına izlemek için ürüne, kaldırmak için X'e tıklayın", en: "Click a product to view it alone, click X to remove it", ar: "انقر على منتج لعزله، وانقر على X لإزالته" },
+  productionChartShowAll: { tr: "Tümünü Göster", en: "Show All", ar: "إظهار الكل" },
   terminPanelTab: { tr: "Termin Hesaplama", en: "Due Date Calc", ar: "حساب الموعد" },
   terminPanelDesc: { tr: "Smart production and logistics management dashboard", en: "Smart production and logistics management dashboard", ar: "لوحة إدارة الإنتاج والخدمات اللوجستية الذكية" },
   terminRemainingStages: { tr: "Kalan Aşamalar", en: "Remaining Stages", ar: "المراحل المتبقية" },
@@ -2080,7 +2081,6 @@ function YoneticiMode({ data, onBack, lang, dir, profile }) {
     ]},
     { id: "analiz", labelKey: "navGroupAnalysis", tabs: [
       { id: "termin", labelKey: "terminPanelTab" },
-      { id: "verimlilik", labelKey: "efficiency" },
       { id: "uretim-grafik", labelKey: "productionChartTab" },
       { id: "sevkiyat", labelKey: "shipment" },
     ]},
@@ -2330,8 +2330,6 @@ function YoneticiMode({ data, onBack, lang, dir, profile }) {
       {tab === "takvim" && <CalendarPanel data={data} lang={lang} dir={dir} />}
 
       {tab === "geri-al" && <UndoPanel data={data} lang={lang} dir={dir} />}
-
-      {tab === "verimlilik" && <VerimlilikPanel data={data} lang={lang} dir={dir} />}
 
       {tab === "uretim-grafik" && <UretimGrafigiPanel data={data} lang={lang} dir={dir} />}
 
@@ -3975,156 +3973,6 @@ function ShipmentModal({ order, lang, onClose, onConfirm }) {
 }
 
 // =================================================================
-// VERİMLİLİK PANELİ — gerçek verilerden hesaplanan 3 metrik:
-// 1) Darboğaz: makine başına bekleyen iş (siparişlerin aşamalarından)
-// 2) Duruş Pareto: kayıtlı duruş sürelerinden (log)
-// 3) Termin Riski: gereken hız vs bu siparişin gerçek üretim hızı (log)
-// Örnek/sahte veri YOKTUR — hepsi data.orders, data.log, data.departments'tan türetilir.
-// =================================================================
-function VerimlilikPanel({ data, lang, dir }) {
-  const { orders, log, departments, calendarExceptions } = data;
-  if (!orders || !log || !departments) return <LoadingScreen lang={lang} />;
-  const allMachines = allMachinesFrom(departments);
-  function machineName(code) { return allMachines.find((m) => m.code === code)?.name || code; }
-
-  // ---- 1) Darboğaz: aktif (PENDING) siparişlerin tamamlanmamış aşamalarında bekleyen adet, makineye göre toplanır ----
-  const bottleneckMap = {};
-  orders.filter((o) => o.durum === ORDER_STATUS.PENDING).forEach((o) => {
-    (o.asamalar || []).forEach((s) => {
-      if (s.durum === STAGE_STATUS.DONE) return;
-      const remaining = Math.max(0, (o.miktar || 0) - (s.cikan || 0));
-      bottleneckMap[s.makine] = (bottleneckMap[s.makine] || 0) + remaining;
-    });
-  });
-  const bottleneckList = Object.entries(bottleneckMap).sort((a, b) => b[1] - a[1]);
-  const bottleneckMax = bottleneckList[0]?.[1] || 1;
-
-  // ---- 2) Duruş Pareto: sadece durationMs kaydedilmiş "duruş" logları ----
-  const downtimeMap = {};
-  log.filter((l) => l.type === "duruş" && l.detail?.durationMs > 0).forEach((l) => {
-    const id = downtimeIdFromTrLabel(l.label) || l.label;
-    downtimeMap[id] = (downtimeMap[id] || 0) + l.detail.durationMs;
-  });
-  const downtimeList = Object.entries(downtimeMap).sort((a, b) => b[1] - a[1]);
-  const downtimeTotal = downtimeList.reduce((sum, [, ms]) => sum + ms, 0) || 1;
-  let cumMs = 0;
-
-  // ---- 3) Termin Riski: gereken hız (kalan/gün) vs bu siparişin log'lardan hesaplanan gerçek hızı ----
-  const today = new Date(); today.setHours(0, 0, 0, 0);
-  const riskList = orders.filter((o) => o.durum === ORDER_STATUS.PENDING && o.teslimTarihi).map((o) => {
-    const stages = o.asamalar || [];
-    const lastStage = stages[stages.length - 1];
-    const completed = lastStage ? (lastStage.cikan || 0) : 0;
-    const remaining = Math.max(0, (o.miktar || 0) - completed);
-    const due = new Date(o.teslimTarihi + "T00:00:00");
-    // Takvim istisnalarını (tatil/mesai) hesaba katan gerçek iş günü sayısı —
-    // ham takvim günü farkı değil.
-    const daysLeft = workingDaysBetween(today, due, calendarExceptions);
-
-    const relevantLogs = log.filter((l) => l.type === "üretim" && l.detail?.orderId === o.id && l.detail?.durationMs > 0);
-    let actualRate = null;
-    if (relevantLogs.length > 0) {
-      const totalQty = relevantLogs.reduce((s, l) => s + (l.detail.qty || 0), 0);
-      const totalMs = relevantLogs.reduce((s, l) => s + (l.detail.durationMs || 0), 0);
-      if (totalMs > 0) actualRate = totalQty / (totalMs / 86400000);
-    }
-    const requiredRate = remaining / Math.max(daysLeft, 0.1);
-    return { order: o, remaining, daysLeft, requiredRate, actualRate };
-  }).sort((a, b) => a.daysLeft - b.daysLeft);
-
-  return (
-    <div dir={dir} style={{ maxWidth: 1000, margin: "0 auto", padding: "18px 20px 60px", display: "grid", gap: 22 }}>
-      <div style={{ fontFamily: "'Inter', sans-serif", fontSize: 13, color: COLORS.textDim, lineHeight: 1.5 }}>
-        {t("efficiencyDesc", lang)}
-      </div>
-
-      {/* Darboğaz */}
-      <div style={{ background: COLORS.bgPanel, border: `1px solid ${COLORS.border}`, borderRadius: 16, padding: 18 }}>
-        <div style={{ fontFamily: "'Archivo', sans-serif", fontWeight: 700, fontSize: 15, color: COLORS.text, marginBottom: 4 }}>{t("bottleneckTitle", lang)}</div>
-        <div style={{ fontFamily: "'Inter', sans-serif", fontSize: 12, color: COLORS.textFaint, marginBottom: 14 }}>{t("bottleneckDesc", lang)}</div>
-        {bottleneckList.length === 0 && <div style={{ color: COLORS.textFaint, fontFamily: "'Inter', sans-serif", fontSize: 13 }}>{t("noBottleneckData", lang)}</div>}
-        <div style={{ display: "grid", gap: 8 }}>
-          {bottleneckList.map(([machine, qty], i) => (
-            <div key={machine} className="browlike" style={{ display: "grid", gridTemplateColumns: "150px 1fr 70px", alignItems: "center", gap: 12 }}>
-              <div style={{ fontFamily: "'IBM Plex Mono', monospace", fontSize: 12, color: COLORS.textDim }}>{machineName(machine)}</div>
-              <div style={{ height: 14, background: COLORS.bgRaised, borderRadius: 6, overflow: "hidden" }}>
-                <div style={{ height: "100%", width: `${Math.round((qty / bottleneckMax) * 100)}%`, background: i === 0 ? COLORS.accentStop : COLORS.accentRun, borderRadius: 6 }} />
-              </div>
-              <div style={{ fontFamily: "'IBM Plex Mono', monospace", fontSize: 12, textAlign: "right", color: COLORS.text }}>{qty}</div>
-            </div>
-          ))}
-        </div>
-      </div>
-
-      {/* Duruş Pareto */}
-      <div style={{ background: COLORS.bgPanel, border: `1px solid ${COLORS.border}`, borderRadius: 16, padding: 18 }}>
-        <div style={{ fontFamily: "'Archivo', sans-serif", fontWeight: 700, fontSize: 15, color: COLORS.text, marginBottom: 4 }}>{t("downtimeParetoTitle", lang)}</div>
-        <div style={{ fontFamily: "'Inter', sans-serif", fontSize: 12, color: COLORS.textFaint, marginBottom: 14 }}>{t("downtimeParetoDesc", lang)}</div>
-        {downtimeList.length === 0 && <div style={{ color: COLORS.textFaint, fontFamily: "'Inter', sans-serif", fontSize: 13 }}>{t("noDowntimeData", lang)}</div>}
-        <div style={{ display: "grid", gap: 8 }}>
-          {downtimeList.map(([reasonId, ms]) => {
-            cumMs += ms;
-            const pct = Math.round((ms / downtimeTotal) * 100);
-            const cumPct = Math.round((cumMs / downtimeTotal) * 100);
-            const meta = DOWNTIME_REASONS.find((r) => r.id === reasonId);
-            const minutes = Math.round(ms / 60000);
-            return (
-              <div key={reasonId} style={{ display: "grid", gridTemplateColumns: "150px 1fr 60px 70px", alignItems: "center", gap: 12 }}>
-                <div style={{ fontFamily: "'Inter', sans-serif", fontSize: 12.5, color: COLORS.textDim }}>{meta ? downtimeLabel(meta.id, lang) : reasonId}</div>
-                <div style={{ height: 14, background: COLORS.bgRaised, borderRadius: 6, overflow: "hidden" }}>
-                  <div style={{ height: "100%", width: `${pct}%`, background: COLORS.accentStop, borderRadius: 6 }} />
-                </div>
-                <div style={{ fontFamily: "'IBM Plex Mono', monospace", fontSize: 11.5, textAlign: "right", color: COLORS.text }}>{minutes} dk</div>
-                <div style={{ fontFamily: "'IBM Plex Mono', monospace", fontSize: 11, textAlign: "right", color: COLORS.textFaint }}>Σ %{cumPct}</div>
-              </div>
-            );
-          })}
-        </div>
-      </div>
-
-      {/* Termin Riski */}
-      <div style={{ background: COLORS.bgPanel, border: `1px solid ${COLORS.border}`, borderRadius: 16, padding: 18 }}>
-        <div style={{ fontFamily: "'Archivo', sans-serif", fontWeight: 700, fontSize: 15, color: COLORS.text, marginBottom: 4 }}>{t("riskTitle", lang)}</div>
-        <div style={{ fontFamily: "'Inter', sans-serif", fontSize: 12, color: COLORS.textFaint, marginBottom: 14 }}>{t("riskDesc", lang)}</div>
-        {riskList.length === 0 && <div style={{ color: COLORS.textFaint, fontFamily: "'Inter', sans-serif", fontSize: 13 }}>{t("noRiskData", lang)}</div>}
-        <div style={{ display: "grid", gap: 10 }}>
-          {riskList.map(({ order, remaining, daysLeft, requiredRate, actualRate }) => {
-            const overdue = daysLeft < 0;
-            const onTrack = actualRate !== null && actualRate >= requiredRate;
-            return (
-              <div key={order.id} style={{ border: `1px solid ${COLORS.border}`, borderRadius: 12, padding: "12px 14px" }}>
-                <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", flexWrap: "wrap", gap: 8 }}>
-                  <div>
-                    <div style={{ fontFamily: "'Archivo', sans-serif", fontWeight: 700, fontSize: 13.5, color: COLORS.text }}>{order.urun} · {order.id}</div>
-                    <div style={{ fontFamily: "'Inter', sans-serif", fontSize: 11.5, color: COLORS.textFaint, marginTop: 2 }}>
-                      {remaining} {t("units", lang)} {overdue ? "" : `· ${Math.ceil(daysLeft)} ${t("daysLeft", lang)}`}
-                    </div>
-                  </div>
-                  <span style={{
-                    fontFamily: "'Inter', sans-serif", fontSize: 10.5, fontWeight: 700, padding: "4px 10px", borderRadius: 99,
-                    color: overdue ? COLORS.accentStop : actualRate === null ? COLORS.textFaint : onTrack ? COLORS.accentRun : COLORS.accentStop,
-                    background: overdue ? COLORS.accentStopDim : actualRate === null ? COLORS.bgRaised : onTrack ? COLORS.accentRunDim : COLORS.accentStopDim,
-                    border: `1px solid ${overdue || (!onTrack && actualRate !== null) ? COLORS.accentStop + "50" : actualRate === null ? COLORS.border : COLORS.accentRun + "50"}`,
-                  }}>
-                    {overdue ? t("overdue", lang) : actualRate === null ? t("noProductionLogYet", lang) : onTrack ? t("onTrack", lang) : t("atRisk", lang)}
-                  </span>
-                </div>
-                <div style={{ display: "flex", gap: 22, marginTop: 10, fontFamily: "'IBM Plex Mono', monospace", fontSize: 12 }}>
-                  <div><span style={{ color: COLORS.textFaint }}>{t("requiredRate", lang)}: </span><span style={{ color: COLORS.text }}>{requiredRate.toFixed(1)} {t("perDay", lang)}</span></div>
-                  {actualRate !== null && (
-                    <div><span style={{ color: COLORS.textFaint }}>{t("actualRate", lang)}: </span><span style={{ color: onTrack ? COLORS.accentRun : COLORS.accentStop }}>{actualRate.toFixed(1)} {t("perDay", lang)}</span></div>
-                  )}
-                </div>
-              </div>
-            );
-          })}
-        </div>
-      </div>
-    </div>
-  );
-}
-
-// =================================================================
 // ÜRETİM GRAFİĞİ — tüm bölümlerdeki (Extruder, Laminasyon, Deck, Kanat)
 // ürünlerin zaman içindeki üretim adedini gösteren çizgi grafik.
 // Veri kaynağı: appendLog ile kaydedilen gerçek "üretim" olayları
@@ -4134,11 +3982,41 @@ function VerimlilikPanel({ data, lang, dir }) {
 // =================================================================
 const CHART_LINE_COLORS = ["#5FB87A", "#E8533D", "#3DA5E8", "#E8A33D", "#B87AE8", "#E87AB8", "#7AE8D8", "#C9CF3D"];
 
+// Basit, bağımlılıksız (SVG) donut/pasta grafik — oran gösterimi için.
+// segments: [{ label, value, color }]
+function DonutChart({ segments, size = 150, thickness = 20 }) {
+  const total = segments.reduce((s, x) => s + x.value, 0) || 1;
+  const r = (size - thickness) / 2;
+  const cx = size / 2, cy = size / 2;
+  const circumference = 2 * Math.PI * r;
+  let offsetAcc = 0;
+  return (
+    <svg width={size} height={size} viewBox={`0 0 ${size} ${size}`}>
+      <circle cx={cx} cy={cy} r={r} fill="none" stroke={COLORS.bgRaised} strokeWidth={thickness} />
+      {segments.map((seg, i) => {
+        if (seg.value <= 0) return null;
+        const frac = seg.value / total;
+        const dash = frac * circumference;
+        const el = (
+          <circle
+            key={i} cx={cx} cy={cy} r={r} fill="none" stroke={seg.color} strokeWidth={thickness}
+            strokeDasharray={`${dash} ${circumference - dash}`} strokeDashoffset={-offsetAcc}
+            transform={`rotate(-90 ${cx} ${cy})`}
+          />
+        );
+        offsetAcc += dash;
+        return el;
+      })}
+    </svg>
+  );
+}
+
 function UretimGrafigiPanel({ data, lang, dir }) {
-  const { log, departments } = data;
+  const { log, departments, orders, calendarExceptions } = data;
   const [rangeDays, setRangeDays] = useState(30);
   const [selectedProducts, setSelectedProducts] = useState(null); // null = henüz varsayılan seçilmedi
   const [pendingAdd, setPendingAdd] = useState("");
+  const [isolated, setIsolated] = useState(null); // tek bir ürünü izole edip gösterme
 
   const safeLog = log || [];
   const safeDepartments = departments || [];
@@ -4175,10 +4053,13 @@ function UretimGrafigiPanel({ data, lang, dir }) {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [productsWithData.join("|")]);
 
-  if (!log || !departments) return <LoadingScreen lang={lang} />;
+  if (!log || !departments || !orders) return <LoadingScreen lang={lang} />;
 
   const shown = selectedProducts || [];
   const addableProducts = [...new Set([...productsWithData, ...allProducts])].filter((p) => !shown.includes(p));
+  // İzole edilen ürün listeden kaldırılmışsa (X ile) izolasyonu da temizle.
+  const effectiveIsolated = isolated && shown.includes(isolated) ? isolated : null;
+  const linesToDraw = effectiveIsolated ? [effectiveIsolated] : shown;
 
   function addProduct() {
     if (!pendingAdd) return;
@@ -4187,12 +4068,16 @@ function UretimGrafigiPanel({ data, lang, dir }) {
   }
   function removeProduct(name) {
     setSelectedProducts(shown.filter((p) => p !== name));
+    if (isolated === name) setIsolated(null);
+  }
+  function toggleIsolate(name) {
+    setIsolated((prev) => (prev === name ? null : name));
   }
 
   // ---- SVG çizgi grafik geometrisi ----
   const W = 900, H = 300, padL = 40, padR = 16, padT = 16, padB = 30;
   const plotW = W - padL - padR, plotH = H - padT - padB;
-  const maxQty = Math.max(1, ...shown.map((p) => Math.max(...days.map((d) => dayMap[d][p] || 0))));
+  const maxQty = Math.max(1, ...linesToDraw.map((p) => Math.max(...days.map((d) => dayMap[d][p] || 0))));
   const xFor = (i) => padL + (days.length > 1 ? (i / (days.length - 1)) * plotW : plotW / 2);
   const yFor = (v) => padT + plotH - (v / maxQty) * plotH;
   // Kalabalık olmasın diye X ekseni etiketleri seyreltilir (7 günde hepsi, 90 günde ~9 tanesi).
@@ -4244,9 +4129,10 @@ function UretimGrafigiPanel({ data, lang, dir }) {
                   {d.slice(5)}
                 </text>
               ) : null))}
-              {/* Ürün başına çizgi */}
-              {shown.map((profile, pi) => {
-                const color = CHART_LINE_COLORS[pi % CHART_LINE_COLORS.length];
+              {/* Ürün başına çizgi (yalnızca izole edilmiş ürün varsa o çizilir) */}
+              {linesToDraw.map((profile) => {
+                const pi = shown.indexOf(profile);
+                const color = CHART_LINE_COLORS[(pi >= 0 ? pi : 0) % CHART_LINE_COLORS.length];
                 const points = days.map((d, i) => `${xFor(i)},${yFor(dayMap[d][profile] || 0)}`).join(" ");
                 return (
                   <g key={profile}>
@@ -4260,27 +4146,47 @@ function UretimGrafigiPanel({ data, lang, dir }) {
             </svg>
 
             <div style={{ marginTop: 14 }}>
-              <div style={{ fontFamily: "'Inter', sans-serif", fontSize: 11, color: COLORS.textFaint, marginBottom: 8 }}>
-                {t("productionChartShownProducts", lang)} — <span style={{ opacity: 0.8 }}>{t("productionChartRemoveHint", lang)}</span>
+              <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", flexWrap: "wrap", gap: 8, marginBottom: 8 }}>
+                <div style={{ fontFamily: "'Inter', sans-serif", fontSize: 11, color: COLORS.textFaint }}>
+                  {t("productionChartShownProducts", lang)} — <span style={{ opacity: 0.8 }}>{t("productionChartRemoveHint", lang)}</span>
+                </div>
+                {effectiveIsolated && (
+                  <button
+                    onClick={() => setIsolated(null)}
+                    style={{ background: COLORS.accentRunDim, border: `1px solid ${COLORS.accentRun}50`, color: COLORS.accentRun, borderRadius: 20, padding: "4px 12px", fontFamily: "'Inter', sans-serif", fontSize: 11.5, fontWeight: 600, cursor: "pointer" }}
+                  >
+                    {t("productionChartShowAll", lang)}
+                  </button>
+                )}
               </div>
               <div style={{ display: "flex", flexWrap: "wrap", gap: 8 }}>
-                {shown.map((profile, pi) => (
-                  <button
-                    key={profile} onClick={() => removeProduct(profile)}
-                    style={{
-                      display: "flex", alignItems: "center", gap: 6, background: COLORS.bgRaised,
-                      border: `1px solid ${COLORS.border}`, borderRadius: 20, padding: "5px 10px 5px 8px",
-                      fontFamily: "'Inter', sans-serif", fontSize: 12, color: COLORS.text, cursor: "pointer",
-                    }}
-                  >
-                    <span style={{ width: 8, height: 8, borderRadius: 99, background: CHART_LINE_COLORS[pi % CHART_LINE_COLORS.length], flexShrink: 0 }} />
-                    {profile}
-                    <span style={{ color: COLORS.textFaint, fontFamily: "'IBM Plex Mono', monospace", fontSize: 11 }}>
-                      {productTotals[profile] || 0} {t("productionChartTotalUnit", lang)}
-                    </span>
-                    <X size={11} color={COLORS.textFaint} />
-                  </button>
-                ))}
+                {shown.map((profile, pi) => {
+                  const isDimmed = effectiveIsolated && effectiveIsolated !== profile;
+                  return (
+                    <button
+                      key={profile} onClick={() => toggleIsolate(profile)}
+                      style={{
+                        display: "flex", alignItems: "center", gap: 6,
+                        background: effectiveIsolated === profile ? COLORS.accentRunDim : COLORS.bgRaised,
+                        border: `1px solid ${effectiveIsolated === profile ? COLORS.accentRun + "50" : COLORS.border}`,
+                        borderRadius: 20, padding: "5px 10px 5px 8px", opacity: isDimmed ? 0.45 : 1,
+                        fontFamily: "'Inter', sans-serif", fontSize: 12, color: COLORS.text, cursor: "pointer",
+                      }}
+                    >
+                      <span style={{ width: 8, height: 8, borderRadius: 99, background: CHART_LINE_COLORS[pi % CHART_LINE_COLORS.length], flexShrink: 0 }} />
+                      {profile}
+                      <span style={{ color: COLORS.textFaint, fontFamily: "'IBM Plex Mono', monospace", fontSize: 11 }}>
+                        {productTotals[profile] || 0} {t("productionChartTotalUnit", lang)}
+                      </span>
+                      <span
+                        onClick={(e) => { e.stopPropagation(); removeProduct(profile); }}
+                        style={{ display: "flex", padding: 2 }}
+                      >
+                        <X size={11} color={COLORS.textFaint} />
+                      </span>
+                    </button>
+                  );
+                })}
               </div>
             </div>
           </>
@@ -4308,9 +4214,185 @@ function UretimGrafigiPanel({ data, lang, dir }) {
           </button>
         </div>
       </div>
+
+      {/* Verimlilik — aynı sayfada, üretim grafiğinin altında */}
+      <div style={{ marginTop: 4 }}>
+        <div style={{ fontFamily: "'Archivo', sans-serif", fontWeight: 700, fontSize: 16, color: COLORS.text, marginBottom: 4 }}>{t("efficiency", lang)}</div>
+        <div style={{ fontFamily: "'Inter', sans-serif", fontSize: 13, color: COLORS.textDim, lineHeight: 1.5 }}>{t("efficiencyDesc", lang)}</div>
+      </div>
+      <VerimlilikSections data={data} lang={lang} dir={dir} />
     </div>
   );
 }
+
+// =================================================================
+// VERİMLİLİK BÖLÜMLERİ — Darboğaz, Duruş Pareto ve Termin Riski.
+// Üretim Grafiği ile aynı sayfada (UretimGrafigiPanel altında) gösterilir.
+// Darboğaz ve Duruş Pareto artık mevcut bar/Pareto görünümüne ek olarak
+// oranı tek bakışta gösteren birer donut (pasta) grafikle desteklenir.
+// =================================================================
+function VerimlilikSections({ data, lang, dir }) {
+  const { orders, log, departments, calendarExceptions } = data;
+  if (!orders || !log || !departments) return <LoadingScreen lang={lang} />;
+  const allMachines = allMachinesFrom(departments);
+  function machineName(code) { return allMachines.find((m) => m.code === code)?.name || code; }
+
+  // ---- 1) Darboğaz: aktif (PENDING) siparişlerin tamamlanmamış aşamalarında bekleyen adet, makineye göre toplanır ----
+  const bottleneckMap = {};
+  orders.filter((o) => o.durum === ORDER_STATUS.PENDING).forEach((o) => {
+    (o.asamalar || []).forEach((s) => {
+      if (s.durum === STAGE_STATUS.DONE) return;
+      const remaining = Math.max(0, (o.miktar || 0) - (s.cikan || 0));
+      bottleneckMap[s.makine] = (bottleneckMap[s.makine] || 0) + remaining;
+    });
+  });
+  const bottleneckList = Object.entries(bottleneckMap).sort((a, b) => b[1] - a[1]);
+  const bottleneckMax = bottleneckList[0]?.[1] || 1;
+  const bottleneckDonutSegments = bottleneckList.slice(0, 8).map(([machine, qty], i) => ({
+    label: machineName(machine), value: qty, color: CHART_LINE_COLORS[i % CHART_LINE_COLORS.length],
+  }));
+
+  // ---- 2) Duruş Pareto: sadece durationMs kaydedilmiş "duruş" logları ----
+  const downtimeMap = {};
+  log.filter((l) => l.type === "duruş" && l.detail?.durationMs > 0).forEach((l) => {
+    const id = downtimeIdFromTrLabel(l.label) || l.label;
+    downtimeMap[id] = (downtimeMap[id] || 0) + l.detail.durationMs;
+  });
+  const downtimeList = Object.entries(downtimeMap).sort((a, b) => b[1] - a[1]);
+  const downtimeTotal = downtimeList.reduce((sum, [, ms]) => sum + ms, 0) || 1;
+  let cumMs = 0;
+  const downtimeDonutSegments = downtimeList.map(([reasonId, ms], i) => {
+    const meta = DOWNTIME_REASONS.find((r) => r.id === reasonId);
+    return { label: meta ? downtimeLabel(meta.id, lang) : reasonId, value: ms, color: CHART_LINE_COLORS[i % CHART_LINE_COLORS.length] };
+  });
+
+  // ---- 3) Termin Riski: gereken hız (kalan/gün) vs bu siparişin log'lardan hesaplanan gerçek hızı ----
+  const today = new Date(); today.setHours(0, 0, 0, 0);
+  const riskList = orders.filter((o) => o.durum === ORDER_STATUS.PENDING && o.teslimTarihi).map((o) => {
+    const stages = o.asamalar || [];
+    const lastStage = stages[stages.length - 1];
+    const completed = lastStage ? (lastStage.cikan || 0) : 0;
+    const remaining = Math.max(0, (o.miktar || 0) - completed);
+    const due = new Date(o.teslimTarihi + "T00:00:00");
+    // Takvim istisnalarını (tatil/mesai) hesaba katan gerçek iş günü sayısı —
+    // ham takvim günü farkı değil.
+    const daysLeft = workingDaysBetween(today, due, calendarExceptions);
+
+    const relevantLogs = log.filter((l) => l.type === "üretim" && l.detail?.orderId === o.id && l.detail?.durationMs > 0);
+    let actualRate = null;
+    if (relevantLogs.length > 0) {
+      const totalQty = relevantLogs.reduce((s, l) => s + (l.detail.qty || 0), 0);
+      const totalMs = relevantLogs.reduce((s, l) => s + (l.detail.durationMs || 0), 0);
+      if (totalMs > 0) actualRate = totalQty / (totalMs / 86400000);
+    }
+    const requiredRate = remaining / Math.max(daysLeft, 0.1);
+    return { order: o, remaining, daysLeft, requiredRate, actualRate };
+  }).sort((a, b) => a.daysLeft - b.daysLeft);
+
+  return (
+    <>
+      {/* Darboğaz */}
+      <div style={{ background: COLORS.bgPanel, border: `1px solid ${COLORS.border}`, borderRadius: 16, padding: 18 }}>
+        <div style={{ fontFamily: "'Archivo', sans-serif", fontWeight: 700, fontSize: 15, color: COLORS.text, marginBottom: 4 }}>{t("bottleneckTitle", lang)}</div>
+        <div style={{ fontFamily: "'Inter', sans-serif", fontSize: 12, color: COLORS.textFaint, marginBottom: 14 }}>{t("bottleneckDesc", lang)}</div>
+        {bottleneckList.length === 0 ? (
+          <div style={{ color: COLORS.textFaint, fontFamily: "'Inter', sans-serif", fontSize: 13 }}>{t("noBottleneckData", lang)}</div>
+        ) : (
+          <div style={{ display: "flex", gap: 24, flexWrap: "wrap", alignItems: "center" }}>
+            <DonutChart segments={bottleneckDonutSegments} />
+            <div style={{ display: "grid", gap: 8, flex: 1, minWidth: 220 }}>
+              {bottleneckList.map(([machine, qty], i) => (
+                <div key={machine} className="browlike" style={{ display: "grid", gridTemplateColumns: "14px 130px 1fr 60px", alignItems: "center", gap: 10 }}>
+                  <span style={{ width: 10, height: 10, borderRadius: 99, background: CHART_LINE_COLORS[i % CHART_LINE_COLORS.length], flexShrink: 0 }} />
+                  <div style={{ fontFamily: "'IBM Plex Mono', monospace", fontSize: 12, color: COLORS.textDim, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{machineName(machine)}</div>
+                  <div style={{ height: 12, background: COLORS.bgRaised, borderRadius: 6, overflow: "hidden" }}>
+                    <div style={{ height: "100%", width: `${Math.round((qty / bottleneckMax) * 100)}%`, background: i === 0 ? COLORS.accentStop : COLORS.accentRun, borderRadius: 6 }} />
+                  </div>
+                  <div style={{ fontFamily: "'IBM Plex Mono', monospace", fontSize: 12, textAlign: "right", color: COLORS.text }}>{qty}</div>
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
+      </div>
+
+      {/* Duruş Pareto */}
+      <div style={{ background: COLORS.bgPanel, border: `1px solid ${COLORS.border}`, borderRadius: 16, padding: 18 }}>
+        <div style={{ fontFamily: "'Archivo', sans-serif", fontWeight: 700, fontSize: 15, color: COLORS.text, marginBottom: 4 }}>{t("downtimeParetoTitle", lang)}</div>
+        <div style={{ fontFamily: "'Inter', sans-serif", fontSize: 12, color: COLORS.textFaint, marginBottom: 14 }}>{t("downtimeParetoDesc", lang)}</div>
+        {downtimeList.length === 0 ? (
+          <div style={{ color: COLORS.textFaint, fontFamily: "'Inter', sans-serif", fontSize: 13 }}>{t("noDowntimeData", lang)}</div>
+        ) : (
+          <div style={{ display: "flex", gap: 24, flexWrap: "wrap", alignItems: "flex-start" }}>
+            <DonutChart segments={downtimeDonutSegments} />
+            <div style={{ display: "grid", gap: 8, flex: 1, minWidth: 260 }}>
+              {downtimeList.map(([reasonId, ms], i) => {
+                cumMs += ms;
+                const pct = Math.round((ms / downtimeTotal) * 100);
+                const cumPct = Math.round((cumMs / downtimeTotal) * 100);
+                const meta = DOWNTIME_REASONS.find((r) => r.id === reasonId);
+                const minutes = Math.round(ms / 60000);
+                return (
+                  <div key={reasonId} style={{ display: "grid", gridTemplateColumns: "14px 130px 1fr 60px 70px", alignItems: "center", gap: 10 }}>
+                    <span style={{ width: 10, height: 10, borderRadius: 99, background: CHART_LINE_COLORS[i % CHART_LINE_COLORS.length], flexShrink: 0 }} />
+                    <div style={{ fontFamily: "'Inter', sans-serif", fontSize: 12.5, color: COLORS.textDim, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{meta ? downtimeLabel(meta.id, lang) : reasonId}</div>
+                    <div style={{ height: 12, background: COLORS.bgRaised, borderRadius: 6, overflow: "hidden" }}>
+                      <div style={{ height: "100%", width: `${pct}%`, background: COLORS.accentStop, borderRadius: 6 }} />
+                    </div>
+                    <div style={{ fontFamily: "'IBM Plex Mono', monospace", fontSize: 11.5, textAlign: "right", color: COLORS.text }}>{minutes} dk</div>
+                    <div style={{ fontFamily: "'IBM Plex Mono', monospace", fontSize: 11, textAlign: "right", color: COLORS.textFaint }}>Σ %{cumPct}</div>
+                  </div>
+                );
+              })}
+            </div>
+          </div>
+        )}
+      </div>
+
+      {/* Termin Riski */}
+      <div style={{ background: COLORS.bgPanel, border: `1px solid ${COLORS.border}`, borderRadius: 16, padding: 18 }}>
+        <div style={{ fontFamily: "'Archivo', sans-serif", fontWeight: 700, fontSize: 15, color: COLORS.text, marginBottom: 4 }}>{t("riskTitle", lang)}</div>
+        <div style={{ fontFamily: "'Inter', sans-serif", fontSize: 12, color: COLORS.textFaint, marginBottom: 14 }}>{t("riskDesc", lang)}</div>
+        {riskList.length === 0 && <div style={{ color: COLORS.textFaint, fontFamily: "'Inter', sans-serif", fontSize: 13 }}>{t("noRiskData", lang)}</div>}
+        <div style={{ display: "grid", gap: 10 }}>
+          {riskList.map(({ order, remaining, daysLeft, requiredRate, actualRate }) => {
+            const overdue = daysLeft < 0;
+            const onTrack = actualRate !== null && actualRate >= requiredRate;
+            return (
+              <div key={order.id} style={{ border: `1px solid ${COLORS.border}`, borderRadius: 12, padding: "12px 14px" }}>
+                <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", flexWrap: "wrap", gap: 8 }}>
+                  <div>
+                    <div style={{ fontFamily: "'Archivo', sans-serif", fontWeight: 700, fontSize: 13.5, color: COLORS.text }}>{order.urun} · {order.id}</div>
+                    <div style={{ fontFamily: "'Inter', sans-serif", fontSize: 11.5, color: COLORS.textFaint, marginTop: 2 }}>
+                      {remaining} {t("units", lang)} {overdue ? "" : `· ${Math.ceil(daysLeft)} ${t("daysLeft", lang)}`}
+                    </div>
+                  </div>
+                  <span style={{
+                    fontFamily: "'Inter', sans-serif", fontSize: 10.5, fontWeight: 700, padding: "4px 10px", borderRadius: 99,
+                    color: overdue ? COLORS.accentStop : actualRate === null ? COLORS.textFaint : onTrack ? COLORS.accentRun : COLORS.accentStop,
+                    background: overdue ? COLORS.accentStopDim : actualRate === null ? COLORS.bgRaised : onTrack ? COLORS.accentRunDim : COLORS.accentStopDim,
+                    border: `1px solid ${overdue || (!onTrack && actualRate !== null) ? COLORS.accentStop + "50" : actualRate === null ? COLORS.border : COLORS.accentRun + "50"}`,
+                  }}>
+                    {overdue ? t("overdue", lang) : actualRate === null ? t("noProductionLogYet", lang) : onTrack ? t("onTrack", lang) : t("atRisk", lang)}
+                  </span>
+                </div>
+                <div style={{ display: "flex", gap: 22, marginTop: 10, fontFamily: "'IBM Plex Mono', monospace", fontSize: 12 }}>
+                  <div><span style={{ color: COLORS.textFaint }}>{t("requiredRate", lang)}: </span><span style={{ color: COLORS.text }}>{requiredRate.toFixed(1)} {t("perDay", lang)}</span></div>
+                  {actualRate !== null && (
+                    <div><span style={{ color: COLORS.textFaint }}>{t("actualRate", lang)}: </span><span style={{ color: onTrack ? COLORS.accentRun : COLORS.accentStop }}>{actualRate.toFixed(1)} {t("perDay", lang)}</span></div>
+                  )}
+                </div>
+              </div>
+            );
+          })}
+        </div>
+      </div>
+    </>
+  );
+}
+
+// =================================================================
+// QR MODAL — sipariş için gerçek bir QR kod üretir (qrcode kütüphanesi).
 // QR, uygulama içi #/urun/<id> adresine gider; okutulduğunda (ya da
 // tıklanınca) giriş yapmış kullanıcıya o siparişin izlenebilirlik
 // sayfasını açar.
