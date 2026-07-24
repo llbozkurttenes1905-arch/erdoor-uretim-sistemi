@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef, useCallback } from "react";
-import * as XLSX from "xlsx";
+import * as XLSX from "xlsx-js-style"; // SheetJS CE + hücre stilleri (Apache-2.0) — Excel'e Aktar raporlarını renklendirmek için
 import { createClient } from "@supabase/supabase-js";
 import QRCode from "qrcode";
 import {
@@ -2114,12 +2114,123 @@ function UstaMode({ data, onBack, lang, dir }) {
 // EXCEL'E AKTAR — anlık sistem verisini .xlsx rapor olarak indirir
 // =================================================================
 
+// ---- Excel biçimlendirme yardımcıları (xlsx-js-style) ----
+// ERDOOR marka kırmızısı (COLORS.brand) başlık rengi olarak kullanılıyor,
+// böylece rapor uygulamanın kendi kimliğiyle tutarlı görünüyor.
+function argb(hex) { return "FF" + hex.replace("#", "").toUpperCase(); }
+const XLS_BORDER = { style: "thin", color: { rgb: argb("D9D9D9") } };
+const XLS_BORDER_ALL = { top: XLS_BORDER, bottom: XLS_BORDER, left: XLS_BORDER, right: XLS_BORDER };
+const XLS_HEADER_FILL = argb("D70E16"); // COLORS.brand
+const XLS_BAND_FILL = argb("F5F5F5");
+
+// Bir sayfaya: kalın/renkli başlık satırı, ince kenarlıklar, bir satır atlamalı
+// gölgeleme (banding), donmuş başlık satırı ve otomatik filtre uygular.
+// Tüm "Excel'e Aktar" sayfaları için ortak, tutarlı görünüm sağlar.
+function styleWorksheet(ws) {
+  if (!ws["!ref"]) return;
+  const range = XLSX.utils.decode_range(ws["!ref"]);
+  for (let c = range.s.c; c <= range.e.c; c++) {
+    const addr = XLSX.utils.encode_cell({ r: 0, c });
+    if (!ws[addr]) continue;
+    ws[addr].s = {
+      font: { name: "Calibri", sz: 11, bold: true, color: { rgb: argb("FFFFFF") } },
+      fill: { patternType: "solid", fgColor: { rgb: XLS_HEADER_FILL } },
+      alignment: { vertical: "center", horizontal: "center", wrapText: true },
+      border: XLS_BORDER_ALL,
+    };
+  }
+  for (let r = range.s.r + 1; r <= range.e.r; r++) {
+    for (let c = range.s.c; c <= range.e.c; c++) {
+      const addr = XLSX.utils.encode_cell({ r, c });
+      if (!ws[addr]) continue;
+      ws[addr].s = {
+        ...(ws[addr].s || {}),
+        font: { ...(ws[addr].s?.font || {}), name: "Calibri", sz: 11 },
+        border: XLS_BORDER_ALL,
+        fill: ws[addr].s?.fill || (r % 2 === 0 ? { patternType: "solid", fgColor: { rgb: XLS_BAND_FILL } } : undefined),
+      };
+    }
+  }
+  // NOT: xlsx-js-style'ın yazıcısı donmuş satır (freeze pane) üretmiyor —
+  // bu yüzden burada denenmedi. Otomatik filtre ve renkli başlık, sayfayı
+  // kaydırırken referans noktası kaybını büyük ölçüde telafi ediyor.
+  ws["!autofilter"] = { ref: ws["!ref"] };
+}
+
+// Belirli bir sütundaki (0 tabanlı) tüm veri hücrelerine sayı biçimi uygular
+// (örn. "#,##0" ile 1000 -> "1.000").
+function formatColumnNumFmt(ws, colIndex, numFmt) {
+  const range = XLSX.utils.decode_range(ws["!ref"]);
+  for (let r = range.s.r + 1; r <= range.e.r; r++) {
+    const addr = XLSX.utils.encode_cell({ r, c: colIndex });
+    if (ws[addr]) ws[addr].z = numFmt;
+  }
+}
+
+// Belirli bir sütundaki tüm veri hücrelerinin dolgu rengini, hücre değerine
+// göre bir fonksiyonun döndürdüğü renkle boyar (örn. duruma göre yeşil/kırmızı).
+function colorColumnByValue(ws, colIndex, colorFn) {
+  const range = XLSX.utils.decode_range(ws["!ref"]);
+  for (let r = range.s.r + 1; r <= range.e.r; r++) {
+    const addr = XLSX.utils.encode_cell({ r, c: colIndex });
+    if (!ws[addr]) continue;
+    const color = colorFn(ws[addr].v, r);
+    if (!color) continue;
+    ws[addr].s = { ...(ws[addr].s || {}), fill: { patternType: "solid", fgColor: { rgb: color } } };
+  }
+}
+
 function exportToExcel({ machines, plan, machineStates, log, orders }) {
   const wb = XLSX.utils.book_new();
   const now = new Date();
   const todayIso = isoDate(now);
 
-  // Sayfa 1: Anlık Makine Durumu
+  // ---- Sayfa 0: Özet — dosya açılır açılmaz tek bakışta durum ----
+  const pendingOrders = (orders || []).filter((o) => o.durum !== ORDER_STATUS.DELIVERED);
+  const overdueOrders = pendingOrders.filter((o) => o.teslimTarihi && o.teslimTarihi < todayIso);
+  const todaysProducedQty = (log || [])
+    .filter((l) => l.type === "üretim" && isoDate(new Date(l.time)) === todayIso)
+    .reduce((sum, l) => sum + (l.detail?.qty || 0), 0);
+  const statusCounts = machines.reduce((acc, m) => {
+    const s = (machineStates[m.code] || { status: "idle" }).status;
+    acc[s] = (acc[s] || 0) + 1;
+    return acc;
+  }, {});
+  const summaryAoa = [
+    ["ERDOOR ÜRETİM RAPORU"],
+    [`Oluşturulma: ${now.toLocaleString("tr-TR")}`],
+    [],
+    ["Metrik", "Değer"],
+    ["Toplam Sipariş", (orders || []).length],
+    ["Bekleyen Sipariş", pendingOrders.length],
+    ["Teslim Edilen Sipariş", (orders || []).length - pendingOrders.length],
+    ["Termini Geçmiş Sipariş", overdueOrders.length],
+    ["Bugün Üretilen (Toplam Adet)", todaysProducedQty],
+    ["Üretimdeki Makine Sayısı", statusCounts.run || 0],
+    ["Duruştaki Makine Sayısı", statusCounts.down_pending || 0],
+    ["Boştaki Makine Sayısı", statusCounts.idle || 0],
+    ["Toplam Makine Sayısı", machines.length],
+  ];
+  const wsSummary = XLSX.utils.aoa_to_sheet(summaryAoa);
+  wsSummary["!cols"] = [{ wch: 30 }, { wch: 20 }];
+  wsSummary["!merges"] = [{ s: { r: 0, c: 0 }, e: { r: 0, c: 1 } }, { s: { r: 1, c: 0 }, e: { r: 1, c: 1 } }];
+  if (wsSummary.A1) wsSummary.A1.s = { font: { name: "Calibri", sz: 16, bold: true, color: { rgb: argb("FFFFFF") } }, fill: { patternType: "solid", fgColor: { rgb: XLS_HEADER_FILL } }, alignment: { horizontal: "center", vertical: "center" } };
+  if (wsSummary.A2) wsSummary.A2.s = { font: { name: "Calibri", sz: 10, italic: true, color: { rgb: argb("6B6E70") } }, alignment: { horizontal: "center" } };
+  ["A4", "B4"].forEach((addr) => {
+    if (wsSummary[addr]) wsSummary[addr].s = { font: { name: "Calibri", sz: 11, bold: true, color: { rgb: argb("FFFFFF") } }, fill: { patternType: "solid", fgColor: { rgb: argb("34383E") } }, border: XLS_BORDER_ALL };
+  });
+  for (let r = 4; r < summaryAoa.length; r++) {
+    ["A", "B"].forEach((col) => {
+      const addr = `${col}${r + 1}`;
+      if (wsSummary[addr]) wsSummary[addr].s = { font: { name: "Calibri", sz: 11, bold: col === "A" }, border: XLS_BORDER_ALL, fill: r % 2 === 0 ? { patternType: "solid", fgColor: { rgb: XLS_BAND_FILL } } : undefined };
+    });
+  }
+  // Kritik satırları vurgula: termini geçmiş varsa kırmızı, duruşta makine varsa turuncu.
+  if (overdueOrders.length > 0 && wsSummary.B8) wsSummary.B8.s = { ...wsSummary.B8.s, font: { name: "Calibri", sz: 11, bold: true, color: { rgb: argb("D70E16") } } };
+  if ((statusCounts.down_pending || 0) > 0 && wsSummary.B11) wsSummary.B11.s = { ...wsSummary.B11.s, font: { name: "Calibri", sz: 11, bold: true, color: { rgb: argb("C77A1F") } } };
+  XLSX.utils.book_append_sheet(wb, wsSummary, "Özet");
+
+  // ---- Sayfa 1: Anlık Makine Durumu ----
   const statusRows = machines.map((m) => {
     const st = machineStates[m.code] || { status: "idle" };
     const elapsedMin = st.startedAt ? Math.round((Date.now() - st.startedAt) / 60000) : "";
@@ -2134,10 +2245,12 @@ function exportToExcel({ machines, plan, machineStates, log, orders }) {
   });
   const wsStatus = XLSX.utils.json_to_sheet(statusRows);
   wsStatus["!cols"] = [{ wch: 12 }, { wch: 30 }, { wch: 12 }, { wch: 18 }, { wch: 14 }, { wch: 14 }];
+  styleWorksheet(wsStatus);
+  formatColumnNumFmt(wsStatus, 4, "#,##0");
+  colorColumnByValue(wsStatus, 2, (v) => (v === "Üretimde" ? argb("D8F0DE") : v === "Duruşta" ? argb("FBDCD6") : null));
   XLSX.utils.book_append_sheet(wb, wsStatus, "Anlık Durum");
 
-  // Sayfa 2: Üretim Planı (Takvim) — tarih satırları, makine sütunları,
-  // tıpkı gerçek extruder planlama tablonuzdaki format.
+  // ---- Sayfa 2: Üretim Planı (Takvim) ----
   const planDates = Object.keys(plan).sort();
   const planRows = planDates.map((dateIso) => {
     const row = { "Tarih": new Date(dateIso + "T00:00:00").toLocaleDateString("tr-TR", { day: "2-digit", month: "long", year: "numeric", weekday: "long" }) };
@@ -2149,26 +2262,33 @@ function exportToExcel({ machines, plan, machineStates, log, orders }) {
   });
   const wsPlan = XLSX.utils.json_to_sheet(planRows);
   wsPlan["!cols"] = [{ wch: 28 }, ...machines.map(() => ({ wch: 14 }))];
+  styleWorksheet(wsPlan);
+  machines.forEach((_, i) => colorColumnByValue(wsPlan, i + 1, (v) => (v === "TATİL" ? argb("EFEFEF") : null)));
   XLSX.utils.book_append_sheet(wb, wsPlan, "Üretim Planı");
 
-  // Sayfa 3: Siparişler
+  // ---- Sayfa 3: Siparişler ----
   const orderRows = (orders || []).map((o) => {
     const stages = o.asamalar || [];
     const doneCount = stages.filter((s) => s.durum === STAGE_STATUS.DONE).length;
     const active = stages.find((s) => s.durum === STAGE_STATUS.RUNNING) || stages.find((s) => s.durum === STAGE_STATUS.WAITING);
+    const overdue = o.durum !== ORDER_STATUS.DELIVERED && o.teslimTarihi && o.teslimTarihi < todayIso;
     return {
       "Sipariş No": o.id, "Ürün": o.urun, "Müşteri": o.musteri,
-      "Miktar": o.miktar, "Teslim Tarihi": o.teslimTarihi,
+      "Miktar": o.miktar, "Teslim Tarihi": o.teslimTarihi ? new Date(o.teslimTarihi + "T00:00:00") : "",
       "Aşama İlerlemesi": stages.length ? `${doneCount}/${stages.length}` : "",
       "Şu Anki Aşama": active ? active.makine : (stages.length ? "Tamamlandı" : ""),
-      "Durum": o.durum === ORDER_STATUS.DELIVERED ? "Teslim Edildi" : "Bekliyor",
+      "Durum": overdue ? "Termini Geçti" : o.durum === ORDER_STATUS.DELIVERED ? "Teslim Edildi" : "Bekliyor",
     };
   });
-  const wsOrders = XLSX.utils.json_to_sheet(orderRows);
+  const wsOrders = XLSX.utils.json_to_sheet(orderRows, { cellDates: true });
   wsOrders["!cols"] = [{ wch: 14 }, { wch: 24 }, { wch: 22 }, { wch: 10 }, { wch: 14 }, { wch: 14 }, { wch: 16 }, { wch: 14 }];
+  styleWorksheet(wsOrders);
+  formatColumnNumFmt(wsOrders, 3, "#,##0");
+  formatColumnNumFmt(wsOrders, 4, "dd.mm.yyyy");
+  colorColumnByValue(wsOrders, 7, (v) => (v === "Termini Geçti" ? argb("FBDCD6") : v === "Teslim Edildi" ? argb("D8F0DE") : null));
   XLSX.utils.book_append_sheet(wb, wsOrders, "Siparişler");
 
-  // Sayfa 3b: Sipariş Aşamaları (detay) — her siparişin her aşaması ayrı satır.
+  // ---- Sayfa 3b: Sipariş Aşamaları (detay) ----
   const stageRows = (orders || []).flatMap((o) =>
     (o.asamalar || []).map((s, idx) => {
       const mach = machines.find((m) => m.code === s.makine);
@@ -2176,29 +2296,42 @@ function exportToExcel({ machines, plan, machineStates, log, orders }) {
         "Sipariş No": o.id, "Ürün": o.urun, "Aşama Sırası": idx + 1,
         "Makine Kodu": s.makine, "Makine Adı": mach ? mach.name : "",
         "Durum": s.durum === STAGE_STATUS.DONE ? "Tamamlandı" : s.durum === STAGE_STATUS.RUNNING ? "Üretimde" : "Bekliyor",
-        "Çıkan Adet": s.cikan, "Sipariş Miktarı": o.miktar,
+        "Çıkan Adet": s.cikan || 0, "Fire/Iskarta": s.fire || 0, "Sipariş Miktarı": o.miktar,
       };
     })
   );
   const wsStages = XLSX.utils.json_to_sheet(stageRows);
-  wsStages["!cols"] = [{ wch: 14 }, { wch: 22 }, { wch: 12 }, { wch: 12 }, { wch: 26 }, { wch: 12 }, { wch: 12 }, { wch: 14 }];
+  wsStages["!cols"] = [{ wch: 14 }, { wch: 22 }, { wch: 12 }, { wch: 12 }, { wch: 26 }, { wch: 12 }, { wch: 12 }, { wch: 12 }, { wch: 14 }];
+  styleWorksheet(wsStages);
+  formatColumnNumFmt(wsStages, 6, "#,##0");
+  formatColumnNumFmt(wsStages, 7, "#,##0");
+  formatColumnNumFmt(wsStages, 8, "#,##0");
+  colorColumnByValue(wsStages, 5, (v) => (v === "Tamamlandı" ? argb("D8F0DE") : v === "Üretimde" ? argb("FFF3D6") : null));
   XLSX.utils.book_append_sheet(wb, wsStages, "Sipariş Aşamaları");
 
-  // Sayfa 4: Makineler
+  // ---- Sayfa 4: Makineler ----
   const machineRows = machines.map((m) => ({ "Makine Kodu": m.code, "Makine Adı": m.name }));
   const wsMachines = XLSX.utils.json_to_sheet(machineRows);
   wsMachines["!cols"] = [{ wch: 12 }, { wch: 32 }];
+  styleWorksheet(wsMachines);
   XLSX.utils.book_append_sheet(wb, wsMachines, "Makineler");
 
-  // Sayfa 5: Hareket Geçmişi (log)
+  // ---- Sayfa 5: Hareket Geçmişi (log) — usta kimliği ve not alanı da dahil ----
   const logRows = log.map((l) => ({
-    "Tarih/Saat": new Date(l.time).toLocaleString("tr-TR"),
+    "Tarih/Saat": new Date(l.time),
     "Tip": l.type === "üretim" ? "Üretim" : "Duruş",
     "Makine": l.machine,
+    "Usta": l.detail?.usta || "",
     "Detay": l.label,
+    "Not": l.detail?.note || "",
+    "Fire/Iskarta": l.type === "üretim" ? (l.detail?.scrapQty || 0) : "",
   }));
-  const wsLog = XLSX.utils.json_to_sheet(logRows);
-  wsLog["!cols"] = [{ wch: 20 }, { wch: 10 }, { wch: 10 }, { wch: 32 }];
+  const wsLog = XLSX.utils.json_to_sheet(logRows, { cellDates: true });
+  wsLog["!cols"] = [{ wch: 20 }, { wch: 10 }, { wch: 10 }, { wch: 16 }, { wch: 40 }, { wch: 30 }, { wch: 12 }];
+  styleWorksheet(wsLog);
+  formatColumnNumFmt(wsLog, 0, "dd.mm.yyyy hh:mm");
+  formatColumnNumFmt(wsLog, 6, "#,##0");
+  colorColumnByValue(wsLog, 1, (v) => (v === "Duruş" ? argb("FBDCD6") : v === "Üretim" ? argb("D8F0DE") : null));
   XLSX.utils.book_append_sheet(wb, wsLog, "Hareket Geçmişi");
 
   const fname = `Uretim_Raporu_${now.toISOString().slice(0, 10)}_${now.getHours()}${now.getMinutes()}.xlsx`;
