@@ -105,6 +105,7 @@ const STRINGS = {
   inDowntime: { tr: "Duruşta", en: "In Downtime", ar: "متوقف" },
   idle: { tr: "Boşta", en: "Idle", ar: "خامل" },
   producedQty: { tr: "Üretilen adet", en: "Units produced", ar: "الوحدات المصنّعة" },
+  editProducedHint: { tr: "Yanlış girdiyseniz sayıya dokunup doğrusunu yazabilirsiniz", en: "Tap the number to type the correct value if you made a mistake", ar: "اضغط على الرقم لكتابة القيمة الصحيحة إذا أخطأت" },
   stopProduction: { tr: "Üretimi Durdur", en: "Stop Production", ar: "إيقاف الإنتاج" },
   whatReason: { tr: "Duruş nedeni nedir?", en: "What is the downtime reason?", ar: "ما سبب التوقف؟" },
   confirmStopTitle: { tr: "Üretimi durdurmak istediğine eminmisin?", en: "Are you sure you want to stop production?", ar: "هل أنت متأكد من إيقاف الإنتاج؟" },
@@ -130,6 +131,12 @@ const STRINGS = {
   downtimeReasonsTotal: { tr: "Duruş Nedenleri (toplam)", en: "Downtime Reasons (total)", ar: "أسباب التوقف (الإجمالي)" },
   noRecordsYet: { tr: "Henüz kayıt yok", en: "No records yet", ar: "لا توجد سجلات بعد" },
   recentActivity: { tr: "Son Hareketler", en: "Recent Activity", ar: "آخر الأنشطة" },
+  overQtyLabel: { tr: "fazla girildi", en: "over-entered", ar: "أُدخل زيادة" },
+  newDepartmentBtn: { tr: "+ Yeni Bölüm", en: "+ New Department", ar: "+ قسم جديد" },
+  newDepartmentPrompt: { tr: "Yeni bölüm adı:", en: "New department name:", ar: "اسم القسم الجديد:" },
+  orderQtyInvalid: { tr: "Miktar 0'dan büyük bir sayı olmalı", en: "Quantity must be a number greater than 0", ar: "يجب أن تكون الكمية رقمًا أكبر من 0" },
+  orderNoItems: { tr: "En az bir ürün ve miktar girin", en: "Enter at least one product and quantity", ar: "أدخل منتجًا وكمية واحدة على الأقل" },
+  ordersPageDesc: { tr: "Yeni sipariş oluşturun ve mevcut siparişlerin aşamalarını buradan takip edin.", en: "Create new orders and track existing order stages here.", ar: "أنشئ طلبات جديدة وتتبع مراحل الطلبات الحالية من هنا." },
   uygun: { tr: "UYGUN", en: "ON TRACK", ar: "في الموعد" },
   sinirda: { tr: "SINIRDA", en: "AT RISK", ar: "في خطر" },
   gecikme: { tr: "GECİKME RİSKİ", en: "DELAY RISK", ar: "خطر التأخير" },
@@ -1500,6 +1507,7 @@ function UstaMode({ data, onBack, lang, dir }) {
   const [machineSearch, setMachineSearch] = useState("");
   // Son yapılan +/- düzeltmeyi geri almak için.
   const [lastAdjustment, setLastAdjustment] = useState(null);
+  const [producedDraft, setProducedDraft] = useState(null); // yazarken geçici değer; blur'da commit edilir
   const vibratedOrderRef = useRef(null);
 
   // While the operator is on a machine screen, stop the background poll entirely.
@@ -1597,6 +1605,18 @@ function UstaMode({ data, onBack, lang, dir }) {
       const newState = { ...state, produced: newProduced };
       await setMachineState(selectedMachine.code, newState);
       if (track && appliedDelta !== 0) setLastAdjustment({ type: "produced", delta: appliedDelta });
+    } catch { showToast(t("saveFailedToast", lang), "error"); }
+  }
+
+  // Usta, adet girerken yanlış bastıysa (örn. 61 yerine 60 olacaktı) +/- tuşlarıyla
+  // uğraşmadan direkt doğru sayıyı yazıp düzeltebilsin diye — sayı kutusu artık düzenlenebilir.
+  async function setProducedDirect(value) {
+    try {
+      const cap = runningOrder ? (runningOrder.miktar || Infinity) : Infinity;
+      const n = Math.min(cap, Math.max(0, parseInt(value, 10) || 0));
+      const newState = { ...state, produced: n };
+      await setMachineState(selectedMachine.code, newState);
+      setLastAdjustment(null);
     } catch { showToast(t("saveFailedToast", lang), "error"); }
   }
 
@@ -1984,13 +2004,25 @@ function UstaMode({ data, onBack, lang, dir }) {
             </div>
             <div style={{ display: "flex", alignItems: "center", gap: 14 }}>
               <BigButton onClick={() => adjustProduced(-1)} style={{ width: 56, height: 56, fontSize: 26, display: "flex", alignItems: "center", justifyContent: "center" }}>−</BigButton>
-              <div style={{
-                flex: 1, textAlign: "center", fontFamily: "'IBM Plex Mono', monospace", fontSize: 36, fontWeight: 700, color: COLORS.text,
-                background: COLORS.bgPanel, border: `1px solid ${orderComplete ? COLORS.accentRun : COLORS.border}`, borderRadius: 14, padding: "10px 0",
-              }}>
-                {state.produced}
-              </div>
+              <input
+                type="number"
+                inputMode="numeric"
+                value={producedDraft !== null ? producedDraft : state.produced}
+                onFocus={(e) => { setProducedDraft(String(state.produced)); e.target.select(); }}
+                onChange={(e) => setProducedDraft(e.target.value)}
+                onBlur={(e) => { setProducedDirect(e.target.value); setProducedDraft(null); }}
+                onKeyDown={(e) => { if (e.key === "Enter") e.target.blur(); }}
+                title={t("editProducedHint", lang)}
+                style={{
+                  flex: 1, textAlign: "center", fontFamily: "'IBM Plex Mono', monospace", fontSize: 36, fontWeight: 700, color: COLORS.text,
+                  background: COLORS.bgPanel, border: `1px solid ${orderComplete ? COLORS.accentRun : COLORS.border}`, borderRadius: 14, padding: "10px 0",
+                  WebkitAppearance: "none", MozAppearance: "textfield",
+                }}
+              />
               <BigButton onClick={() => adjustProduced(1)} variant="run" disabled={orderComplete} style={{ width: 56, height: 56, fontSize: 26, display: "flex", alignItems: "center", justifyContent: "center", opacity: orderComplete ? 0.4 : 1 }}>+</BigButton>
+            </div>
+            <div style={{ fontFamily: "'Inter', sans-serif", fontSize: 11, color: COLORS.textFaint, marginTop: 6, textAlign: "center" }}>
+              {t("editProducedHint", lang)}
             </div>
             <div style={{ display: "flex", gap: 8, marginTop: 10 }}>
               {[10, 25, 50].map((n) => (
@@ -2435,6 +2467,7 @@ function YoneticiMode({ data, onBack, lang, dir, profile }) {
   const NAV_GROUPS = [
     { id: "uretim", labelKey: "navGroupProduction", tabs: [
       { id: "durum", labelKey: "status" },
+      { id: "siparisler", labelKey: "orders" },
       { id: "dijital-ikiz", labelKey: "digitalTwinTitle" },
       { id: "kanban", labelKey: "kanbanTitle" },
       { id: "plan", labelKey: "productionPlan" },
@@ -2487,15 +2520,15 @@ function YoneticiMode({ data, onBack, lang, dir, profile }) {
         padding: "18px 20px 14px", borderBottom: `1px solid ${COLORS.border}`,
         position: "sticky", top: 0, background: COLORS.bg, zIndex: 10,
       }}>
-        <button onClick={onBack} style={{ display: "flex", alignItems: "center", gap: 6, background: "none", border: "none", color: COLORS.textDim, fontFamily: "'Inter', sans-serif", fontSize: 13, cursor: "pointer", padding: 0 }}>
-          <ChevronLeft size={15} style={backIcon} /> {t("chooseMode", lang)}
+        <button
+          onClick={() => setSidebarOpen(true)}
+          style={{ display: "flex", alignItems: "center", gap: 6, background: COLORS.bgPanel, border: `1px solid ${COLORS.border}`, color: COLORS.text, cursor: "pointer", padding: "8px 10px", borderRadius: 10 }}
+        >
+          <Menu size={15} />
         </button>
         <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
-          <button
-            onClick={() => setSidebarOpen(true)}
-            style={{ display: "flex", alignItems: "center", gap: 6, background: COLORS.bgPanel, border: `1px solid ${COLORS.border}`, color: COLORS.text, cursor: "pointer", padding: "8px 10px", borderRadius: 10 }}
-          >
-            <Menu size={15} />
+          <button onClick={onBack} style={{ display: "flex", alignItems: "center", gap: 6, background: "none", border: "none", color: COLORS.textDim, fontFamily: "'Inter', sans-serif", fontSize: 13, cursor: "pointer", padding: 0 }}>
+            <ChevronLeft size={15} style={backIcon} /> {t("chooseMode", lang)}
           </button>
           <button
             onClick={() => exportToExcel({ machines, plan, machineStates, log, orders })}
@@ -2662,12 +2695,25 @@ function YoneticiMode({ data, onBack, lang, dir, profile }) {
                 {log.slice(0, 8).map((l, i) => {
                   const reasonId = l.type === "duruş" ? downtimeIdFromTrLabel(l.label) : null;
                   const displayLabel = reasonId ? downtimeLabel(reasonId, lang) : l.label;
+                  // Üretilen adet, bağlı olduğu siparişin toplam miktarını geçtiyse
+                  // (örn. sipariş 60 iken usta 62 girdiyse) burada "+2 fazla" gibi uyarı gösterilir.
+                  const relatedOrder = l.type === "üretim" && l.detail?.orderId ? (orders || []).find((o) => o.id === l.detail.orderId) : null;
+                  const overQty = relatedOrder && l.detail?.qty > (relatedOrder.miktar || 0) ? l.detail.qty - relatedOrder.miktar : 0;
                   return (
                     <div key={i} style={{ display: "flex", alignItems: "center", gap: 10, padding: "8px 0", borderBottom: i < Math.min(log.length, 8) - 1 ? `1px solid ${COLORS.border}` : "none" }}>
                       <span style={{ fontFamily: "'IBM Plex Mono', monospace", fontSize: 11.5, color: COLORS.textFaint, width: 42, flexShrink: 0 }}>{fmtClock(l.time)}</span>
                       <div style={{ width: 6, height: 6, borderRadius: 99, flexShrink: 0, background: l.type === "üretim" ? COLORS.accentRun : COLORS.accentStop }} />
                       <span style={{ fontFamily: "'IBM Plex Mono', monospace", fontSize: 12, color: COLORS.accentWarn, width: 44, flexShrink: 0 }}>{l.machine}</span>
-                      <span style={{ fontFamily: "'Inter', sans-serif", fontSize: 12.5, color: COLORS.textDim }}>{displayLabel}</span>
+                      <span style={{ fontFamily: "'Inter', sans-serif", fontSize: 12.5, color: COLORS.textDim, flex: 1 }}>{displayLabel}</span>
+                      {overQty > 0 && (
+                        <span style={{
+                          fontFamily: "'IBM Plex Mono', monospace", fontSize: 10.5, fontWeight: 700, color: COLORS.accentStop,
+                          background: COLORS.accentStopDim, border: `1px solid ${COLORS.accentStop}50`, borderRadius: 6,
+                          padding: "2px 6px", flexShrink: 0, whiteSpace: "nowrap",
+                        }}>
+                          +{overQty} {t("overQtyLabel", lang)}
+                        </span>
+                      )}
                     </div>
                   );
                 })}
@@ -2676,6 +2722,8 @@ function YoneticiMode({ data, onBack, lang, dir, profile }) {
           </div>
         </div>
       )}
+
+      {tab === "siparisler" && <SiparislerPanel data={data} lang={lang} dir={dir} />}
 
       {tab === "dijital-ikiz" && <DigitalTwinPanel data={data} lang={lang} dir={dir} />}
 
@@ -2922,25 +2970,7 @@ function TanimlarPanel({ data, lang, dir }) {
   const [activeDept, setActiveDept] = useState(departments?.[0]?.id || "extruder");
   const [savedMsg, setSavedMsg] = useState(null);
   const [newProductText, setNewProductText] = useState("");
-  const [orderForm, setOrderForm] = useState({ siparisKodu: "", formNo: "", tarih: "", musteri: "", teslimTarihi: "", not: "" });
-  const [formItems, setFormItems] = useState([{ urun: "", renk: "", olcu: "", miktar: "", birim: "adet", siparis: "", kategori: "" }]);
-  const [stagePickers, setStagePickers] = useState({}); // orderId -> selected machine code (draft, before "Ekle")
-  const [stageCikanDraft, setStageCikanDraft] = useState({}); // stageId -> geçici yazılan değer (blur'da commit edilir)
 
-  // Üretilen adet elle düzeltildiğinde (yönetici tarafından), isteğe bağlı
-  // bir düzeltme nedeni sorulur ve bu neden "Geri Al" ekranında görünür.
-  // Tuş başına değil, sadece odak kaybolunca (blur) commit edilir.
-  function commitStageCikanEdit(orderId, stageId, prevValue, draftValue) {
-    setStageCikanDraft((prev) => {
-      const next = { ...prev };
-      delete next[stageId];
-      return next;
-    });
-    const newValue = Math.max(0, parseInt(draftValue) || 0);
-    if (newValue === prevValue) return; // değişiklik yoksa ne commit ne de soru
-    const reason = window.prompt(t("undoReasonPrompt", lang)) || null;
-    updateOrderStage(orderId, stageId, { cikan: newValue, reason });
-  }
 
   useEffect(() => { setLocalDepartments(departments); }, [departments]);
 
@@ -3026,63 +3056,17 @@ function TanimlarPanel({ data, lang, dir }) {
     updateDeptField((d) => ({ ...d, products: d.products.filter((p) => p !== product) }));
   }
 
-  // Sipariş ürün seçenekleri: tüm bölümlerin ürünleri + ER kapı modelleri.
-  const allOrderProducts = allProductsFrom(localDepartments);
-  // Sipariş makine seçenekleri: tüm bölümlerin makineleri + Kanat makineleri.
-  const allOrderMachines = allMachinesFrom(localDepartments);
-
-  // Gerçek sipariş formlarında (fotoğraftaki gibi) tek bir form numarası
-  // altında birden fazla kalem (model/miktar/birim) olabiliyor. Her kalem,
-  // kendi rotasında ayrı bir "sipariş" olarak izlenir ama hepsi aynı
-  // formNo ile etiketlenip birlikte gruplanır.
-  function addFormItemRow() {
-    setFormItems([...formItems, { urun: "", renk: "", olcu: "", miktar: "", birim: "adet", siparis: "", kategori: "" }]);
+  // Sabit dört bölümün (Extruder/Laminasyon/Deck/Kanat) dışında yönetici
+  // kendi başına yeni bir üretim bölümü tanımlayabilsin diye eklendi.
+  function addDepartment() {
+    const name = window.prompt(t("newDepartmentPrompt", lang));
+    if (!name || !name.trim()) return;
+    const id = `dept-${Date.now().toString(36)}`;
+    const newList = [...localDepartments, { id, name: name.trim(), machines: [], products: [] }];
+    setActiveDept(id);
+    saveDepartments(newList);
   }
-  function removeFormItemRow(idx) {
-    setFormItems(formItems.length > 1 ? formItems.filter((_, i) => i !== idx) : formItems);
-  }
-  function updateFormItemRow(idx, patch) {
-    setFormItems(formItems.map((row, i) => (i === idx ? { ...row, ...patch } : row)));
-  }
-  const [orderCodeError, setOrderCodeError] = useState("");
 
-  async function submitOrderForm() {
-    const validItems = formItems.filter((it) => it.urun && it.miktar);
-    if (validItems.length === 0) return;
-
-    const baseCode = (orderForm.siparisKodu || "").trim();
-    if (!baseCode) { setOrderCodeError(t("orderCodeRequired", lang)); return; }
-
-    // Birden fazla kalem varsa (aynı formda birden fazla ürün/miktar satırı),
-    // her kalem kullanıcının girdiği koda -1, -2... eki alarak benzersizleşir.
-    // Girilen kod (veya türetilen alt kodları) başka bir siparişte kullanılıyorsa
-    // hiçbir kayıt oluşturulmadan uyarı verilir — sistem otomatik kod atamaz.
-    const candidateIds = validItems.map((_, i) => (validItems.length > 1 ? `${baseCode}-${i + 1}` : baseCode));
-    const existingIds = new Set((orders || []).map((o) => o.id));
-    if (candidateIds.some((id) => existingIds.has(id))) { setOrderCodeError(t("orderCodeDuplicate", lang)); return; }
-    setOrderCodeError("");
-
-    const sharedFormNo = orderForm.formNo || `FRM-${Date.now().toString().slice(-6)}`;
-    for (let i = 0; i < validItems.length; i++) {
-      const item = validItems[i];
-      const id = candidateIds[i];
-      const route = (productRoutes || []).find((r) => r.productName === item.urun);
-      const asamalar = route
-        ? route.stages.map((s, si) => ({ id: `AS${Date.now().toString().slice(-6)}${si}${Math.floor(Math.random() * 90)}`, makine: s.machine, durum: STAGE_STATUS.WAITING, cikan: 0 }))
-        : [];
-      await addOrder({
-        id, urun: item.urun, musteri: orderForm.musteri || "—",
-        renk: item.renk || "", olcu: item.olcu || "", siparis: item.siparis || "", kategori: item.kategori || "",
-        miktar: parseInt(item.miktar) || 0, birim: item.birim || "adet",
-        teslimTarihi: orderForm.teslimTarihi || "",
-        formNo: sharedFormNo, formTarihi: orderForm.tarih || "",
-        not: orderForm.not || "",
-        durum: ORDER_STATUS.PENDING, asamalar,
-      });
-    }
-    setOrderForm({ siparisKodu: "", formNo: "", tarih: "", musteri: "", teslimTarihi: "", not: "" });
-    setFormItems([{ urun: "", renk: "", olcu: "", miktar: "", birim: "adet", siparis: "", kategori: "" }]);
-  }
 
   // NOT: Eskiden burada aşama durumunu doğrudan değiştiren (cikan'a
   // dokunmadan) bir "cycleStageStatus" fonksiyonu vardı. Bu, stok tüketimini,
@@ -3098,6 +3082,13 @@ function TanimlarPanel({ data, lang, dir }) {
       {/* ---- Bölüm sekmeleri: Makineler + Ürünler ---- */}
       <div>
         <div style={{ display: "flex", gap: 8, marginBottom: 16, flexWrap: "wrap" }}>
+          <button onClick={addDepartment} style={{
+            display: "flex", alignItems: "center", gap: 4, padding: "7px 14px", borderRadius: 10,
+            border: `1px dashed ${COLORS.accentRun}70`, background: "transparent", color: COLORS.accentRun,
+            fontFamily: "'Inter', sans-serif", fontSize: 12.5, fontWeight: 600, cursor: "pointer",
+          }}>
+            <Plus size={12} /> {t("newDepartmentBtn", lang)}
+          </button>
           {localDepartments.map((d) => (
             <button key={d.id} onClick={() => setActiveDept(d.id)} style={{
               padding: "7px 14px", borderRadius: 10, border: `1px solid ${activeDept === d.id ? COLORS.accentRun : COLORS.border}`,
@@ -3235,231 +3226,6 @@ function TanimlarPanel({ data, lang, dir }) {
         </div>
       </div>
 
-      {/* ---- Siparişler ---- */}
-      <div>
-        <div style={{ fontFamily: "'Archivo', sans-serif", fontWeight: 700, fontSize: 16, color: COLORS.text, marginBottom: 12 }}>
-          {t("orders", lang)}
-        </div>
-
-        <div style={{ background: COLORS.bgRaised, border: `1px solid ${COLORS.border}`, borderRadius: 12, padding: 14, marginBottom: 16 }}>
-          <div style={{ fontFamily: "'IBM Plex Mono', monospace", fontSize: 10.5, color: COLORS.textFaint, letterSpacing: 1, textTransform: "uppercase", marginBottom: 10 }}>
-            {t("newOrderForm", lang)}
-          </div>
-
-          <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 8, marginBottom: 8 }}>
-            <div>
-              <input
-                value={orderForm.siparisKodu}
-                onChange={(e) => { setOrderForm({ ...orderForm, siparisKodu: e.target.value }); setOrderCodeError(""); }}
-                placeholder={t("orderCode", lang) + " *"}
-                style={{ ...inputStyle, border: `1px solid ${orderCodeError ? COLORS.accentStop : COLORS.border}`, width: "100%" }}
-              />
-            </div>
-            <input value={orderForm.formNo} onChange={(e) => setOrderForm({ ...orderForm, formNo: e.target.value })} placeholder={t("formNo", lang)} style={inputStyle} />
-            <input type="date" value={orderForm.tarih} onChange={(e) => setOrderForm({ ...orderForm, tarih: e.target.value })} style={inputStyle} title={t("formDate", lang)} />
-          </div>
-          {orderCodeError && (
-            <div style={{ fontFamily: "'Inter', sans-serif", fontSize: 11.5, color: COLORS.accentStop, marginTop: -4, marginBottom: 10 }}>
-              {orderCodeError}
-            </div>
-          )}
-          <div style={{ display: "grid", gridTemplateColumns: "1.3fr 1fr", gap: 8, marginBottom: 12 }}>
-            <input value={orderForm.musteri} onChange={(e) => setOrderForm({ ...orderForm, musteri: e.target.value })} placeholder={t("orderCustomer", lang)} style={inputStyle} />
-            <input type="date" value={orderForm.teslimTarihi} onChange={(e) => setOrderForm({ ...orderForm, teslimTarihi: e.target.value })} style={inputStyle} title={t("orderDueDate", lang)} />
-          </div>
-          <textarea
-            value={orderForm.not}
-            onChange={(e) => setOrderForm({ ...orderForm, not: e.target.value })}
-            placeholder={t("orderNotesPlaceholder", lang)}
-            rows={2}
-            style={{ ...inputStyle, width: "100%", marginBottom: 12, resize: "vertical", fontFamily: "'Inter', sans-serif" }}
-          />
-
-          <div style={{ fontFamily: "'Inter', sans-serif", fontSize: 11, color: COLORS.textFaint, marginBottom: 6 }}>{t("formItemsTitle", lang)}</div>
-          <div style={{ overflowX: "auto", marginBottom: 8 }}>
-            <div style={{ minWidth: 820 }}>
-              <div style={{
-                display: "grid", gridTemplateColumns: "1.5fr 0.9fr 0.9fr 0.7fr 0.9fr 1fr 1fr 32px", gap: 8,
-                padding: "0 0 6px", borderBottom: `2px solid ${COLORS.border}`, marginBottom: 6,
-              }}>
-                {["colModel", "colRenk", "colOlcu", "colMiktar", "colBirim", "colSiparis", "colKategori"].map((k) => (
-                  <div key={k} style={{ fontFamily: "'Inter', sans-serif", fontSize: 10.5, fontWeight: 700, letterSpacing: 0.5, color: COLORS.textFaint }}>
-                    {t(k, lang)}
-                  </div>
-                ))}
-                <div />
-              </div>
-              <div style={{ display: "grid", gap: 6 }}>
-                {formItems.map((row, idx) => (
-                  <div key={idx} style={{ display: "grid", gridTemplateColumns: "1.5fr 0.9fr 0.9fr 0.7fr 0.9fr 1fr 1fr 32px", gap: 8 }}>
-                    <select value={row.urun} onChange={(e) => updateFormItemRow(idx, { urun: e.target.value })} style={inputStyle}>
-                      <option value="">{t("selectProduct", lang)}</option>
-                      {allOrderProducts.map((p) => <option key={p} value={p}>{p}</option>)}
-                    </select>
-                    <input value={row.renk} onChange={(e) => updateFormItemRow(idx, { renk: e.target.value })} placeholder={t("colRenk", lang)} style={inputStyle} />
-                    <input value={row.olcu} onChange={(e) => updateFormItemRow(idx, { olcu: e.target.value })} placeholder={t("colOlcu", lang)} style={inputStyle} />
-                    <input type="number" value={row.miktar} onChange={(e) => updateFormItemRow(idx, { miktar: e.target.value })} placeholder={t("orderQty", lang)} style={inputStyle} />
-                    <select value={row.birim} onChange={(e) => updateFormItemRow(idx, { birim: e.target.value })} style={inputStyle}>
-                      <option value="adet">ADET</option>
-                      <option value="takım">TAKIM</option>
-                      <option value="m2">M²</option>
-                      <option value="kg">KG</option>
-                    </select>
-                    <input value={row.siparis} onChange={(e) => updateFormItemRow(idx, { siparis: e.target.value })} placeholder={t("colSiparis", lang)} style={inputStyle} />
-                    <input value={row.kategori} onChange={(e) => updateFormItemRow(idx, { kategori: e.target.value })} placeholder={t("colKategori", lang)} style={inputStyle} />
-                    <button onClick={() => removeFormItemRow(idx)} style={{ background: "none", border: `1px solid ${COLORS.border}`, borderRadius: 8, color: COLORS.textFaint, cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center" }}>
-                      <X size={13} />
-                    </button>
-                  </div>
-                ))}
-              </div>
-            </div>
-          </div>
-          <div style={{ display: "flex", gap: 8 }}>
-            <button onClick={addFormItemRow} style={{ display: "flex", alignItems: "center", gap: 6, padding: "8px 12px", borderRadius: 8, border: `1px solid ${COLORS.border}`, background: "transparent", color: COLORS.textDim, fontFamily: "'Inter', sans-serif", fontSize: 12, fontWeight: 600, cursor: "pointer" }}>
-              <Plus size={13} /> {t("addLineItem", lang)}
-            </button>
-            <button onClick={submitOrderForm} style={{ display: "flex", alignItems: "center", gap: 6, padding: "8px 16px", borderRadius: 8, border: `1px solid ${COLORS.accentRun}50`, background: COLORS.accentRunDim, color: COLORS.accentRun, fontFamily: "'Inter', sans-serif", fontSize: 12.5, fontWeight: 700, cursor: "pointer" }}>
-              {t("createOrderForm", lang)}
-            </button>
-          </div>
-        </div>
-
-        <div style={{ display: "grid", gap: 10 }}>
-          {(orders || []).map((o) => {
-            const delivered = o.durum === ORDER_STATUS.DELIVERED;
-            const stages = o.asamalar || [];
-            const doneCount = stages.filter((s) => s.durum === STAGE_STATUS.DONE).length;
-            const activeStage = stages.find((s) => s.durum === STAGE_STATUS.RUNNING) || stages.find((s) => s.durum === STAGE_STATUS.WAITING);
-            const activeMachine = activeStage ? allOrderMachines.find((m) => m.code === activeStage.makine) : null;
-            const draftMachine = stagePickers[o.id] || "";
-            return (
-              <div key={o.id} style={{
-                background: COLORS.bgPanel, border: `1px solid ${delivered ? COLORS.accentRun + "40" : COLORS.border}`,
-                borderRadius: 12, padding: "12px 16px",
-              }}>
-                <div style={{ display: "flex", alignItems: "flex-start", justifyContent: "space-between", gap: 12, flexWrap: "wrap" }}>
-                  <div>
-                    <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
-                      <span style={{ fontFamily: "'IBM Plex Mono', monospace", fontSize: 12, color: COLORS.accentWarn }}>{o.id}</span>
-                      <span style={{ fontFamily: "'Inter', sans-serif", fontSize: 13.5, fontWeight: 600, color: COLORS.text }}>{o.urun}</span>
-                      {o.formNo && (
-                        <span style={{ fontFamily: "'IBM Plex Mono', monospace", fontSize: 10, color: COLORS.textFaint, border: `1px solid ${COLORS.border}`, borderRadius: 6, padding: "2px 6px" }}>
-                          {t("formLabel", lang)} {o.formNo}
-                        </span>
-                      )}
-                    </div>
-                    <div style={{ fontFamily: "'Inter', sans-serif", fontSize: 12, color: COLORS.textFaint, marginTop: 2 }}>
-                      {o.musteri} · {o.miktar} {o.birim ? o.birim.toUpperCase() : t("units", lang)} {o.teslimTarihi && `· ${t("due", lang)} ${fmtDateShort(o.teslimTarihi)}`}
-                      {(o.renk || o.olcu || o.kategori) && (
-                        <> · {[o.renk, o.olcu, o.kategori].filter(Boolean).join(" · ")}</>
-                      )}
-                    </div>
-                    <div style={{ fontFamily: "'Inter', sans-serif", fontSize: 12, color: COLORS.textDim, marginTop: 4 }}>
-                      {stages.length === 0
-                        ? t("noStagesYet", lang)
-                        : activeStage
-                        ? <>{doneCount}/{stages.length} {t("stageOf", lang)} · <span style={{ color: COLORS.accentWarn }}>{t("currentStageLabel", lang)}</span> {activeStage.makine} {activeMachine ? `(${activeMachine.name})` : ""} · {activeStage.cikan}/{o.miktar} {t("units", lang)}</>
-                        : <span style={{ color: COLORS.accentRun }}>{t("allStagesDoneLabel", lang)}</span>}
-                    </div>
-                  </div>
-                  <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
-                    <button
-                      onClick={() => markOrderDelivered(o.id, !delivered)}
-                      style={{
-                        display: "flex", alignItems: "center", gap: 6, padding: "6px 12px", borderRadius: 8,
-                        border: `1px solid ${delivered ? COLORS.accentRun : COLORS.border}`,
-                        background: delivered ? COLORS.accentRunDim : "transparent",
-                        color: delivered ? COLORS.accentRun : COLORS.textDim,
-                        fontFamily: "'IBM Plex Mono', monospace", fontSize: 11, fontWeight: 700, cursor: "pointer",
-                      }}
-                    >
-                      {delivered && <Check size={12} />}
-                      {delivered ? t("orderDelivered", lang) : t("orderPending", lang)}
-                    </button>
-                    <button onClick={() => removeOrder(o.id)} style={{ background: "none", border: "none", color: COLORS.accentStop, cursor: "pointer", display: "flex" }}>
-                      <Trash2 size={15} />
-                    </button>
-                  </div>
-                </div>
-
-                {/* ---- Aşama takibi ---- */}
-                <div style={{ marginTop: 10, paddingTop: 10, borderTop: `1px solid ${COLORS.border}` }}>
-                  {stages.length > 0 && (
-                    <div style={{ fontFamily: "'Inter', sans-serif", fontSize: 10.5, color: COLORS.textFaint, marginBottom: 6 }}>
-                      {t("stageManualEditHint", lang)}
-                    </div>
-                  )}
-                  {stages.length > 0 && (
-                    <div style={{ display: "grid", gap: 6, marginBottom: 8 }}>
-                      {stages.map((s, idx) => {
-                        const mach = allOrderMachines.find((m) => m.code === s.makine);
-                        const statusColor = s.durum === STAGE_STATUS.DONE ? COLORS.accentRun : s.durum === STAGE_STATUS.RUNNING ? COLORS.accentWarn : COLORS.textFaint;
-                        const statusLabel = s.durum === STAGE_STATUS.DONE ? t("stageDone", lang) : s.durum === STAGE_STATUS.RUNNING ? t("stageRunning", lang) : t("stageWaiting", lang);
-                        return (
-                          <div key={s.id} style={{ display: "grid", gridTemplateColumns: "20px 1fr 100px 90px 24px", gap: 8, alignItems: "center" }}>
-                            <span style={{ fontFamily: "'IBM Plex Mono', monospace", fontSize: 10.5, color: COLORS.textFaint, textAlign: "center" }}>{idx + 1}</span>
-                            <span style={{ fontFamily: "'IBM Plex Mono', monospace", fontSize: 11.5, color: COLORS.text }}>
-                              {s.makine} <span style={{ color: COLORS.textFaint }}>{mach ? `· ${mach.name}` : ""}</span>
-                            </span>
-                            <span
-                              style={{
-                                fontFamily: "'IBM Plex Mono', monospace", fontSize: 10.5, fontWeight: 700,
-                                border: `1px solid ${statusColor}50`, background: statusColor + "20", color: statusColor,
-                                borderRadius: 6, padding: "3px 6px", textAlign: "center",
-                              }}
-                              title={t("stageStatusReadOnlyHint", lang)}
-                            >
-                              {statusLabel}
-                            </span>
-                            <input
-                              type="number"
-                              value={stageCikanDraft[s.id] !== undefined ? stageCikanDraft[s.id] : s.cikan}
-                              onChange={(e) => setStageCikanDraft({ ...stageCikanDraft, [s.id]: e.target.value })}
-                              onBlur={(e) => commitStageCikanEdit(o.id, s.id, s.cikan, e.target.value)}
-                              onKeyDown={(e) => { if (e.key === "Enter") e.target.blur(); }}
-                              placeholder={t("stageOutputQty", lang)}
-                              style={{ ...inputStyle, fontSize: 11, padding: "4px 6px" }}
-                            />
-                            <button onClick={() => removeOrderStage(o.id, s.id)} style={{ background: "none", border: "none", color: COLORS.accentStop, cursor: "pointer", display: "flex", justifyContent: "center" }}>
-                              <X size={13} />
-                            </button>
-                          </div>
-                        );
-                      })}
-                    </div>
-                  )}
-                  <div style={{ display: "flex", gap: 6 }}>
-                    <select
-                      value={draftMachine}
-                      onChange={(e) => setStagePickers({ ...stagePickers, [o.id]: e.target.value })}
-                      style={{ ...inputStyle, fontSize: 11.5, flex: 1 }}
-                    >
-                      <option value="">{t("stagePickMachine", lang)}</option>
-                      {DEPARTMENT_GROUPS.map((grp) => {
-                        const opts = allOrderMachines.filter((m) => m.departmentId === grp.id);
-                        if (opts.length === 0) return null;
-                        return (
-                          <optgroup key={grp.id} label={grp.label(lang)}>
-                            {opts.map((m) => <option key={m.code} value={m.code}>{m.code} · {m.name}</option>)}
-                          </optgroup>
-                        );
-                      })}
-                    </select>
-                    <button
-                      onClick={() => { if (draftMachine) { addOrderStage(o.id, draftMachine); setStagePickers({ ...stagePickers, [o.id]: "" }); } }}
-                      style={{ display: "flex", alignItems: "center", gap: 4, background: COLORS.accentRunDim, border: `1px solid ${COLORS.accentRun}50`, color: COLORS.accentRun, padding: "0 12px", borderRadius: 8, cursor: "pointer", fontFamily: "'Inter', sans-serif", fontSize: 11.5, fontWeight: 600 }}
-                    >
-                      <Plus size={12} /> {t("addStage", lang)}
-                    </button>
-                  </div>
-                </div>
-              </div>
-            );
-          })}
-        </div>
-      </div>
-
       {/* ---- ER Kapı Model Kataloğu (referans) ---- */}
       <div>
         <div style={{ fontFamily: "'Archivo', sans-serif", fontWeight: 700, fontSize: 16, color: COLORS.text, marginBottom: 6 }}>
@@ -3501,6 +3267,368 @@ const inputStyle = {
   background: COLORS.bgRaised, border: `1px solid ${COLORS.border}`, borderRadius: 8,
   color: COLORS.text, fontFamily: "'Inter', sans-serif", fontSize: 13, padding: "8px 10px", width: "100%", outline: "none",
 };
+
+// =================================================================
+// SİPARİŞLER PANELİ — sipariş girişi artık Tanımlar'ın içinde değil,
+// kendi başlığı ve kendi sayfası altında ayrı bir sekme.
+// =================================================================
+function SiparislerPanel({ data, lang, dir }) {
+  const { departments, orders, addOrder, removeOrder, markOrderDelivered, addOrderStage, removeOrderStage, updateOrderStage, productRoutes } = data;
+  const [orderForm, setOrderForm] = useState({ siparisKodu: "", formNo: "", tarih: "", musteri: "", teslimTarihi: "", not: "" });
+  const [formItems, setFormItems] = useState([{ urun: "", renk: "", olcu: "", miktar: "", birim: "adet", siparis: "", kategori: "" }]);
+  const [stagePickers, setStagePickers] = useState({}); // orderId -> selected machine code (draft, before "Ekle")
+  const [stageCikanDraft, setStageCikanDraft] = useState({}); // stageId -> geçici yazılan değer (blur'da commit edilir)
+  const [orderCodeError, setOrderCodeError] = useState("");
+  const [rowErrors, setRowErrors] = useState({}); // idx -> hata mesajı (örn. miktar boş/0 girildiyse)
+
+  // Üretilen adet elle düzeltildiğinde (yönetici tarafından), isteğe bağlı
+  // bir düzeltme nedeni sorulur ve bu neden "Geri Al" ekranında görünür.
+  // Tuş başına değil, sadece odak kaybolunca (blur) commit edilir.
+  function commitStageCikanEdit(orderId, stageId, prevValue, draftValue) {
+    setStageCikanDraft((prev) => {
+      const next = { ...prev };
+      delete next[stageId];
+      return next;
+    });
+    const newValue = Math.max(0, parseInt(draftValue) || 0);
+    if (newValue === prevValue) return; // değişiklik yoksa ne commit ne de soru
+    const reason = window.prompt(t("undoReasonPrompt", lang)) || null;
+    updateOrderStage(orderId, stageId, { cikan: newValue, reason });
+  }
+
+  if (!departments) return null;
+  // Sipariş ürün seçenekleri: tüm bölümlerin ürünleri + ER kapı modelleri.
+  const allOrderProducts = allProductsFrom(departments);
+  // Sipariş makine seçenekleri: tüm bölümlerin makineleri + Kanat makineleri.
+  const allOrderMachines = allMachinesFrom(departments);
+
+  // Gerçek sipariş formlarında (fotoğraftaki gibi) tek bir form numarası
+  // altında birden fazla kalem (model/miktar/birim) olabiliyor. Her kalem,
+  // kendi rotasında ayrı bir "sipariş" olarak izlenir ama hepsi aynı
+  // formNo ile etiketlenip birlikte gruplanır.
+  function addFormItemRow() {
+    setFormItems([...formItems, { urun: "", renk: "", olcu: "", miktar: "", birim: "adet", siparis: "", kategori: "" }]);
+  }
+  function removeFormItemRow(idx) {
+    setFormItems(formItems.length > 1 ? formItems.filter((_, i) => i !== idx) : formItems);
+    setRowErrors((prev) => {
+      const next = { ...prev };
+      delete next[idx];
+      return next;
+    });
+  }
+  function updateFormItemRow(idx, patch) {
+    setFormItems(formItems.map((row, i) => (i === idx ? { ...row, ...patch } : row)));
+    if (rowErrors[idx]) setRowErrors((prev) => { const next = { ...prev }; delete next[idx]; return next; });
+  }
+
+  // Aynı sipariş kodu birden fazla kez (farklı ürünler/formlar için)
+  // kullanılabilsin diye — kod çakışırsa hata verip durmak yerine
+  // otomatik olarak -2, -3... eki eklenerek benzersiz hale getirilir.
+  function makeUniqueId(base, existingIds) {
+    if (!existingIds.has(base)) return base;
+    let n = 2;
+    while (existingIds.has(`${base}-${n}`)) n++;
+    return `${base}-${n}`;
+  }
+
+  async function submitOrderForm() {
+    // Ürün seçilmiş ama miktar boş/0/negatif girilen satırlar artık
+    // sessizce yok sayılmıyor — kullanıcıya satır bazında hata gösteriliyor.
+    // (Daha önce "0" veya boş miktar sessizce 0 olarak kaydediliyordu, bu
+    // da yanlış/eksik sipariş kayıtlarına yol açıyordu.)
+    const errors = {};
+    formItems.forEach((it, idx) => {
+      if (!it.urun) return; // tamamen boş satır — yok say
+      const qty = parseInt(it.miktar, 10);
+      if (it.miktar === "" || isNaN(qty) || qty <= 0) errors[idx] = t("orderQtyInvalid", lang);
+    });
+    if (Object.keys(errors).length > 0) { setRowErrors(errors); return; }
+    setRowErrors({});
+
+    const validItems = formItems.filter((it) => it.urun && it.miktar);
+    if (validItems.length === 0) { setOrderCodeError(t("orderNoItems", lang)); return; }
+
+    const baseCode = (orderForm.siparisKodu || "").trim();
+    if (!baseCode) { setOrderCodeError(t("orderCodeRequired", lang)); return; }
+    setOrderCodeError("");
+
+    // Aynı sipariş kodu (örn. aynı müşteri/proje kodu) birden fazla üründe
+    // veya farklı bir form gönderiminde tekrar kullanılabilir — çakışma
+    // durumunda hata vermek yerine otomatik olarak benzersizleştirilir.
+    const existingIds = new Set((orders || []).map((o) => o.id));
+    const candidateIds = validItems.map((_, i) => {
+      const base = validItems.length > 1 ? `${baseCode}-${i + 1}` : baseCode;
+      const uniqueId = makeUniqueId(base, existingIds);
+      existingIds.add(uniqueId); // aynı formdaki sonraki kalemle çakışmasın
+      return uniqueId;
+    });
+
+    const sharedFormNo = orderForm.formNo || `FRM-${Date.now().toString().slice(-6)}`;
+    for (let i = 0; i < validItems.length; i++) {
+      const item = validItems[i];
+      const id = candidateIds[i];
+      const route = (productRoutes || []).find((r) => r.productName === item.urun);
+      const asamalar = route
+        ? route.stages.map((s, si) => ({ id: `AS${Date.now().toString().slice(-6)}${si}${Math.floor(Math.random() * 90)}`, makine: s.machine, durum: STAGE_STATUS.WAITING, cikan: 0 }))
+        : [];
+      await addOrder({
+        id, urun: item.urun, musteri: orderForm.musteri || "—",
+        renk: item.renk || "", olcu: item.olcu || "", siparis: item.siparis || "", kategori: item.kategori || "",
+        miktar: parseInt(item.miktar) || 0, birim: item.birim || "adet",
+        teslimTarihi: orderForm.teslimTarihi || "",
+        formNo: sharedFormNo, formTarihi: orderForm.tarih || "",
+        not: orderForm.not || "",
+        durum: ORDER_STATUS.PENDING, asamalar,
+      });
+    }
+    setOrderForm({ siparisKodu: "", formNo: "", tarih: "", musteri: "", teslimTarihi: "", not: "" });
+    setFormItems([{ urun: "", renk: "", olcu: "", miktar: "", birim: "adet", siparis: "", kategori: "" }]);
+  }
+
+  return (
+    <div dir={dir} style={{ maxWidth: 900, margin: "0 auto", padding: "18px 20px 60px", display: "grid", gap: 20 }}>
+      <div>
+        <div style={{ fontFamily: "'Archivo', sans-serif", fontWeight: 800, fontSize: 22, color: COLORS.text, marginBottom: 6 }}>
+          {t("orders", lang)}
+        </div>
+        <div style={{ fontFamily: "'Inter', sans-serif", fontSize: 12.5, color: COLORS.textFaint }}>
+          {t("ordersPageDesc", lang)}
+        </div>
+      </div>
+
+      <div style={{ background: COLORS.bgRaised, border: `1px solid ${COLORS.border}`, borderRadius: 12, padding: 14 }}>
+        <div style={{ fontFamily: "'IBM Plex Mono', monospace", fontSize: 10.5, color: COLORS.textFaint, letterSpacing: 1, textTransform: "uppercase", marginBottom: 10 }}>
+          {t("newOrderForm", lang)}
+        </div>
+
+        <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 8, marginBottom: 8 }}>
+          <div>
+            <input
+              value={orderForm.siparisKodu}
+              onChange={(e) => { setOrderForm({ ...orderForm, siparisKodu: e.target.value }); setOrderCodeError(""); }}
+              placeholder={t("orderCode", lang) + " *"}
+              style={{ ...inputStyle, border: `1px solid ${orderCodeError ? COLORS.accentStop : COLORS.border}`, width: "100%" }}
+            />
+          </div>
+          <input value={orderForm.formNo} onChange={(e) => setOrderForm({ ...orderForm, formNo: e.target.value })} placeholder={t("formNo", lang)} style={inputStyle} />
+          <input type="date" value={orderForm.tarih} onChange={(e) => setOrderForm({ ...orderForm, tarih: e.target.value })} style={inputStyle} title={t("formDate", lang)} />
+        </div>
+        {orderCodeError && (
+          <div style={{ fontFamily: "'Inter', sans-serif", fontSize: 11.5, color: COLORS.accentStop, marginTop: -4, marginBottom: 10 }}>
+            {orderCodeError}
+          </div>
+        )}
+        <div style={{ display: "grid", gridTemplateColumns: "1.3fr 1fr", gap: 8, marginBottom: 12 }}>
+          <input value={orderForm.musteri} onChange={(e) => setOrderForm({ ...orderForm, musteri: e.target.value })} placeholder={t("orderCustomer", lang)} style={inputStyle} />
+          <input type="date" value={orderForm.teslimTarihi} onChange={(e) => setOrderForm({ ...orderForm, teslimTarihi: e.target.value })} style={inputStyle} title={t("orderDueDate", lang)} />
+        </div>
+        <textarea
+          value={orderForm.not}
+          onChange={(e) => setOrderForm({ ...orderForm, not: e.target.value })}
+          placeholder={t("orderNotesPlaceholder", lang)}
+          rows={2}
+          style={{ ...inputStyle, width: "100%", marginBottom: 12, resize: "vertical", fontFamily: "'Inter', sans-serif" }}
+        />
+
+        <div style={{ fontFamily: "'Inter', sans-serif", fontSize: 11, color: COLORS.textFaint, marginBottom: 6 }}>{t("formItemsTitle", lang)}</div>
+        <div style={{ overflowX: "auto", marginBottom: 8 }}>
+          <div style={{ minWidth: 820 }}>
+            <div style={{
+              display: "grid", gridTemplateColumns: "1.5fr 0.9fr 0.9fr 0.7fr 0.9fr 1fr 1fr 32px", gap: 8,
+              padding: "0 0 6px", borderBottom: `2px solid ${COLORS.border}`, marginBottom: 6,
+            }}>
+              {["colModel", "colRenk", "colOlcu", "colMiktar", "colBirim", "colSiparis", "colKategori"].map((k) => (
+                <div key={k} style={{ fontFamily: "'Inter', sans-serif", fontSize: 10.5, fontWeight: 700, letterSpacing: 0.5, color: COLORS.textFaint }}>
+                  {t(k, lang)}
+                </div>
+              ))}
+              <div />
+            </div>
+            <div style={{ display: "grid", gap: 6 }}>
+              {formItems.map((row, idx) => (
+                <div key={idx}>
+                  <div style={{ display: "grid", gridTemplateColumns: "1.5fr 0.9fr 0.9fr 0.7fr 0.9fr 1fr 1fr 32px", gap: 8 }}>
+                    <select value={row.urun} onChange={(e) => updateFormItemRow(idx, { urun: e.target.value })} style={inputStyle}>
+                      <option value="">{t("selectProduct", lang)}</option>
+                      {allOrderProducts.map((p) => <option key={p} value={p}>{p}</option>)}
+                    </select>
+                    <input value={row.renk} onChange={(e) => updateFormItemRow(idx, { renk: e.target.value })} placeholder={t("colRenk", lang)} style={inputStyle} />
+                    <input value={row.olcu} onChange={(e) => updateFormItemRow(idx, { olcu: e.target.value })} placeholder={t("colOlcu", lang)} style={inputStyle} />
+                    <input
+                      type="number" min="1" value={row.miktar}
+                      onChange={(e) => updateFormItemRow(idx, { miktar: e.target.value })}
+                      placeholder={t("orderQty", lang)}
+                      style={{ ...inputStyle, border: `1px solid ${rowErrors[idx] ? COLORS.accentStop : COLORS.border}` }}
+                    />
+                    <select value={row.birim} onChange={(e) => updateFormItemRow(idx, { birim: e.target.value })} style={inputStyle}>
+                      <option value="adet">ADET</option>
+                      <option value="takım">TAKIM</option>
+                      <option value="m2">M²</option>
+                      <option value="kg">KG</option>
+                    </select>
+                    <input value={row.siparis} onChange={(e) => updateFormItemRow(idx, { siparis: e.target.value })} placeholder={t("colSiparis", lang)} style={inputStyle} />
+                    <input value={row.kategori} onChange={(e) => updateFormItemRow(idx, { kategori: e.target.value })} placeholder={t("colKategori", lang)} style={inputStyle} />
+                    <button onClick={() => removeFormItemRow(idx)} style={{ background: "none", border: `1px solid ${COLORS.border}`, borderRadius: 8, color: COLORS.textFaint, cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center" }}>
+                      <X size={13} />
+                    </button>
+                  </div>
+                  {rowErrors[idx] && (
+                    <div style={{ fontFamily: "'Inter', sans-serif", fontSize: 11, color: COLORS.accentStop, marginTop: 3 }}>
+                      {rowErrors[idx]}
+                    </div>
+                  )}
+                </div>
+              ))}
+            </div>
+          </div>
+        </div>
+        <div style={{ display: "flex", gap: 8 }}>
+          <button onClick={addFormItemRow} style={{ display: "flex", alignItems: "center", gap: 6, padding: "8px 12px", borderRadius: 8, border: `1px solid ${COLORS.border}`, background: "transparent", color: COLORS.textDim, fontFamily: "'Inter', sans-serif", fontSize: 12, fontWeight: 600, cursor: "pointer" }}>
+            <Plus size={13} /> {t("addLineItem", lang)}
+          </button>
+          <button onClick={submitOrderForm} style={{ display: "flex", alignItems: "center", gap: 6, padding: "8px 16px", borderRadius: 8, border: `1px solid ${COLORS.accentRun}50`, background: COLORS.accentRunDim, color: COLORS.accentRun, fontFamily: "'Inter', sans-serif", fontSize: 12.5, fontWeight: 700, cursor: "pointer" }}>
+            {t("createOrderForm", lang)}
+          </button>
+        </div>
+      </div>
+
+      <div style={{ display: "grid", gap: 10 }}>
+        {(orders || []).map((o) => {
+          const delivered = o.durum === ORDER_STATUS.DELIVERED;
+          const stages = o.asamalar || [];
+          const doneCount = stages.filter((s) => s.durum === STAGE_STATUS.DONE).length;
+          const activeStage = stages.find((s) => s.durum === STAGE_STATUS.RUNNING) || stages.find((s) => s.durum === STAGE_STATUS.WAITING);
+          const activeMachine = activeStage ? allOrderMachines.find((m) => m.code === activeStage.makine) : null;
+          const draftMachine = stagePickers[o.id] || "";
+          return (
+            <div key={o.id} style={{
+              background: COLORS.bgPanel, border: `1px solid ${delivered ? COLORS.accentRun + "40" : COLORS.border}`,
+              borderRadius: 12, padding: "12px 16px",
+            }}>
+              <div style={{ display: "flex", alignItems: "flex-start", justifyContent: "space-between", gap: 12, flexWrap: "wrap" }}>
+                <div>
+                  <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+                    <span style={{ fontFamily: "'IBM Plex Mono', monospace", fontSize: 12, color: COLORS.accentWarn }}>{o.id}</span>
+                    <span style={{ fontFamily: "'Inter', sans-serif", fontSize: 13.5, fontWeight: 600, color: COLORS.text }}>{o.urun}</span>
+                    {o.formNo && (
+                      <span style={{ fontFamily: "'IBM Plex Mono', monospace", fontSize: 10, color: COLORS.textFaint, border: `1px solid ${COLORS.border}`, borderRadius: 6, padding: "2px 6px" }}>
+                        {t("formLabel", lang)} {o.formNo}
+                      </span>
+                    )}
+                  </div>
+                  <div style={{ fontFamily: "'Inter', sans-serif", fontSize: 12, color: COLORS.textFaint, marginTop: 2 }}>
+                    {o.musteri} · {o.miktar} {o.birim ? o.birim.toUpperCase() : t("units", lang)} {o.teslimTarihi && `· ${t("due", lang)} ${fmtDateShort(o.teslimTarihi)}`}
+                    {(o.renk || o.olcu || o.kategori) && (
+                      <> · {[o.renk, o.olcu, o.kategori].filter(Boolean).join(" · ")}</>
+                    )}
+                  </div>
+                  <div style={{ fontFamily: "'Inter', sans-serif", fontSize: 12, color: COLORS.textDim, marginTop: 4 }}>
+                    {stages.length === 0
+                      ? t("noStagesYet", lang)
+                      : activeStage
+                      ? <>{doneCount}/{stages.length} {t("stageOf", lang)} · <span style={{ color: COLORS.accentWarn }}>{t("currentStageLabel", lang)}</span> {activeStage.makine} {activeMachine ? `(${activeMachine.name})` : ""} · {activeStage.cikan}/{o.miktar} {t("units", lang)}</>
+                      : <span style={{ color: COLORS.accentRun }}>{t("allStagesDoneLabel", lang)}</span>}
+                  </div>
+                </div>
+                <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+                  <button
+                    onClick={() => markOrderDelivered(o.id, !delivered)}
+                    style={{
+                      display: "flex", alignItems: "center", gap: 6, padding: "6px 12px", borderRadius: 8,
+                      border: `1px solid ${delivered ? COLORS.accentRun : COLORS.border}`,
+                      background: delivered ? COLORS.accentRunDim : "transparent",
+                      color: delivered ? COLORS.accentRun : COLORS.textDim,
+                      fontFamily: "'IBM Plex Mono', monospace", fontSize: 11, fontWeight: 700, cursor: "pointer",
+                    }}
+                  >
+                    {delivered && <Check size={12} />}
+                    {delivered ? t("orderDelivered", lang) : t("orderPending", lang)}
+                  </button>
+                  <button onClick={() => removeOrder(o.id)} style={{ background: "none", border: "none", color: COLORS.accentStop, cursor: "pointer", display: "flex" }}>
+                    <Trash2 size={15} />
+                  </button>
+                </div>
+              </div>
+
+              {/* ---- Aşama takibi ---- */}
+              <div style={{ marginTop: 10, paddingTop: 10, borderTop: `1px solid ${COLORS.border}` }}>
+                {stages.length > 0 && (
+                  <div style={{ fontFamily: "'Inter', sans-serif", fontSize: 10.5, color: COLORS.textFaint, marginBottom: 6 }}>
+                    {t("stageManualEditHint", lang)}
+                  </div>
+                )}
+                {stages.length > 0 && (
+                  <div style={{ display: "grid", gap: 6, marginBottom: 8 }}>
+                    {stages.map((s, idx) => {
+                      const mach = allOrderMachines.find((m) => m.code === s.makine);
+                      const statusColor = s.durum === STAGE_STATUS.DONE ? COLORS.accentRun : s.durum === STAGE_STATUS.RUNNING ? COLORS.accentWarn : COLORS.textFaint;
+                      const statusLabel = s.durum === STAGE_STATUS.DONE ? t("stageDone", lang) : s.durum === STAGE_STATUS.RUNNING ? t("stageRunning", lang) : t("stageWaiting", lang);
+                      return (
+                        <div key={s.id} style={{ display: "grid", gridTemplateColumns: "20px 1fr 100px 90px 24px", gap: 8, alignItems: "center" }}>
+                          <span style={{ fontFamily: "'IBM Plex Mono', monospace", fontSize: 10.5, color: COLORS.textFaint, textAlign: "center" }}>{idx + 1}</span>
+                          <span style={{ fontFamily: "'IBM Plex Mono', monospace", fontSize: 11.5, color: COLORS.text }}>
+                            {s.makine} <span style={{ color: COLORS.textFaint }}>{mach ? `· ${mach.name}` : ""}</span>
+                          </span>
+                          <span
+                            style={{
+                              fontFamily: "'IBM Plex Mono', monospace", fontSize: 10.5, fontWeight: 700,
+                              border: `1px solid ${statusColor}50`, background: statusColor + "20", color: statusColor,
+                              borderRadius: 6, padding: "3px 6px", textAlign: "center",
+                            }}
+                            title={t("stageStatusReadOnlyHint", lang)}
+                          >
+                            {statusLabel}
+                          </span>
+                          <input
+                            type="number"
+                            value={stageCikanDraft[s.id] !== undefined ? stageCikanDraft[s.id] : s.cikan}
+                            onChange={(e) => setStageCikanDraft({ ...stageCikanDraft, [s.id]: e.target.value })}
+                            onBlur={(e) => commitStageCikanEdit(o.id, s.id, s.cikan, e.target.value)}
+                            onKeyDown={(e) => { if (e.key === "Enter") e.target.blur(); }}
+                            placeholder={t("stageOutputQty", lang)}
+                            style={{ ...inputStyle, fontSize: 11, padding: "4px 6px" }}
+                          />
+                          <button onClick={() => removeOrderStage(o.id, s.id)} style={{ background: "none", border: "none", color: COLORS.accentStop, cursor: "pointer", display: "flex", justifyContent: "center" }}>
+                            <X size={13} />
+                          </button>
+                        </div>
+                      );
+                    })}
+                  </div>
+                )}
+                <div style={{ display: "flex", gap: 6 }}>
+                  <select
+                    value={draftMachine}
+                    onChange={(e) => setStagePickers({ ...stagePickers, [o.id]: e.target.value })}
+                    style={{ ...inputStyle, fontSize: 11.5, flex: 1 }}
+                  >
+                    <option value="">{t("stagePickMachine", lang)}</option>
+                    {DEPARTMENT_GROUPS.map((grp) => {
+                      const opts = allOrderMachines.filter((m) => m.departmentId === grp.id);
+                      if (opts.length === 0) return null;
+                      return (
+                        <optgroup key={grp.id} label={grp.label(lang)}>
+                          {opts.map((m) => <option key={m.code} value={m.code}>{m.code} · {m.name}</option>)}
+                        </optgroup>
+                      );
+                    })}
+                  </select>
+                  <button
+                    onClick={() => { if (draftMachine) { addOrderStage(o.id, draftMachine); setStagePickers({ ...stagePickers, [o.id]: "" }); } }}
+                    style={{ display: "flex", alignItems: "center", gap: 4, background: COLORS.accentRunDim, border: `1px solid ${COLORS.accentRun}50`, color: COLORS.accentRun, padding: "0 12px", borderRadius: 8, cursor: "pointer", fontFamily: "'Inter', sans-serif", fontSize: 11.5, fontWeight: 600 }}
+                  >
+                    <Plus size={12} /> {t("addStage", lang)}
+                  </button>
+                </div>
+              </div>
+            </div>
+          );
+        })}
+      </div>
+    </div>
+  );
+}
 
 // =================================================================
 // STOK / HAMMADDE PANELİ
