@@ -365,6 +365,12 @@ const STRINGS = {
   pdfParseEmpty: { tr: "PDF'de tanınan bir kalem bulunamadı — bu proforma, desteklenen şablonla eşleşmiyor olabilir.", en: "No recognizable line items found in the PDF — this proforma may not match the supported template.", ar: "لم يتم العثور على بنود قابلة للتعرف." },
   pdfParseError: { tr: "PDF okunamadı. Dosyanın bozuk olmadığından ve doğru şablonda olduğundan emin olun.", en: "Could not read the PDF. Make sure the file isn't corrupted and matches the expected template.", ar: "تعذّرت قراءة PDF." },
 
+  filterAll: { tr: "Tümü", en: "All", ar: "الكل" },
+  filterOther: { tr: "Diğer (Aksesuar)", en: "Other (Accessories)", ar: "أخرى (اكسسوارات)" },
+  priorityHint: { tr: "Ok tuşlarıyla hangi siparişin önce yapılacağını sıralayın (üstteki önce üretilir)", en: "Use the arrows to set which order should be produced first (top = first)", ar: "استخدم الأسهم لتحديد الأولوية" },
+  priorityMoveUp: { tr: "Önceliği yükselt", en: "Move up in priority", ar: "رفع الأولوية" },
+  priorityMoveDown: { tr: "Önceliği düşür", en: "Move down in priority", ar: "خفض الأولوية" },
+
   orderCode: { tr: "Sipariş Kodu", en: "Order Code", ar: "رمز الطلب" },
   orderCodeRequired: { tr: "Sipariş kodu zorunludur", en: "Order code is required", ar: "رمز الطلب مطلوب" },
   orderCodeDuplicate: { tr: "Bu sipariş kodu zaten kullanılıyor, farklı bir kod girin", en: "This order code is already in use, please choose another", ar: "رمز الطلب هذا مستخدم بالفعل" },
@@ -851,6 +857,26 @@ const DEPARTMENT_GROUPS = [
   { id: "deck", label: (lang) => ({ tr: "Deck", en: "Deck", ar: "ديك" }[lang] || "Deck") },
   { id: "kanat", label: (lang) => ({ tr: "Kanat (Kapı) Üretimi", en: "Door Leaf Production", ar: "إنتاج ورقة الباب" }[lang] || "Kanat Üretimi") },
 ];
+
+// Sipariş satırındaki ürün adına bakarak hangi bölümün işi olduğunu
+// otomatik tahmin eder (KANAT -> kanat bölümü, PERVAZ/KASA -> laminasyon
+// / kaplama, DECK -> deck, PROFIL -> extruder). Eşleşmezse null döner
+// (menteşe/kilit/kapı kolu/köşe takozu gibi satın alınan aksesuarlar
+// bu gruba düşer, "Diğer" filtresinde görünür). Kullanıcı isterse
+// kalem eklerken "kategori" alanına elle yazarak bu tahmini geçersiz
+// kılabilir.
+function guessOrderDepartment(order) {
+  if (order && order.kategori) {
+    const k = order.kategori.trim().toLowerCase();
+    if (DEPARTMENT_GROUPS.some((g) => g.id === k)) return k;
+  }
+  const u = ((order && order.urun) || "").toUpperCase();
+  if (u.includes("DECK")) return "deck";
+  if (u.includes("KANAT")) return "kanat";
+  if (u.includes("PERVAZ") || u.includes("KASA")) return "laminasyon";
+  if (u.includes("PROFIL") || u.includes("EKSTR")) return "extruder";
+  return null;
+}
 
 // ---------------- Takvim/Plan yardımcıları ----------------
 function isoDate(d) {
@@ -3396,7 +3422,7 @@ async function parseProformaPdf(file) {
 // kendi başlığı ve kendi sayfası altında ayrı bir sekme.
 // =================================================================
 function SiparislerPanel({ data, lang, dir }) {
-  const { departments, orders, addOrder, removeOrder, markOrderDelivered, addOrderStage, removeOrderStage, updateOrderStage, productRoutes } = data;
+  const { departments, orders, addOrder, removeOrder, markOrderDelivered, addOrderStage, removeOrderStage, updateOrderStage, updateOrders, productRoutes } = data;
   const [orderForm, setOrderForm] = useState({ siparisKodu: "", formNo: "", tarih: "", musteri: "", teslimTarihi: "", not: "" });
   const [formItems, setFormItems] = useState([{ urun: "", renk: "", olcu: "", miktar: "", birim: "adet", siparis: "", kategori: "" }]);
   const [stagePickers, setStagePickers] = useState({}); // orderId -> selected machine code (draft, before "Ekle")
@@ -3405,6 +3431,25 @@ function SiparislerPanel({ data, lang, dir }) {
   const [rowErrors, setRowErrors] = useState({}); // idx -> hata mesajı (örn. miktar boş/0 girildiyse)
   const [pdfStatus, setPdfStatus] = useState(null); // { type: "loading"|"success"|"error"|"empty", text }
   const pdfInputRef = useRef(null);
+  const [categoryFilter, setCategoryFilter] = useState("all"); // "all" | "kanat" | "laminasyon" | "deck" | "extruder" | "other"
+
+  // Sipariş listesindeki DİZİ SIRASI = üretim önceliği (üstteki önce
+  // yapılır). Filtrelenmiş görünümde bile ok tuşları, gerçek (tüm
+  // siparişleri kapsayan) diziyi günceller — böylece öncelik sırası
+  // bölümler arasında da tutarlı kalır.
+  async function moveOrderPriority(orderId, direction, visibleList) {
+    const idx = visibleList.findIndex((o) => o.id === orderId);
+    if (idx === -1) return;
+    const targetIdx = direction === "up" ? idx - 1 : idx + 1;
+    if (targetIdx < 0 || targetIdx >= visibleList.length) return;
+    const neighborId = visibleList[targetIdx].id;
+    const full = [...(orders || [])];
+    const i1 = full.findIndex((o) => o.id === orderId);
+    const i2 = full.findIndex((o) => o.id === neighborId);
+    if (i1 === -1 || i2 === -1) return;
+    [full[i1], full[i2]] = [full[i2], full[i1]];
+    await updateOrders(full);
+  }
 
   // Elle veri girmek yerine gelen proforma PDF'ini yükleyip formu
   // otomatik doldurma. AI kullanmaz — parseProformaPdf() sabit PDF
@@ -3678,8 +3723,45 @@ function SiparislerPanel({ data, lang, dir }) {
         </div>
       </div>
 
+      <div>
+        <div style={{ display: "flex", gap: 6, flexWrap: "wrap", marginBottom: 6 }}>
+          {[
+            { id: "all", label: t("filterAll", lang) },
+            ...DEPARTMENT_GROUPS.map((g) => ({ id: g.id, label: g.label(lang) })),
+            { id: "other", label: t("filterOther", lang) },
+          ].map((tab) => {
+            const count = tab.id === "all"
+              ? (orders || []).length
+              : (orders || []).filter((o) => (guessOrderDepartment(o) || "other") === tab.id).length;
+            const active = categoryFilter === tab.id;
+            return (
+              <button
+                key={tab.id}
+                onClick={() => setCategoryFilter(tab.id)}
+                style={{
+                  padding: "6px 12px", borderRadius: 20, cursor: "pointer",
+                  border: `1px solid ${active ? COLORS.accentWarn : COLORS.border}`,
+                  background: active ? `${COLORS.accentWarn}20` : "transparent",
+                  color: active ? COLORS.accentWarn : COLORS.textDim,
+                  fontFamily: "'Inter', sans-serif", fontSize: 12, fontWeight: active ? 700 : 500,
+                }}
+              >
+                {tab.label} <span style={{ opacity: 0.65 }}>({count})</span>
+              </button>
+            );
+          })}
+        </div>
+        <div style={{ fontFamily: "'Inter', sans-serif", fontSize: 11, color: COLORS.textFaint, marginBottom: 10 }}>
+          {t("priorityHint", lang)}
+        </div>
+      </div>
+
       <div style={{ display: "grid", gap: 10 }}>
-        {(orders || []).map((o) => {
+        {(() => {
+          const filteredOrders = categoryFilter === "all"
+            ? (orders || [])
+            : (orders || []).filter((o) => (guessOrderDepartment(o) || "other") === categoryFilter);
+          return filteredOrders.map((o, visibleIdx) => {
           const delivered = o.durum === ORDER_STATUS.DELIVERED;
           const stages = o.asamalar || [];
           const doneCount = stages.filter((s) => s.durum === STAGE_STATUS.DONE).length;
@@ -3694,6 +3776,9 @@ function SiparislerPanel({ data, lang, dir }) {
               <div style={{ display: "flex", alignItems: "flex-start", justifyContent: "space-between", gap: 12, flexWrap: "wrap" }}>
                 <div>
                   <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+                    <span style={{ fontFamily: "'IBM Plex Mono', monospace", fontSize: 10.5, color: COLORS.textFaint, border: `1px solid ${COLORS.border}`, borderRadius: 5, padding: "1px 5px", minWidth: 18, textAlign: "center" }}>
+                      {visibleIdx + 1}
+                    </span>
                     <span style={{ fontFamily: "'IBM Plex Mono', monospace", fontSize: 12, color: COLORS.accentWarn }}>{o.id}</span>
                     <span style={{ fontFamily: "'Inter', sans-serif", fontSize: 13.5, fontWeight: 600, color: COLORS.text }}>{o.urun}</span>
                     {o.formNo && (
@@ -3717,6 +3802,24 @@ function SiparislerPanel({ data, lang, dir }) {
                   </div>
                 </div>
                 <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+                  <div style={{ display: "flex", flexDirection: "column", gap: 2 }}>
+                    <button
+                      onClick={() => moveOrderPriority(o.id, "up", filteredOrders)}
+                      disabled={visibleIdx === 0}
+                      title={t("priorityMoveUp", lang)}
+                      style={{ background: "none", border: `1px solid ${COLORS.border}`, borderRadius: 5, color: visibleIdx === 0 ? COLORS.textFaint : COLORS.text, cursor: visibleIdx === 0 ? "default" : "pointer", display: "flex", padding: 2, opacity: visibleIdx === 0 ? 0.4 : 1 }}
+                    >
+                      <ArrowUp size={12} />
+                    </button>
+                    <button
+                      onClick={() => moveOrderPriority(o.id, "down", filteredOrders)}
+                      disabled={visibleIdx === filteredOrders.length - 1}
+                      title={t("priorityMoveDown", lang)}
+                      style={{ background: "none", border: `1px solid ${COLORS.border}`, borderRadius: 5, color: visibleIdx === filteredOrders.length - 1 ? COLORS.textFaint : COLORS.text, cursor: visibleIdx === filteredOrders.length - 1 ? "default" : "pointer", display: "flex", padding: 2, opacity: visibleIdx === filteredOrders.length - 1 ? 0.4 : 1 }}
+                    >
+                      <ArrowDown size={12} />
+                    </button>
+                  </div>
                   <button
                     onClick={() => markOrderDelivered(o.id, !delivered)}
                     style={{
@@ -3809,7 +3912,8 @@ function SiparislerPanel({ data, lang, dir }) {
               </div>
             </div>
           );
-        })}
+        });
+        })()}
       </div>
     </div>
   );
