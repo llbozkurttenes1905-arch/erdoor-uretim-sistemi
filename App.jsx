@@ -2,11 +2,15 @@ import { useState, useEffect, useRef, useCallback } from "react";
 import * as XLSX from "xlsx-js-style"; // SheetJS CE + hücre stilleri (Apache-2.0) — Excel'e Aktar raporlarını renklendirmek için
 import { createClient } from "@supabase/supabase-js";
 import QRCode from "qrcode";
+import * as pdfjsLib from "pdfjs-dist";
+import pdfjsWorkerUrl from "pdfjs-dist/build/pdf.worker.min.mjs?url";
 import {
   Play, Square, AlertTriangle, Wrench, Zap, Package, Clock,
   ChevronLeft, ChevronRight, Check, RefreshCw, Users, Monitor, Settings, Plus, Trash2, X, Download,
-  Menu, QrCode, BarChart3, Layers, ArrowRight, ArrowDown, ArrowUp, Factory, Search,
+  Menu, QrCode, BarChart3, Layers, ArrowRight, ArrowDown, ArrowUp, Factory, Search, Upload, FileText,
 } from "lucide-react";
+
+pdfjsLib.GlobalWorkerOptions.workerSrc = pdfjsWorkerUrl;
 
 // =================================================================
 // SUPABASE BAĞLANTISI
@@ -354,6 +358,12 @@ const STRINGS = {
   formItemsTitle: { tr: "Kalemler (Modeller)", en: "Line Items (Models)", ar: "البنود (الموديلات)" },
   addLineItem: { tr: "Kalem Ekle", en: "Add Line Item", ar: "إضافة بند" },
   createOrderForm: { tr: "Siparişi Oluştur", en: "Create Order", ar: "إنشاء الطلب" },
+
+  fillFromPdf: { tr: "Proforma PDF'den Doldur", en: "Fill from Proforma PDF", ar: "التعبئة من ملف PDF" },
+  pdfParsing: { tr: "PDF okunuyor…", en: "Reading PDF…", ar: "جارٍ قراءة PDF…" },
+  pdfParseSuccess: { tr: "PDF'den {n} kalem okundu. Aşağıda kontrol edip Teslim Tarihi'ni girerek kaydedin.", en: "{n} line items read from the PDF. Review below, set the Due Date, then save.", ar: "تمت قراءة {n} بند من PDF." },
+  pdfParseEmpty: { tr: "PDF'de tanınan bir kalem bulunamadı — bu proforma, desteklenen şablonla eşleşmiyor olabilir.", en: "No recognizable line items found in the PDF — this proforma may not match the supported template.", ar: "لم يتم العثور على بنود قابلة للتعرف." },
+  pdfParseError: { tr: "PDF okunamadı. Dosyanın bozuk olmadığından ve doğru şablonda olduğundan emin olun.", en: "Could not read the PDF. Make sure the file isn't corrupted and matches the expected template.", ar: "تعذّرت قراءة PDF." },
 
   orderCode: { tr: "Sipariş Kodu", en: "Order Code", ar: "رمز الطلب" },
   orderCodeRequired: { tr: "Sipariş kodu zorunludur", en: "Order code is required", ar: "رمز الطلب مطلوب" },
@@ -3269,6 +3279,119 @@ const inputStyle = {
 };
 
 // =================================================================
+// PROFORMA PDF OKUYUCU (AI KULLANMAZ)
+// Tedarikçiden gelen "SİPARİŞ FORMU" proformaları hep aynı sabit
+// şablonla üretiliyor: MODEL sütunu solda (x<230), kilit/aksesuar
+// bilgisi ortada (x 230-478), MİKTAR (x 478-533) ve BİRİM (x>533)
+// sağda — sayfa üstünde sabit x-konumlarında duruyor. Bu fonksiyon
+// PDF'in ham metin konumlarını (pdfjs-dist) okuyup salt bu sabit
+// koordinatlara göre satırları sütunlara ayırır. Yapay zeka çağrısı
+// YOKTUR — tamamen deterministik, kural tabanlı bir ayrıştırıcıdır.
+// Not: yalnızca bu sabit şablonla eşleşen proformalarda güvenilirdir;
+// farklı bir tedarikçi farklı bir yerleşimle proforma gönderirse bu
+// fonksiyonun x-aralıkları yeniden ayarlanmalıdır.
+// =================================================================
+function groupProformaRows(textItems) {
+  // pdfjs bazen Türkçe özel karakterleri (Ş, İ, Ç...) ayrı bir metin
+  // parçası olarak verir (aralarında boşluk YOKTUR). Bu yüzden sadece
+  // tamamen boş ("") imleç işaretleyicilerini atıp, gerçek boşluk
+  // karakterlerini (" ") koruyoruz; kelimeler daha sonra boşluksuz
+  // birleştirilecek ve orijinal boşluklar zaten metnin içinde olacak.
+  const words = textItems
+    .filter((it) => it.str !== "")
+    .map((it) => ({ text: it.str, x: it.transform[4], y: it.transform[5] }));
+  words.sort((a, b) => b.y - a.y || a.x - b.x);
+
+  // 1. adım: neredeyse aynı yükseklikteki (±2pt) parçaları tek "alt satır"da topla
+  const lines = [];
+  let cur = [];
+  let lastY = null;
+  for (const w of words) {
+    if (lastY === null || Math.abs(lastY - w.y) <= 2) cur.push(w);
+    else { lines.push(cur); cur = [w]; }
+    lastY = w.y;
+  }
+  if (cur.length) lines.push(cur);
+
+  // 2. adım: bir tablo satırı bazen hizalama farkı yüzünden 2 alt satıra
+  // bölünmüş oluyor (aradaki boşluk ~2pt); aradaki boşluk küçükse (<=10pt)
+  // aynı mantıksal sipariş satırı sayılır, büyükse (~18-20pt) yeni satır.
+  const rows = [];
+  let curRow = [];
+  let lastLineY = null;
+  for (const line of lines) {
+    const avgY = line.reduce((s, w) => s + w.y, 0) / line.length;
+    if (lastLineY === null || Math.abs(lastLineY - avgY) <= 10) curRow.push(...line);
+    else { rows.push(curRow); curRow = [...line]; }
+    lastLineY = avgY;
+  }
+  if (curRow.length) rows.push(curRow);
+  return rows;
+}
+
+function joinProformaRange(row, xMin, xMax) {
+  return row
+    .filter((w) => w.x >= xMin && w.x < xMax)
+    .sort((a, b) => a.x - b.x)
+    .map((w) => w.text)
+    .join("")
+    .replace(/\s+/g, " ")
+    .trim();
+}
+
+async function parseProformaPdf(file) {
+  const buffer = await file.arrayBuffer();
+  const pdf = await pdfjsLib.getDocument({ data: buffer }).promise;
+
+  let musteri = "", tarih = "", siparisNo = "";
+  const items = [];
+
+  for (let p = 1; p <= pdf.numPages; p++) {
+    const page = await pdf.getPage(p);
+    const content = await page.getTextContent();
+    const rows = groupProformaRows(content.items);
+
+    for (const row of rows) {
+      if (p === 1) {
+        const fullText = row.slice().sort((a, b) => a.x - b.x).map((w) => w.text).join("").replace(/\s+/g, " ").trim();
+        const dateMatch = fullText.match(/\b(\d{2}\.\d{2}\.\d{4})\b/);
+        if (dateMatch && !tarih) tarih = dateMatch[1];
+        const noMatch = fullText.match(/\bE(\d{15,})\b/);
+        if (noMatch && !siparisNo) siparisNo = noMatch[0];
+        const musteriMatch = fullText.match(/SİPARİŞ\s*-\s*(.+)/i);
+        if (musteriMatch && !musteri) musteri = musteriMatch[1].trim();
+      }
+
+      const model = joinProformaRange(row, 0, 230);
+      const miktarText = joinProformaRange(row, 478, 533);
+      const birimText = joinProformaRange(row, 533, 620);
+      const miktarMatch = miktarText.match(/\d+[.,]?\d*/);
+      const birimMatch = birimText.match(/ADET|TAKIM|M2|KG/i);
+      if (model && miktarMatch && birimMatch) {
+        const birimRaw = birimMatch[0].toUpperCase();
+        const birim = birimRaw === "ADET" ? "adet" : birimRaw === "TAKIM" ? "takım" : birimRaw.toLowerCase();
+        items.push({
+          urun: model, renk: "", olcu: "", siparis: "", kategori: "",
+          miktar: String(Math.round(parseFloat(miktarMatch[0].replace(",", ".")))),
+          birim,
+        });
+      }
+    }
+  }
+
+  // Sipariş no "E202600000000665" -> yıl (2026) + sıra no (665).
+  // Kısa, okunabilir bir sipariş kodu üretilir: "SIP-665".
+  let siparisKodu = "";
+  const noParts = siparisNo.match(/^E(\d{4})(\d+)$/);
+  if (noParts) siparisKodu = `SIP-${parseInt(noParts[2], 10)}`;
+
+  return {
+    musteri, tarih: tarih ? tarih.split(".").reverse().join("-") : "",
+    formNo: siparisNo, siparisKodu, items,
+  };
+}
+
+// =================================================================
 // SİPARİŞLER PANELİ — sipariş girişi artık Tanımlar'ın içinde değil,
 // kendi başlığı ve kendi sayfası altında ayrı bir sekme.
 // =================================================================
@@ -3280,6 +3403,40 @@ function SiparislerPanel({ data, lang, dir }) {
   const [stageCikanDraft, setStageCikanDraft] = useState({}); // stageId -> geçici yazılan değer (blur'da commit edilir)
   const [orderCodeError, setOrderCodeError] = useState("");
   const [rowErrors, setRowErrors] = useState({}); // idx -> hata mesajı (örn. miktar boş/0 girildiyse)
+  const [pdfStatus, setPdfStatus] = useState(null); // { type: "loading"|"success"|"error"|"empty", text }
+  const pdfInputRef = useRef(null);
+
+  // Elle veri girmek yerine gelen proforma PDF'ini yükleyip formu
+  // otomatik doldurma. AI kullanmaz — parseProformaPdf() sabit PDF
+  // sütun konumlarına göre çalışan kural tabanlı bir okuyucudur.
+  async function handlePdfUpload(e) {
+    const file = e.target.files && e.target.files[0];
+    if (!file) return;
+    setPdfStatus({ type: "loading", text: t("pdfParsing", lang) });
+    try {
+      const parsed = await parseProformaPdf(file);
+      if (!parsed.items.length) {
+        setPdfStatus({ type: "empty", text: t("pdfParseEmpty", lang) });
+        return;
+      }
+      setOrderForm((prev) => ({
+        ...prev,
+        siparisKodu: parsed.siparisKodu || prev.siparisKodu,
+        formNo: parsed.formNo || prev.formNo,
+        tarih: parsed.tarih || prev.tarih,
+        musteri: parsed.musteri || prev.musteri,
+      }));
+      setFormItems(parsed.items);
+      setOrderCodeError("");
+      setRowErrors({});
+      setPdfStatus({ type: "success", text: t("pdfParseSuccess", lang).replace("{n}", parsed.items.length) });
+    } catch (err) {
+      console.error("Proforma PDF ayrıştırma hatası:", err);
+      setPdfStatus({ type: "error", text: t("pdfParseError", lang) });
+    } finally {
+      e.target.value = "";
+    }
+  }
 
   // Üretilen adet elle düzeltildiğinde (yönetici tarafından), isteğe bağlı
   // bir düzeltme nedeni sorulur ve bu neden "Geri Al" ekranında görünür.
@@ -3398,9 +3555,31 @@ function SiparislerPanel({ data, lang, dir }) {
       </div>
 
       <div style={{ background: COLORS.bgRaised, border: `1px solid ${COLORS.border}`, borderRadius: 12, padding: 14 }}>
-        <div style={{ fontFamily: "'IBM Plex Mono', monospace", fontSize: 10.5, color: COLORS.textFaint, letterSpacing: 1, textTransform: "uppercase", marginBottom: 10 }}>
-          {t("newOrderForm", lang)}
+        <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 8, marginBottom: 10, flexWrap: "wrap" }}>
+          <div style={{ fontFamily: "'IBM Plex Mono', monospace", fontSize: 10.5, color: COLORS.textFaint, letterSpacing: 1, textTransform: "uppercase" }}>
+            {t("newOrderForm", lang)}
+          </div>
+          <div>
+            <input ref={pdfInputRef} type="file" accept="application/pdf" onChange={handlePdfUpload} style={{ display: "none" }} />
+            <button
+              onClick={() => pdfInputRef.current && pdfInputRef.current.click()}
+              style={{ display: "flex", alignItems: "center", gap: 6, padding: "7px 12px", borderRadius: 8, border: `1px solid ${COLORS.accentRun}50`, background: COLORS.accentRunDim, color: COLORS.accentRun, fontFamily: "'Inter', sans-serif", fontSize: 12, fontWeight: 700, cursor: "pointer" }}
+            >
+              <FileText size={13} /> {t("fillFromPdf", lang)}
+            </button>
+          </div>
         </div>
+        {pdfStatus && (
+          <div style={{
+            display: "flex", alignItems: "center", gap: 8, padding: "8px 10px", borderRadius: 8, marginBottom: 10,
+            fontFamily: "'Inter', sans-serif", fontSize: 12, lineHeight: 1.4,
+            background: pdfStatus.type === "error" ? `${COLORS.accentStop}15` : pdfStatus.type === "empty" ? `${COLORS.accentStop}15` : `${COLORS.accentRun}15`,
+            color: pdfStatus.type === "error" || pdfStatus.type === "empty" ? COLORS.accentStop : COLORS.accentRun,
+            border: `1px solid ${pdfStatus.type === "error" || pdfStatus.type === "empty" ? COLORS.accentStop : COLORS.accentRun}30`,
+          }}>
+            {pdfStatus.text}
+          </div>
+        )}
 
         <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 8, marginBottom: 8 }}>
           <div>
@@ -3432,6 +3611,9 @@ function SiparislerPanel({ data, lang, dir }) {
         />
 
         <div style={{ fontFamily: "'Inter', sans-serif", fontSize: 11, color: COLORS.textFaint, marginBottom: 6 }}>{t("formItemsTitle", lang)}</div>
+        <datalist id="urunOptionsList">
+          {allOrderProducts.map((p) => <option key={p} value={p} />)}
+        </datalist>
         <div style={{ overflowX: "auto", marginBottom: 8 }}>
           <div style={{ minWidth: 820 }}>
             <div style={{
@@ -3449,10 +3631,13 @@ function SiparislerPanel({ data, lang, dir }) {
               {formItems.map((row, idx) => (
                 <div key={idx}>
                   <div style={{ display: "grid", gridTemplateColumns: "1.5fr 0.9fr 0.9fr 0.7fr 0.9fr 1fr 1fr 32px", gap: 8 }}>
-                    <select value={row.urun} onChange={(e) => updateFormItemRow(idx, { urun: e.target.value })} style={inputStyle}>
-                      <option value="">{t("selectProduct", lang)}</option>
-                      {allOrderProducts.map((p) => <option key={p} value={p}>{p}</option>)}
-                    </select>
+                    <input
+                      list="urunOptionsList"
+                      value={row.urun}
+                      onChange={(e) => updateFormItemRow(idx, { urun: e.target.value })}
+                      placeholder={t("selectProduct", lang)}
+                      style={inputStyle}
+                    />
                     <input value={row.renk} onChange={(e) => updateFormItemRow(idx, { renk: e.target.value })} placeholder={t("colRenk", lang)} style={inputStyle} />
                     <input value={row.olcu} onChange={(e) => updateFormItemRow(idx, { olcu: e.target.value })} placeholder={t("colOlcu", lang)} style={inputStyle} />
                     <input
