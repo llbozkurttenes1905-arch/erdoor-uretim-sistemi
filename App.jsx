@@ -109,6 +109,10 @@ const STRINGS = {
   inDowntime: { tr: "Duruşta", en: "In Downtime", ar: "متوقف" },
   idle: { tr: "Boşta", en: "Idle", ar: "خامل" },
   producedQty: { tr: "Üretilen adet", en: "Units produced", ar: "الوحدات المصنّعة" },
+  inputAvailableLabel: { tr: "Önceki aşamadan gelen", en: "Received from previous stage", ar: "الوارد من المرحلة السابقة" },
+  maxEnterableLabel: { tr: "en fazla girilebilir", en: "max enterable", ar: "الحد الأقصى للإدخال" },
+  waitingForUpstreamHint: { tr: "Önceki aşamadan henüz yeni parça gelmedi, bekleniyor", en: "No new parts have arrived from the previous stage yet", ar: "لم تصل قطع جديدة من المرحلة السابقة بعد" },
+  inputLimitReachedToast: { tr: "Önceki aşamadan sadece bu kadar geldi, daha fazla giremezsiniz", en: "Only this many units have arrived from the previous stage", ar: "وصل فقط هذا العدد من المرحلة السابقة" },
   editProducedHint: { tr: "Yanlış girdiyseniz sayıya dokunup doğrusunu yazabilirsiniz", en: "Tap the number to type the correct value if you made a mistake", ar: "اضغط على الرقم لكتابة القيمة الصحيحة إذا أخطأت" },
   stopProduction: { tr: "Üretimi Durdur", en: "Stop Production", ar: "إيقاف الإنتاج" },
   whatReason: { tr: "Duruş nedeni nedir?", en: "What is the downtime reason?", ar: "ما سبب التوقف؟" },
@@ -785,6 +789,26 @@ function currentOrderStage(order) {
   return (order.asamalar || []).find((s) => s.durum !== STAGE_STATUS.DONE) || null;
 }
 
+// Bir aşamaya "girdi" olarak ne kadar yarı mamul geldiği:
+// - İlk aşama: siparişin tamamı (hammadde/kesim her zaman başlayabilir)
+// - Sonraki aşamalar: BİR ÖNCEKİ aşamanın o ana kadar ürettiği (cikan) miktar
+// Böylece bir aşama %100 bitmeden, ürettiği kısım bir sonraki makineye akabilir.
+function stageInputLimit(order, stageIndex) {
+  const stages = order.asamalar || [];
+  if (stageIndex <= 0) return order.miktar || 0;
+  return stages[stageIndex - 1]?.cikan || 0;
+}
+
+// Siparişin, ÜZERİNDE ÇALIŞILABİLİR durumdaki TÜM aşamalarını döner.
+// Eskiden yalnızca "ilk tamamlanmamış aşama" esas alınıyordu (currentOrderStage);
+// bu da bir önceki aşama tam bitmeden sıradaki makinenin siparişi hiç
+// görememesine yol açıyordu. Artık bir önceki aşamadan en az 1 adet çıkmışsa,
+// o kısım için sıradaki makine de AYNI ANDA çalışmaya başlayabilir.
+function availableOrderStages(order) {
+  const stages = order.asamalar || [];
+  return stages.filter((s, i) => s.durum !== STAGE_STATUS.DONE && stageInputLimit(order, i) > 0);
+}
+
 const DEFAULT_ORDERS = [
   {
     id: "SIP-101", urun: "ER100", musteri: "Akpınar İnşaat", miktar: 240, teslimTarihi: "2026-06-29", durum: ORDER_STATUS.PENDING,
@@ -1247,7 +1271,8 @@ function useSharedData() {
   async function updateOrderStage(orderId, stageId, patch) {
     const order = (ordersRef.current || []).find((o) => o.id === orderId);
     if (!order) return;
-    const stage = (order.asamalar || []).find((s) => s.id === stageId);
+    const stageIndex = (order.asamalar || []).findIndex((s) => s.id === stageId);
+    const stage = (order.asamalar || [])[stageIndex];
     if (!stage) return;
 
     const { reason, ...stagePatch } = patch;
@@ -1255,9 +1280,16 @@ function useSharedData() {
     const prevDurum = stage.durum;
     let merged = { ...stage, ...stagePatch };
     let consumedForUndo = [];
+    let clamped = false;
+    let inputLimit = null;
 
     if (patch.cikan !== undefined) {
-      const newCikan = Math.max(0, patch.cikan);
+      // Bu aşama, bir önceki aşamadan gelen miktardan FAZLA üretim giremez —
+      // henüz üretilmemiş bir parçanın "tamamlandı" olarak kaydedilmesini engeller.
+      inputLimit = stageInputLimit(order, stageIndex);
+      const requested = Math.max(0, patch.cikan);
+      const newCikan = Math.min(requested, inputLimit);
+      clamped = newCikan < requested;
       merged.cikan = newCikan;
       merged.durum = newCikan <= 0 ? STAGE_STATUS.WAITING
         : newCikan >= (order.miktar || 0) ? STAGE_STATUS.DONE
@@ -1295,6 +1327,7 @@ function useSharedData() {
       return { ...o, asamalar: stages, durum };
     });
     await updateOrders(newOrders);
+    return { clamped, limit: inputLimit };
   }
 
   const planRef = useRef(plan);
@@ -1567,6 +1600,12 @@ function UstaMode({ data, onBack, lang, dir }) {
   // Şu an üretilen sipariş ve "sipariş miktarına ulaşıldı mı" kontrolü —
   // ulaşıldıysa normal "durdur" akışı yerine usta onayı istenir.
   const runningOrder = state?.orderId ? (orders || []).find((o) => o.id === state.orderId) : null;
+  // Şu an üretimde olan aşamanın, bir önceki aşamadan alabileceği azami (girdi) miktar —
+  // bir aşama, kendisine henüz ulaşmamış parçayı "üretildi" olarak giremesin diye.
+  const runningStageIndex = (runningOrder && state?.stageId)
+    ? (runningOrder.asamalar || []).findIndex((s) => s.id === state.stageId) : -1;
+  const runningStageInputLimit = (runningOrder && runningStageIndex >= 0)
+    ? stageInputLimit(runningOrder, runningStageIndex) : (runningOrder?.miktar ?? Infinity);
   const orderComplete = !!(runningOrder && (state?.produced || 0) >= (runningOrder.miktar || Infinity));
   const backIcon = dir === "rtl" ? { transform: "rotate(180deg)" } : {};
   const todayIso = isoDate(now);
@@ -1584,8 +1623,8 @@ function UstaMode({ data, onBack, lang, dir }) {
   const machineOrders = selectedMachine
     ? (orders || [])
         .filter((o) => o.durum !== ORDER_STATUS.DELIVERED)
-        .map((o) => ({ order: o, stage: currentOrderStage(o) }))
-        .filter((x) => x.stage && x.stage.makine === selectedMachine.code)
+        .flatMap((o) => availableOrderStages(o).map((stage) => ({ order: o, stage })))
+        .filter((x) => x.stage.makine === selectedMachine.code)
     : [];
   const selectedEntry = selectedOrderId ? machineOrders.find((x) => x.order.id === selectedOrderId) : null;
   // "Kaldığın yerden devam et" — bir önceki duruştan hemen önce üzerinde
@@ -1635,12 +1674,13 @@ function UstaMode({ data, onBack, lang, dir }) {
 
   async function adjustProduced(delta, { track = true } = {}) {
     try {
-      const cap = runningOrder ? (runningOrder.miktar || Infinity) : Infinity;
+      const cap = runningOrder ? Math.min(runningOrder.miktar || Infinity, runningStageInputLimit) : Infinity;
       const newProduced = Math.min(cap, Math.max(0, (state.produced || 0) + delta));
       const appliedDelta = newProduced - (state.produced || 0);
       const newState = { ...state, produced: newProduced };
       await setMachineState(selectedMachine.code, newState);
       if (track && appliedDelta !== 0) setLastAdjustment({ type: "produced", delta: appliedDelta });
+      if (delta > 0 && appliedDelta < delta) showToast(t("inputLimitReachedToast", lang), "error");
     } catch { showToast(t("saveFailedToast", lang), "error"); }
   }
 
@@ -1648,11 +1688,13 @@ function UstaMode({ data, onBack, lang, dir }) {
   // uğraşmadan direkt doğru sayıyı yazıp düzeltebilsin diye — sayı kutusu artık düzenlenebilir.
   async function setProducedDirect(value) {
     try {
-      const cap = runningOrder ? (runningOrder.miktar || Infinity) : Infinity;
-      const n = Math.min(cap, Math.max(0, parseInt(value, 10) || 0));
+      const cap = runningOrder ? Math.min(runningOrder.miktar || Infinity, runningStageInputLimit) : Infinity;
+      const requested = Math.max(0, parseInt(value, 10) || 0);
+      const n = Math.min(cap, requested);
       const newState = { ...state, produced: n };
       await setMachineState(selectedMachine.code, newState);
       setLastAdjustment(null);
+      if (requested > n) showToast(t("inputLimitReachedToast", lang), "error");
     } catch { showToast(t("saveFailedToast", lang), "error"); }
   }
 
@@ -1839,8 +1881,8 @@ function UstaMode({ data, onBack, lang, dir }) {
                     const profileToday = normalizeCell((plan[todayIso] || {})[m.code])?.profile;
                     const pendingCount = (orders || [])
                       .filter((o) => o.durum !== ORDER_STATUS.DELIVERED)
-                      .map((o) => currentOrderStage(o))
-                      .filter((s) => s && s.makine === m.code).length;
+                      .flatMap((o) => availableOrderStages(o))
+                      .filter((s) => s.makine === m.code).length;
                     return (
                       <BigButton key={m.code} onClick={() => pickMachine(m)} style={{ padding: "20px", display: "flex", alignItems: "center", justifyContent: "space-between" }}>
                         <span style={{ display: "flex", alignItems: "center", gap: 12 }}>
@@ -1895,6 +1937,7 @@ function UstaMode({ data, onBack, lang, dir }) {
           <div style={{ display: "grid", gap: 12 }}>
             {machineOrders.map(({ order, stage }) => {
               const stageIdx = (order.asamalar || []).findIndex((s) => s.id === stage.id);
+              const inputLimit = stageInputLimit(order, stageIdx);
               return (
                 <BigButton key={order.id} onClick={() => setSelectedOrderId(order.id)} style={{ padding: "18px 20px", display: "flex", alignItems: "center", justifyContent: "space-between" }}>
                   <span style={{ display: "flex", flexDirection: "column", alignItems: dir === "rtl" ? "flex-end" : "flex-start", gap: 3 }}>
@@ -1906,6 +1949,11 @@ function UstaMode({ data, onBack, lang, dir }) {
                       {order.musteri} · {stageIdx + 1}/{(order.asamalar || []).length} {t("stageProgress", lang)} · {stage.cikan}/{order.miktar} {t("units", lang)}
                       {order.teslimTarihi && ` · ${t("due", lang)} ${fmtDateShort(order.teslimTarihi)}`}
                     </span>
+                    {stageIdx > 0 && (
+                      <span style={{ fontFamily: "'Inter', sans-serif", fontWeight: 600, fontSize: 12, color: COLORS.accentRun }}>
+                        {t("inputAvailableLabel", lang)}: {inputLimit} {t("units", lang)}
+                      </span>
+                    )}
                   </span>
                   <ChevronLeft size={20} style={{ transform: dir === "rtl" ? "none" : "rotate(180deg)", color: COLORS.textDim, flexShrink: 0 }} />
                 </BigButton>
@@ -1951,6 +1999,23 @@ function UstaMode({ data, onBack, lang, dir }) {
                 return `${idx + 1}/${(order.asamalar || []).length} ${t("stageProgress", lang)}`;
               })(selectedEntry.order)} · <span style={{ color: COLORS.accentWarn, fontWeight: 700 }}>{selectedEntry.stage.cikan}/{selectedEntry.order.miktar} {t("units", lang)}</span>
             </div>
+            {(() => {
+              const idx = (selectedEntry.order.asamalar || []).findIndex((s) => s.id === selectedEntry.stage.id);
+              if (idx <= 0) return null;
+              const limit = stageInputLimit(selectedEntry.order, idx);
+              const noNewInput = limit <= (selectedEntry.stage.cikan || 0);
+              return (
+                <div style={{
+                  marginTop: 10, padding: "10px 12px", borderRadius: 10,
+                  background: noNewInput ? COLORS.accentStopDim : COLORS.accentRunDim,
+                  border: `1px solid ${noNewInput ? COLORS.accentStop : COLORS.accentRun}40`,
+                  fontFamily: "'Inter', sans-serif", fontSize: 13, color: COLORS.text,
+                }}>
+                  {t("inputAvailableLabel", lang)}: <strong>{limit}</strong> {t("units", lang)} ({t("maxEnterableLabel", lang)})
+                  {noNewInput && <div style={{ marginTop: 3, fontSize: 12, color: COLORS.textDim }}>{t("waitingForUpstreamHint", lang)}</div>}
+                </div>
+              );
+            })()}
           </div>
           <BigButton onClick={startProductionForOrder} variant="run" style={{ padding: "20px 0", fontSize: 18, display: "flex", alignItems: "center", justifyContent: "center", gap: 10 }}>
             <Play size={20} fill="currentColor" /> {t("startProduction", lang)}
@@ -2038,6 +2103,11 @@ function UstaMode({ data, onBack, lang, dir }) {
                 )}
               </div>
             </div>
+            {runningOrder && runningStageIndex > 0 && runningStageInputLimit < runningOrder.miktar && (
+              <div style={{ fontFamily: "'Inter', sans-serif", fontSize: 12, color: COLORS.accentWarn, marginTop: -4, marginBottom: 10 }}>
+                {t("inputAvailableLabel", lang)}: {runningStageInputLimit} {t("units", lang)} ({t("maxEnterableLabel", lang)})
+              </div>
+            )}
             <div style={{ display: "flex", alignItems: "center", gap: 14 }}>
               <BigButton onClick={() => adjustProduced(-1)} style={{ width: 56, height: 56, fontSize: 26, display: "flex", alignItems: "center", justifyContent: "center" }}>−</BigButton>
               <input
