@@ -828,6 +828,55 @@ function availableOrderStages(order) {
   return stages.filter((s, i) => s.durum !== STAGE_STATUS.DONE && stageInputLimit(order, i) > 0);
 }
 
+// ---- Paylaşılan yardımcılar ----
+// Aşağıdaki 4 fonksiyon, daha önce Termin/Verimlilik/Dijital İkiz/MRP panellerinde
+// birbirinden bağımsız olarak tekrar tekrar yazılmış aynı mantığı tek yerde toplar.
+// Amaç: iş kuralı değişince (örn. "kalan miktar" hesabına fire dahil edilsin gibi)
+// tek yerden değiştirilsin, panolar birbiriyle tutarsız kalmasın.
+
+// Bir aşamanın, sipariş toplamına göre henüz üretilmemiş (kalan) miktarı.
+function remainingStageQty(order, stage) {
+  return Math.max(0, (order.miktar || 0) - (stage.cikan || 0));
+}
+
+// Bir siparişin/kalemin ürününe karşılık gelen üretim rotasını bulur.
+// `entity` en az { urun } alanına sahip olmalı (sipariş ya da form kalemi olabilir).
+function findRouteForOrder(routes, entity) {
+  return (routes || []).find((r) => r.productName === entity.urun);
+}
+
+// Tüm PENDING siparişlerin, henüz tamamlanmamış aşamalarındaki kalan miktarını
+// makineye göre toplar — "şu makinenin önünde toplam kaç adet bekliyor".
+function computeMachineBacklog(orders) {
+  const backlog = {};
+  (orders || []).filter((o) => o.durum === ORDER_STATUS.PENDING).forEach((o) => {
+    (o.asamalar || []).forEach((s) => {
+      if (s.durum === STAGE_STATUS.DONE) return;
+      backlog[s.makine] = (backlog[s.makine] || 0) + remainingStageQty(o, s);
+    });
+  });
+  return backlog;
+}
+
+// Bir malzeme için hâlâ açık (henüz teslim alınmamış) bir satın alma talebi var mı?
+function hasOpenPurchaseRequest(purchaseRequests, stockItemId) {
+  return (purchaseRequests || []).some((r) => r.stockItemId === stockItemId && r.status !== PURCHASE_STATUS.RECEIVED);
+}
+
+// Standart bir satın alma talebi objesi oluşturur (id/tarih otomatik üretilir) —
+// hem manuel formdan hem otomatik tetikleyicilerden (stok kritik seviye / MRP) çağrılır.
+function buildPurchaseRequest({ stockItemId, itemName, unit, qty, note, requestedBy, auto = false }) {
+  return {
+    id: `PO-${Date.now().toString().slice(-6)}`,
+    stockItemId, itemName, unit, qty,
+    note: note || "",
+    status: PURCHASE_STATUS.PENDING,
+    requestedBy: requestedBy || "—",
+    date: new Date().toISOString(),
+    ...(auto ? { auto: true } : {}),
+  };
+}
+
 const DEFAULT_ORDERS = [
   {
     id: "SIP-101", urun: "ER100", musteri: "Akpınar İnşaat", miktar: 240, teslimTarihi: "2026-06-29", durum: ORDER_STATUS.PENDING,
@@ -1316,7 +1365,7 @@ function useSharedData() {
 
       const delta = newCikan - prevCikan;
       if (delta > 0) {
-        const route = (routesRef.current || []).find((r) => r.productName === order.urun);
+        const route = findRouteForOrder(routesRef.current, order);
         const routeStage = route?.stages?.find((rs) => rs.machine === stage.makine);
         if (routeStage?.consumables?.length) {
           for (const c of routeStage.consumables) {
@@ -1417,21 +1466,15 @@ function useSharedData() {
     // alınmamış) bir talep yoksa, otomatik bir satın alma talebi oluştur.
     const critical = current.criticalLevel || 0;
     if (newQty <= critical) {
-      const hasOpenRequest = (purchaseRef.current || []).some(
-        (r) => r.stockItemId === id && r.status !== PURCHASE_STATUS.RECEIVED
-      );
-      if (!hasOpenRequest) {
+      if (!hasOpenPurchaseRequest(purchaseRef.current, id)) {
         const suggestedQty = Math.max(critical * 2 - newQty, critical || 10, 10);
-        await addPurchaseRequest({
-          id: `PO-${Date.now().toString().slice(-6)}`,
+        await addPurchaseRequest(buildPurchaseRequest({
           stockItemId: id, itemName: current.name, unit: current.unit,
           qty: Math.round(suggestedQty),
           note: "Kritik seviyenin altına düşüldüğü için otomatik oluşturuldu.",
-          status: PURCHASE_STATUS.PENDING,
           requestedBy: "Sistem (Otomatik)",
-          date: new Date().toISOString(),
           auto: true,
-        });
+        }));
       }
     }
   }
@@ -3815,7 +3858,7 @@ function SiparislerPanel({ data, lang, dir }) {
     for (let i = 0; i < validItems.length; i++) {
       const item = validItems[i];
       const id = candidateIds[i];
-      const route = (productRoutes || []).find((r) => r.productName === item.urun);
+      const route = findRouteForOrder(productRoutes, item);
       const asamalar = route
         ? route.stages.map((s, si) => ({ id: `AS${Date.now().toString().slice(-6)}${si}${Math.floor(Math.random() * 90)}`, makine: s.machine, durum: STAGE_STATUS.WAITING, cikan: 0 }))
         : [];
@@ -4304,11 +4347,11 @@ function StokPanel({ data, lang, dir }) {
 function calcMaterialRequirements(orders, routes, stock) {
   const needs = {}; // stockItemId -> toplam ihtiyaç
   (orders || []).filter((o) => o.durum !== ORDER_STATUS.DELIVERED).forEach((order) => {
-    const route = (routes || []).find((r) => r.productName === order.urun);
+    const route = findRouteForOrder(routes, order);
     if (!route) return;
     (order.asamalar || []).forEach((stage) => {
       if (stage.durum === STAGE_STATUS.DONE) return;
-      const remaining = Math.max(0, (order.miktar || 0) - (stage.cikan || 0));
+      const remaining = remainingStageQty(order, stage);
       if (remaining <= 0) return;
       const routeStage = route.stages?.find((rs) => rs.machine === stage.makine);
       if (!routeStage?.consumables?.length) return;
@@ -4340,20 +4383,14 @@ function MalzemeIhtiyacPanel({ data, lang, dir, profile }) {
   const shortfallRows = rows.filter((r) => r.shortfall > 0);
 
   function requestShortfall(row) {
-    const hasOpenRequest = (purchaseRequests || []).some(
-      (r) => r.stockItemId === row.stockItemId && r.status !== PURCHASE_STATUS.RECEIVED
-    );
-    if (hasOpenRequest) return;
-    addPurchaseRequest({
-      id: `PO-${Date.now().toString().slice(-6)}`,
+    if (hasOpenPurchaseRequest(purchaseRequests, row.stockItemId)) return;
+    addPurchaseRequest(buildPurchaseRequest({
       stockItemId: row.stockItemId, itemName: row.name, unit: row.unit,
       qty: Math.ceil(row.shortfall),
       note: "Malzeme İhtiyaç Planı'ndan otomatik oluşturuldu (bekleyen siparişlerin toplam ihtiyacı).",
-      status: PURCHASE_STATUS.PENDING,
       requestedBy: profile?.full_name || profile?.id || "Sistem (MRP)",
-      date: new Date().toISOString(),
       auto: true,
-    });
+    }));
   }
 
   return (
@@ -4381,9 +4418,7 @@ function MalzemeIhtiyacPanel({ data, lang, dir, profile }) {
             </thead>
             <tbody>
               {rows.map((row) => {
-                const hasOpenRequest = (purchaseRequests || []).some(
-                  (r) => r.stockItemId === row.stockItemId && r.status !== PURCHASE_STATUS.RECEIVED
-                );
+                const hasOpenRequest = hasOpenPurchaseRequest(purchaseRequests, row.stockItemId);
                 return (
                   <tr key={row.stockItemId} style={{ background: row.shortfall > 0 ? COLORS.accentStopDim : "transparent" }}>
                     <td style={{ padding: "10px 14px", borderBottom: `1px solid ${COLORS.border}`, color: COLORS.text, fontWeight: 600 }}>{row.name}</td>
@@ -4430,17 +4465,11 @@ function SatinAlmaPanel({ data, lang, dir, profile }) {
   function handleCreate() {
     const item = stock.find((s) => s.id === form.stockItemId);
     if (!item || !form.qty) return;
-    addPurchaseRequest({
-      id: `PO-${Date.now().toString().slice(-6)}`,
-      stockItemId: item.id,
-      itemName: item.name,
-      unit: item.unit,
-      qty: form.qty,
-      note: form.note,
-      status: PURCHASE_STATUS.PENDING,
+    addPurchaseRequest(buildPurchaseRequest({
+      stockItemId: item.id, itemName: item.name, unit: item.unit,
+      qty: form.qty, note: form.note,
       requestedBy: profile?.full_name || profile?.id || "—",
-      date: new Date().toISOString(),
-    });
+    }));
     setForm({ stockItemId: "", qty: "", note: "" });
   }
 
@@ -4570,7 +4599,7 @@ function terminDaysBetween(a, b) {
 function calcOrderTermin(order, machines, log) {
   const stages = (order.asamalar || []).filter((s) => s.durum !== STAGE_STATUS.DONE);
   const segments = stages.map((stage) => {
-    const remainingQty = Math.max(0, (order.miktar || 0) - (stage.cikan || 0));
+    const remainingQty = remainingStageQty(order, stage);
     const rate = terminMachineRate(stage.makine, log);
     const days = Math.max(0.15, remainingQty / rate / TERMIN_WORK_HOURS_PER_DAY);
     const machine = (machines || []).find((m) => m.code === stage.makine);
@@ -5458,14 +5487,7 @@ function VerimlilikSections({ data, lang, dir }) {
   function machineName(code) { return allMachines.find((m) => m.code === code)?.name || code; }
 
   // ---- 1) Darboğaz: aktif (PENDING) siparişlerin tamamlanmamış aşamalarında bekleyen adet, makineye göre toplanır ----
-  const bottleneckMap = {};
-  orders.filter((o) => o.durum === ORDER_STATUS.PENDING).forEach((o) => {
-    (o.asamalar || []).forEach((s) => {
-      if (s.durum === STAGE_STATUS.DONE) return;
-      const remaining = Math.max(0, (o.miktar || 0) - (s.cikan || 0));
-      bottleneckMap[s.makine] = (bottleneckMap[s.makine] || 0) + remaining;
-    });
-  });
+  const bottleneckMap = computeMachineBacklog(orders);
   const bottleneckList = Object.entries(bottleneckMap).sort((a, b) => b[1] - a[1]);
   const bottleneckMax = bottleneckList[0]?.[1] || 1;
   const bottleneckDonutSegments = bottleneckList.slice(0, 8).map(([machine, qty], i) => ({
@@ -5491,8 +5513,7 @@ function VerimlilikSections({ data, lang, dir }) {
   const riskList = orders.filter((o) => o.durum === ORDER_STATUS.PENDING && o.teslimTarihi).map((o) => {
     const stages = o.asamalar || [];
     const lastStage = stages[stages.length - 1];
-    const completed = lastStage ? (lastStage.cikan || 0) : 0;
-    const remaining = Math.max(0, (o.miktar || 0) - completed);
+    const remaining = lastStage ? remainingStageQty(o, lastStage) : (o.miktar || 0);
     const due = new Date(o.teslimTarihi + "T00:00:00");
     // Takvim istisnalarını (tatil/mesai) hesaba katan gerçek iş günü sayısı —
     // ham takvim günü farkı değil.
@@ -5674,7 +5695,7 @@ function TraceView({ orderId, data, lang, dir, onBack }) {
     );
   }
 
-  const route = (productRoutes || []).find((r) => r.productName === order.urun);
+  const route = findRouteForOrder(productRoutes, order);
   // Reçeteye göre kullanılan toplam malzeme: her aşamanın kendi cikan'ı × birim başına miktar
   const materialTotals = {};
   (order.asamalar || []).forEach((s) => {
@@ -5908,8 +5929,7 @@ function DigitalTwinPanel({ data, lang, dir }) {
     (o.asamalar || []).forEach((s) => {
       if (s.durum === STAGE_STATUS.DONE) return;
       if (!machineInfo[s.makine]) machineInfo[s.makine] = { queueQty: 0, runningOrder: null };
-      const remaining = Math.max(0, (o.miktar || 0) - (s.cikan || 0));
-      machineInfo[s.makine].queueQty += remaining;
+      machineInfo[s.makine].queueQty += remainingStageQty(o, s);
       if (s.durum === STAGE_STATUS.RUNNING && !machineInfo[s.makine].runningOrder) {
         machineInfo[s.makine].runningOrder = o;
       }
