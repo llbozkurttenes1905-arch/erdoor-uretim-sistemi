@@ -170,6 +170,15 @@ const STRINGS = {
   startProduction: { tr: "Üretimi Başlat", en: "Start Production", ar: "بدء الإنتاج" },
   producingProfile: { tr: "Üretilen Profil", en: "Profile Being Produced", ar: "الملف الشخصي قيد الإنتاج" },
   productionPlan: { tr: "Üretim Planı", en: "Production Plan", ar: "خطة الإنتاج" },
+  autoScheduleTab: { tr: "Otomatik Çizelgeleme", en: "Auto Scheduling", ar: "الجدولة التلقائية" },
+  autoScheduleTitle: { tr: "Otomatik Üretim Çizelgesi (Öneri)", en: "Automatic Production Schedule (Suggestion)", ar: "جدول الإنتاج التلقائي (اقتراح)" },
+  autoScheduleDesc: { tr: "Mevcut öncelik sırası, her makinenin geçmiş üretim hızı ve aşamalar arası gerçek malzeme akışına göre önümüzdeki iş günleri için önerilen makine ataması. Bu bir öneridir — uygulamadan önce inceleyip düzenleyebilirsiniz.", en: "Suggested machine assignments for upcoming work days, based on current priority order, each machine's historical production rate, and real material flow between stages. This is a suggestion — review before applying.", ar: "اقتراح لتخصيص الآلات بناءً على الأولوية الحالية." },
+  autoScheduleDaysLabel: { tr: "Kaç iş günü için öneri oluşturulsun", en: "Number of work days to generate", ar: "عدد أيام العمل" },
+  generateSchedule: { tr: "Öneri Oluştur", en: "Generate Suggestion", ar: "إنشاء اقتراح" },
+  applySchedule: { tr: "Planı Uygula", en: "Apply Schedule", ar: "تطبيق الجدول" },
+  scheduleAppliedToast: { tr: "Öneri, üretim planı takvimine uygulandı.", en: "Suggestion applied to the production plan calendar.", ar: "تم تطبيق الاقتراح على تقويم خطة الإنتاج." },
+  noScheduleYet: { tr: "Henüz bir öneri oluşturulmadı.", en: "No suggestion generated yet.", ar: "لم يتم إنشاء اقتراح بعد." },
+  scheduleUnassignedNote: { tr: "Bir makine bir günde boş görünüyorsa, o gün için girdi bekleyen ya da önceliği olan iş yoktur.", en: "If a machine appears empty on a day, there is no prioritized work with available input for that day.", ar: "إذا ظهرت آلة فارغة في يوم ما، فلا يوجد عمل ذو أولوية بمدخلات متاحة." },
   holiday: { tr: "TATİL", en: "HOLIDAY", ar: "عطلة" },
   planSavedMsg: { tr: "Plan güncellendi", en: "Plan updated", ar: "تم تحديث الخطة" },
   addWeek: { tr: "+1 Hafta Göster", en: "Show +1 Week", ar: "إظهار +أسبوع" },
@@ -251,6 +260,15 @@ const STRINGS = {
   // ---- Satın Alma ----
   purchasing: { tr: "Satın Alma", en: "Purchasing", ar: "المشتريات" },
   purchaseRequestsTitle: { tr: "Satın Alma Talepleri", en: "Purchase Requests", ar: "طلبات الشراء" },
+  materialPlanTab: { tr: "Malzeme İhtiyacı", en: "Material Requirements", ar: "احتياجات المواد" },
+  materialPlanTitle: { tr: "Malzeme İhtiyaç Planı", en: "Material Requirements Plan", ar: "خطة احتياجات المواد" },
+  materialPlanDesc: { tr: "Teslim edilmemiş TÜM siparişlerin, henüz üretilmemiş kalan miktarları için gereken toplam malzeme — mevcut stokla karşılaştırılır. Stok tükenmeden önce, ilerideki ihtiyacı görün.", en: "Total material needed for the remaining (not-yet-produced) quantity of all undelivered orders — compared against current stock. See future shortfalls before stock actually runs out.", ar: "إجمالي المواد اللازمة للكمية المتبقية من جميع الطلبات." },
+  materialNeedCol: { tr: "İleride Gereken", en: "Future Need", ar: "الاحتياج المستقبلي" },
+  materialAvailableCol: { tr: "Mevcut Stok", en: "Current Stock", ar: "المخزون الحالي" },
+  materialShortfallCol: { tr: "Açık", en: "Shortfall", ar: "العجز" },
+  noMaterialShortfall: { tr: "Şu an öngörülen bir malzeme açığı yok.", en: "No projected material shortfall right now.", ar: "لا يوجد عجز متوقع في المواد حاليًا." },
+  createRequestForShortfall: { tr: "Açık İçin Talep Oluştur", en: "Create Request for Shortfall", ar: "إنشاء طلب للعجز" },
+  requestCreatedForShortfall: { tr: "Bu açık için zaten açık bir talep var.", en: "There is already an open request for this shortfall.", ar: "يوجد بالفعل طلب مفتوح لهذا العجز." },
   newPurchaseRequest: { tr: "Yeni Talep", en: "New Request", ar: "طلب جديد" },
   purchaseItem: { tr: "Malzeme", en: "Material", ar: "المادة" },
   purchaseQty: { tr: "Talep Edilen Miktar", en: "Requested Quantity", ar: "الكمية المطلوبة" },
@@ -266,6 +284,7 @@ const STRINGS = {
   requestedBy: { tr: "Talep eden", en: "Requested by", ar: "طلب بواسطة" },
   del: { tr: "Sil", en: "Delete", ar: "حذف" },
   selectStockItem: { tr: "Malzeme seçin...", en: "Select material...", ar: "اختر المادة..." },
+  stockItemNameCol: { tr: "Malzeme", en: "Material", ar: "المادة" },
   autoRequestBadge: { tr: "Otomatik (Kritik Seviye)", en: "Automatic (Critical Level)", ar: "تلقائي (المستوى الحرج)" },
 
   // ---- Ürün Rotaları / Reçeteleri ----
@@ -2577,10 +2596,12 @@ function YoneticiMode({ data, onBack, lang, dir, profile }) {
       { id: "dijital-ikiz", labelKey: "digitalTwinTitle" },
       { id: "kanban", labelKey: "kanbanTitle" },
       { id: "plan", labelKey: "productionPlan" },
+      { id: "oto-plan", labelKey: "autoScheduleTab" },
       { id: "takvim", labelKey: "calendarTitle" },
     ]},
     { id: "malzeme", labelKey: "navGroupMaterial", tabs: [
       { id: "stok", labelKey: "stok" },
+      { id: "mrp", labelKey: "materialPlanTab" },
       { id: "satinalma", labelKey: "purchasing" },
       { id: "rota", labelKey: "routes" },
     ]},
@@ -2837,7 +2858,11 @@ function YoneticiMode({ data, onBack, lang, dir, profile }) {
 
       {tab === "plan" && <PlanTakvimi data={data} lang={lang} dir={dir} />}
 
+      {tab === "oto-plan" && <OtoCizelgePanel data={data} lang={lang} dir={dir} />}
+
       {tab === "stok" && <StokPanel data={data} lang={lang} dir={dir} />}
+
+      {tab === "mrp" && <MalzemeIhtiyacPanel data={data} lang={lang} dir={dir} profile={profile} />}
 
       {tab === "satinalma" && <SatinAlmaPanel data={data} lang={lang} dir={dir} profile={profile} />}
 
@@ -3007,6 +3032,156 @@ function PlanTakvimi({ data, lang, dir }) {
     </div>
   );
 }
+
+// =================================================================
+// OTOMATİK ÇİZELGELEME PANELİ
+// generateAutoSchedule() ile bir öneri üretir, önizleme olarak gösterir;
+// yönetici onaylarsa "Planı Uygula" ile mevcut setPlanCell() üzerinden
+// gerçek plan takvimine (aynı veri modeline) yazılır. Var olan hücreleri
+// SESSİZCE ezmez — üzerine yazmadan önce hangi günlerde zaten dolu hücre
+// olduğunu gösterir.
+// =================================================================
+function OtoCizelgePanel({ data, lang, dir }) {
+  const { orders, machines, log, plan, setPlanCell, departments } = data;
+  const [days, setDays] = useState(14);
+  const [preview, setPreview] = useState(null);
+  const [applying, setApplying] = useState(false);
+  const [savedMsg, setSavedMsg] = useState(null);
+
+  if (!orders || !machines) return <LoadingScreen lang={lang} />;
+  const allMachines = departments ? allMachinesFrom(departments) : machines;
+
+  function handleGenerate() {
+    setPreview(generateAutoSchedule({ orders, machines: allMachines, log: log || [], days: Number(days) || 14 }));
+  }
+
+  async function handleApply() {
+    if (!preview) return;
+    setApplying(true);
+    try {
+      for (const [dateIso, dayCell] of Object.entries(preview)) {
+        for (const [machineCode, cellValue] of Object.entries(dayCell)) {
+          await setPlanCell(dateIso, machineCode, { profile: cellValue.profile, orderId: cellValue.orderId });
+        }
+      }
+      setSavedMsg(t("scheduleAppliedToast", lang));
+      setTimeout(() => setSavedMsg(null), 2200);
+    } finally {
+      setApplying(false);
+    }
+  }
+
+  const previewDates = preview ? Object.keys(preview).sort() : [];
+
+  return (
+    <div style={{ maxWidth: 1180, margin: "0 auto", padding: "18px 20px 60px", display: "grid", gap: 18 }}>
+      <SavedToast text={savedMsg} />
+      <div>
+        <div style={{ fontFamily: "'Archivo', sans-serif", fontWeight: 700, fontSize: 16, color: COLORS.text, marginBottom: 4 }}>
+          {t("autoScheduleTitle", lang)}
+        </div>
+        <div style={{ fontFamily: "'Inter', sans-serif", fontSize: 12.5, color: COLORS.textFaint, maxWidth: 720 }}>
+          {t("autoScheduleDesc", lang)}
+        </div>
+      </div>
+
+      <div style={{ display: "flex", alignItems: "center", gap: 10, flexWrap: "wrap" }}>
+        <label style={{ fontFamily: "'Inter', sans-serif", fontSize: 12.5, color: COLORS.textDim }}>
+          {t("autoScheduleDaysLabel", lang)}
+        </label>
+        <input
+          type="number" min={1} max={60} value={days} onChange={(e) => setDays(e.target.value)}
+          style={{ ...inputStyle, width: 90 }}
+        />
+        <button onClick={handleGenerate} style={{
+          padding: "9px 16px", borderRadius: 9, border: "none", background: COLORS.accentRun,
+          color: "#0C1A10", fontWeight: 700, fontSize: 13, cursor: "pointer",
+        }}>
+          {t("generateSchedule", lang)}
+        </button>
+        {preview && (
+          <button onClick={handleApply} disabled={applying} style={{
+            padding: "9px 16px", borderRadius: 9, border: `1px solid ${COLORS.accentRun}50`,
+            background: COLORS.accentRunDim, color: COLORS.accentRun, fontWeight: 700, fontSize: 13,
+            cursor: applying ? "default" : "pointer", opacity: applying ? 0.6 : 1,
+          }}>
+            {t("applySchedule", lang)}
+          </button>
+        )}
+      </div>
+
+      {!preview && <div style={{ color: COLORS.textFaint, fontFamily: "'Inter', sans-serif", fontSize: 13 }}>{t("noScheduleYet", lang)}</div>}
+
+      {preview && (
+        <>
+          <div style={{ fontFamily: "'Inter', sans-serif", fontSize: 11.5, color: COLORS.textFaint }}>
+            {t("scheduleUnassignedNote", lang)}
+          </div>
+          <div style={{ overflowX: "auto", border: `1px solid ${COLORS.border}`, borderRadius: 12 }}>
+            <table style={{ borderCollapse: "collapse", width: "100%", fontFamily: "'Inter', sans-serif", fontSize: 12.5 }}>
+              <thead>
+                <tr>
+                  <th style={{
+                    position: "sticky", left: 0, background: COLORS.bgPanel, color: COLORS.textDim,
+                    padding: "10px 14px", textAlign: dir === "rtl" ? "right" : "left", borderBottom: `1px solid ${COLORS.border}`,
+                    borderRight: `1px solid ${COLORS.border}`, whiteSpace: "nowrap", zIndex: 2,
+                  }} />
+                  {allMachines.map((m) => (
+                    <th key={m.code} style={{
+                      background: COLORS.bgPanel, color: COLORS.text, padding: "10px 10px",
+                      borderBottom: `1px solid ${COLORS.border}`, fontFamily: "'IBM Plex Mono', monospace",
+                      fontSize: 11, whiteSpace: "nowrap", minWidth: 130,
+                    }}>
+                      {m.code}
+                    </th>
+                  ))}
+                </tr>
+              </thead>
+              <tbody>
+                {previewDates.map((dateIso) => {
+                  const dayCell = preview[dateIso];
+                  const existingDay = plan?.[dateIso] || {};
+                  return (
+                    <tr key={dateIso}>
+                      <td style={{
+                        position: "sticky", left: 0, background: COLORS.bgPanel, padding: "8px 14px",
+                        borderBottom: `1px solid ${COLORS.border}`, borderRight: `1px solid ${COLORS.border}`,
+                        fontFamily: "'IBM Plex Mono', monospace", fontSize: 11.5, color: COLORS.textDim, whiteSpace: "nowrap",
+                      }}>
+                        {dateIso}
+                      </td>
+                      {allMachines.map((m) => {
+                        const cell = dayCell[m.code];
+                        const hasExisting = !!normalizeCell(existingDay[m.code])?.profile;
+                        return (
+                          <td key={m.code} style={{ padding: "8px 10px", borderBottom: `1px solid ${COLORS.border}` }}>
+                            {cell ? (
+                              <div style={{
+                                padding: "6px 8px", borderRadius: 8,
+                                background: hasExisting ? COLORS.accentWarnDim : COLORS.accentRunDim,
+                                border: `1px solid ${(hasExisting ? COLORS.accentWarn : COLORS.accentRun)}40`,
+                              }}>
+                                <div style={{ color: COLORS.text, fontWeight: 600, fontSize: 12 }}>{cell.profile}</div>
+                                <div style={{ color: COLORS.textFaint, fontFamily: "'IBM Plex Mono', monospace", fontSize: 10.5 }}>
+                                  {cell.orderId} · {cell.plannedQty}
+                                </div>
+                              </div>
+                            ) : <span style={{ color: COLORS.textFaint }}>—</span>}
+                          </td>
+                        );
+                      })}
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </table>
+          </div>
+        </>
+      )}
+    </div>
+  );
+}
+
 
 function PlanCellEditor({ dept, dateIso, machine, currentCell, orders, lang, onSave, onClose }) {
   const [profile, setProfile] = useState(currentCell?.profile || "");
@@ -4117,6 +4292,135 @@ function StokPanel({ data, lang, dir }) {
 // =================================================================
 // SATIN ALMA PANELİ
 // =================================================================
+// =================================================================
+// MALZEME İHTİYAÇ PLANI (MRP)
+// Mevcut satın alma tetikleyicisi REAKTİF çalışır: stok, kritik seviyenin
+// altına düşünce talep açar. Bu fonksiyon ise İLERİYE BAKAR: henüz teslim
+// edilmemiş TÜM siparişlerin kalan (üretilmemiş) miktarları için, o ürünün
+// rotasında tanımlı malzeme tüketimini toplar ve mevcut stokla karşılaştırır.
+// Böylece stok fiilen tükenmeden, hangi malzemenin ne zaman yetmeyeceği
+// önceden görülebilir.
+// =================================================================
+function calcMaterialRequirements(orders, routes, stock) {
+  const needs = {}; // stockItemId -> toplam ihtiyaç
+  (orders || []).filter((o) => o.durum !== ORDER_STATUS.DELIVERED).forEach((order) => {
+    const route = (routes || []).find((r) => r.productName === order.urun);
+    if (!route) return;
+    (order.asamalar || []).forEach((stage) => {
+      if (stage.durum === STAGE_STATUS.DONE) return;
+      const remaining = Math.max(0, (order.miktar || 0) - (stage.cikan || 0));
+      if (remaining <= 0) return;
+      const routeStage = route.stages?.find((rs) => rs.machine === stage.makine);
+      if (!routeStage?.consumables?.length) return;
+      routeStage.consumables.forEach((c) => {
+        const qty = (Number(c.qtyPerUnit) || 0) * remaining;
+        if (qty <= 0) return;
+        needs[c.stockItemId] = (needs[c.stockItemId] || 0) + qty;
+      });
+    });
+  });
+  return Object.entries(needs)
+    .map(([stockItemId, need]) => {
+      const item = (stock || []).find((s) => s.id === stockItemId);
+      const available = item?.qty || 0;
+      const shortfall = Math.max(0, need - available);
+      return {
+        stockItemId, name: item?.name || stockItemId, unit: item?.unit || "",
+        need: Math.round(need * 100) / 100, available, shortfall: Math.round(shortfall * 100) / 100,
+      };
+    })
+    .sort((a, b) => b.shortfall - a.shortfall);
+}
+
+function MalzemeIhtiyacPanel({ data, lang, dir, profile }) {
+  const { orders, productRoutes, stock, purchaseRequests, addPurchaseRequest } = data;
+  if (!orders || !stock || !purchaseRequests) return <LoadingScreen lang={lang} />;
+
+  const rows = calcMaterialRequirements(orders, productRoutes, stock);
+  const shortfallRows = rows.filter((r) => r.shortfall > 0);
+
+  function requestShortfall(row) {
+    const hasOpenRequest = (purchaseRequests || []).some(
+      (r) => r.stockItemId === row.stockItemId && r.status !== PURCHASE_STATUS.RECEIVED
+    );
+    if (hasOpenRequest) return;
+    addPurchaseRequest({
+      id: `PO-${Date.now().toString().slice(-6)}`,
+      stockItemId: row.stockItemId, itemName: row.name, unit: row.unit,
+      qty: Math.ceil(row.shortfall),
+      note: "Malzeme İhtiyaç Planı'ndan otomatik oluşturuldu (bekleyen siparişlerin toplam ihtiyacı).",
+      status: PURCHASE_STATUS.PENDING,
+      requestedBy: profile?.full_name || profile?.id || "Sistem (MRP)",
+      date: new Date().toISOString(),
+      auto: true,
+    });
+  }
+
+  return (
+    <div style={{ maxWidth: 1180, margin: "0 auto", padding: "18px 20px 60px", display: "grid", gap: 18 }}>
+      <div>
+        <div style={{ fontFamily: "'Archivo', sans-serif", fontWeight: 700, fontSize: 16, color: COLORS.text, marginBottom: 4 }}>
+          {t("materialPlanTitle", lang)}
+        </div>
+        <div style={{ fontFamily: "'Inter', sans-serif", fontSize: 12.5, color: COLORS.textFaint, maxWidth: 720 }}>
+          {t("materialPlanDesc", lang)}
+        </div>
+      </div>
+
+      {rows.length === 0 ? (
+        <div style={{ color: COLORS.textFaint, fontFamily: "'Inter', sans-serif", fontSize: 13 }}>{t("noMaterialShortfall", lang)}</div>
+      ) : (
+        <div style={{ overflowX: "auto", border: `1px solid ${COLORS.border}`, borderRadius: 12 }}>
+          <table style={{ borderCollapse: "collapse", width: "100%", fontFamily: "'Inter', sans-serif", fontSize: 13 }}>
+            <thead>
+              <tr>
+                {[t("stockItemNameCol", lang), t("materialNeedCol", lang), t("materialAvailableCol", lang), t("materialShortfallCol", lang), ""].map((h, i) => (
+                  <th key={i} style={{ textAlign: dir === "rtl" ? "right" : "left", padding: "10px 14px", borderBottom: `1px solid ${COLORS.border}`, color: COLORS.textDim, fontSize: 11.5, whiteSpace: "nowrap" }}>{h}</th>
+                ))}
+              </tr>
+            </thead>
+            <tbody>
+              {rows.map((row) => {
+                const hasOpenRequest = (purchaseRequests || []).some(
+                  (r) => r.stockItemId === row.stockItemId && r.status !== PURCHASE_STATUS.RECEIVED
+                );
+                return (
+                  <tr key={row.stockItemId} style={{ background: row.shortfall > 0 ? COLORS.accentStopDim : "transparent" }}>
+                    <td style={{ padding: "10px 14px", borderBottom: `1px solid ${COLORS.border}`, color: COLORS.text, fontWeight: 600 }}>{row.name}</td>
+                    <td style={{ padding: "10px 14px", borderBottom: `1px solid ${COLORS.border}`, color: COLORS.textDim, fontFamily: "'IBM Plex Mono', monospace" }}>{row.need} {row.unit}</td>
+                    <td style={{ padding: "10px 14px", borderBottom: `1px solid ${COLORS.border}`, color: COLORS.textDim, fontFamily: "'IBM Plex Mono', monospace" }}>{row.available} {row.unit}</td>
+                    <td style={{ padding: "10px 14px", borderBottom: `1px solid ${COLORS.border}`, color: row.shortfall > 0 ? COLORS.accentStop : COLORS.accentRun, fontWeight: 700, fontFamily: "'IBM Plex Mono', monospace" }}>
+                      {row.shortfall > 0 ? row.shortfall : "—"} {row.shortfall > 0 ? row.unit : ""}
+                    </td>
+                    <td style={{ padding: "10px 14px", borderBottom: `1px solid ${COLORS.border}` }}>
+                      {row.shortfall > 0 && (
+                        <button
+                          onClick={() => requestShortfall(row)}
+                          disabled={hasOpenRequest}
+                          title={hasOpenRequest ? t("requestCreatedForShortfall", lang) : ""}
+                          style={{
+                            padding: "6px 12px", borderRadius: 8, border: `1px solid ${COLORS.accentRun}50`,
+                            background: hasOpenRequest ? "transparent" : COLORS.accentRunDim,
+                            color: hasOpenRequest ? COLORS.textFaint : COLORS.accentRun,
+                            fontFamily: "'Inter', sans-serif", fontSize: 12, fontWeight: 600,
+                            cursor: hasOpenRequest ? "default" : "pointer", whiteSpace: "nowrap",
+                          }}
+                        >
+                          {hasOpenRequest ? t("requestCreatedForShortfall", lang) : t("createRequestForShortfall", lang)}
+                        </button>
+                      )}
+                    </td>
+                  </tr>
+                );
+              })}
+            </tbody>
+          </table>
+        </div>
+      )}
+    </div>
+  );
+}
+
 function SatinAlmaPanel({ data, lang, dir, profile }) {
   const { stock, purchaseRequests, addPurchaseRequest, removePurchaseRequest, advancePurchaseStatus } = data;
   const [form, setForm] = useState({ stockItemId: "", qty: "", note: "" });
@@ -4288,6 +4592,69 @@ const TERMIN_RISK_STYLE = {
   sinirda: { colorKey: "accentWarn" },
   gecikme: { colorKey: "accentStop" },
 };
+
+// =================================================================
+// OTOMATİK ÇİZELGELEME
+// Plan takvimi bugüne kadar tamamen elle dolduruluyordu. Bu fonksiyon,
+// önümüzdeki N iş günü için gün-gün bir simülasyon çalıştırır:
+// - Sipariş sırası = mevcut öncelik sırası (siparişler listesindeki sıra,
+//   "Önceliği Yükselt/Düşür" ile aynı mantık)
+// - Her makinenin günlük kapasitesi, o makinenin GEÇMİŞ üretim hızından
+//   (terminMachineRate) türetilir — kafadan uydurulmuş bir sayı değil.
+// - Bir aşama, ancak bir önceki aşamadan yeterli girdi geldiyse o gün
+//   çalışılabilir kabul edilir (bkz. usta modundaki stageInputLimit ile
+//   aynı mantık) — böylece öneri, sistemin gerçek akış kısıtlarını yansıtır.
+// - Bir makineye günde tek bir sipariş atanır (mevcut plan hücresi zaten
+//   tek profil/sipariş tutuyor); o sipariş için o gün üretilebilecek adet,
+//   günlük kapasite ile sınırlıdır.
+// Sonuç, gerçek veriyi DEĞİŞTİRMEZ — sadece önizleme/öneri döner;
+// uygulamak için ayrıca setPlanCell çağrılması gerekir.
+// =================================================================
+function generateAutoSchedule({ orders, machines, log, days = 14 }) {
+  const activeOrders = (orders || []).filter((o) => o.durum === ORDER_STATUS.PENDING);
+  // Simülasyon için aşama çıktılarının bir kopyası — orijinal siparişlere dokunulmaz.
+  const sim = {};
+  activeOrders.forEach((o) => {
+    sim[o.id] = {};
+    (o.asamalar || []).forEach((s) => { sim[o.id][s.id] = s.cikan || 0; });
+  });
+
+  const preview = {}; // dateIso -> { machineCode: { profile, orderId } }
+  let cursor = new Date();
+  cursor.setHours(0, 0, 0, 0);
+  let scheduled = 0;
+
+  while (scheduled < days) {
+    cursor = addDays(cursor, 1);
+    if (isWeekend(cursor)) continue;
+    scheduled++;
+    const dateIso = isoDate(cursor);
+    const dayCell = {};
+    const usedMachines = new Set();
+
+    for (const order of activeOrders) {
+      const stages = order.asamalar || [];
+      for (let i = 0; i < stages.length; i++) {
+        const stage = stages[i];
+        if (usedMachines.has(stage.makine)) continue;
+        const cikanNow = sim[order.id][stage.id];
+        if (cikanNow >= (order.miktar || 0)) continue; // bu aşama simülasyonda zaten bitti
+        const inputLimit = i === 0 ? (order.miktar || 0) : sim[order.id][stages[i - 1].id];
+        if (inputLimit <= cikanNow) continue; // önceki aşamadan henüz girdi yok
+        const rate = terminMachineRate(stage.makine, log);
+        const dailyCapacity = rate * TERMIN_WORK_HOURS_PER_DAY;
+        const produceQty = Math.min(dailyCapacity, inputLimit - cikanNow, (order.miktar || 0) - cikanNow);
+        if (produceQty <= 0) continue;
+        sim[order.id][stage.id] = cikanNow + produceQty;
+        dayCell[stage.makine] = { profile: order.urun, orderId: order.id, plannedQty: Math.round(produceQty) };
+        usedMachines.add(stage.makine);
+        break; // bu sipariş için bugün bir aşamaya yer ayrıldı, sıradaki siparişe geç
+      }
+    }
+    if (Object.keys(dayCell).length) preview[dateIso] = dayCell;
+  }
+  return preview;
+}
 
 function terminFmtGun(n) { return n < 1 ? `${Math.round(n * 24)} sa` : `${n.toFixed(1)} gün`; }
 function terminFmtTarih(d, lang) {
