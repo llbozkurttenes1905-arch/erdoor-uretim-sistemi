@@ -8,6 +8,7 @@ import {
   Play, Square, AlertTriangle, Wrench, Zap, Package, Clock,
   ChevronLeft, ChevronRight, Check, RefreshCw, Users, Monitor, Settings, Plus, Trash2, X, Download,
   Menu, QrCode, BarChart3, Layers, ArrowRight, ArrowDown, ArrowUp, Factory, Search, Upload, FileText,
+  Sun, Moon,
 } from "lucide-react";
 
 pdfjsLib.GlobalWorkerOptions.workerSrc = pdfjsWorkerUrl;
@@ -27,16 +28,92 @@ const supabase = createClient(SUPABASE_URL, SUPABASE_PUBLISHABLE_KEY);
 // Veri katmanı: Supabase (app_data tablosu) — herkes aynı kayıtları görür
 // =================================================================
 
-const COLORS = {
+// =================================================================
+// AÇIK / KOYU MOD (TEMA)
+// COLORS nesnesi uygulama genelinde binlerce yerde doğrudan
+// (COLORS.bg, COLORS.text, ...) satır içi stillerde kullanılıyor.
+// Bu yüzden tema değiştirmek için nesneyi yeniden oluşturmak yerine,
+// mevcut nesnenin İÇİNDEKİ değerleri (Object.assign ile) güncelliyoruz.
+// Böylece nesne referansı hep aynı kalıyor ve React her yeniden
+// render'da (herhangi bir state değişikliğinde tüm ağaç zaten yeniden
+// render oluyor, memo yok) güncel renkleri okuyor — dosyanın geri
+// kalanında hiçbir satırı değiştirmeye gerek kalmadan çalışıyor.
+// Vurgu renkleri (accentRun/Stop/Warn/Idle, brand) iki temada da aynı
+// bırakıldı — hem koyu hem açık zeminde okunaklılar. Sadece zemin,
+// panel, kenarlık, yazı ve "dim" (soluk dolgu) renkleri değişiyor.
+// =================================================================
+const DARK_COLORS = {
   bg: "#15171A", bgPanel: "#1D2024", bgRaised: "#262A2F", border: "#34383E",
   text: "#F2F0EA", textDim: "#9A9D9F", textFaint: "#6B6E70",
   accentRun: "#5FB87A", accentRunDim: "#1A2B20",
   accentStop: "#E8533D", accentStopDim: "#2E1F1C",
   accentWarn: "#E8A33D", accentWarnDim: "#2E2818",
   accentIdle: "#5C6066",
-  // ERDOOR marka kırmızısı — logo/başlık/vurgu için (durum renklerinden ayrı tutulur)
   brand: "#D70E16", brandDim: "#2E1114",
 };
+
+const LIGHT_COLORS = {
+  ...DARK_COLORS,
+  bg: "#F4F3EE", bgPanel: "#FFFFFF", bgRaised: "#FFFFFF", border: "#DEDBD2",
+  text: "#1C1D1F", textDim: "#5A5D60", textFaint: "#8B8E90",
+  accentRunDim: "#E3F3E8",
+  accentStopDim: "#FBE7E2",
+  accentWarnDim: "#FCF0DC",
+  brandDim: "#FCE4E5",
+};
+
+const COLORS = { ...DARK_COLORS };
+
+function applyTheme(mode) {
+  Object.assign(COLORS, mode === "light" ? LIGHT_COLORS : DARK_COLORS);
+}
+
+function getInitialTheme() {
+  try {
+    const saved = localStorage.getItem("ui-theme");
+    if (saved === "light" || saved === "dark") return saved;
+  } catch {}
+  try {
+    if (window.matchMedia && window.matchMedia("(prefers-color-scheme: light)").matches) return "light";
+  } catch {}
+  return "dark";
+}
+
+// Modül yüklenir yüklenmez uygula — ilk render'dan önce doğru renkler
+// hazır olsun diye (aksi halde bir an koyu tema görünüp açığa geçer).
+applyTheme(getInitialTheme());
+
+function useTheme() {
+  const [mode, setModeState] = useState(getInitialTheme);
+  function setMode(next) {
+    applyTheme(next);
+    setModeState(next);
+    try { localStorage.setItem("ui-theme", next); } catch {}
+  }
+  function toggle() {
+    setMode(mode === "light" ? "dark" : "light");
+  }
+  return { mode, setMode, toggle };
+}
+
+function ThemeToggle({ mode, onToggle, style }) {
+  const isLight = mode === "light";
+  return (
+    <button
+      onClick={onToggle}
+      title={isLight ? "Koyu moda geç" : "Açık moda geç"}
+      style={{
+        display: "flex", alignItems: "center", justifyContent: "center",
+        width: 34, height: 34, borderRadius: 99,
+        background: COLORS.bgRaised, border: `1px solid ${COLORS.border}`,
+        color: COLORS.textDim, cursor: "pointer", flexShrink: 0,
+        ...style,
+      }}
+    >
+      {isLight ? <Moon size={15} /> : <Sun size={15} />}
+    </button>
+  );
+}
 
 const DOWNTIME_REASONS = [
   { id: "ariza", label: "Makine Arızası", icon: Wrench, color: COLORS.accentStop },
@@ -241,6 +318,25 @@ const STRINGS = {
   noManagerAccess: { tr: "Bu hesabın yönetici yetkisi yok. Erişim için yöneticinize başvurun.", en: "This account doesn't have manager access. Ask your admin.", ar: "لا يملك هذا الحساب صلاحية المدير." },
   signedInAs: { tr: "Giriş yapan", en: "Signed in as", ar: "تم تسجيل الدخول باسم" },
   authenticating: { tr: "Kontrol ediliyor…", en: "Checking…", ar: "جارٍ التحقق…" },
+
+  // ---- Kullanıcılar / Departman Atama ----
+  usersTab: { tr: "Kullanıcılar", en: "Users", ar: "المستخدمون" },
+  usersTitle: { tr: "Kullanıcılar & Departman Ataması", en: "Users & Department Assignment", ar: "المستخدمون وتعيين الأقسام" },
+  usersNote: { tr: "Her kullanıcıya bir rol ve (Usta ise) bir departman atayın. Usta Modu'nda kullanıcı sadece kendi departmanının makinelerini görür.", en: "Assign a role to each user and, for Operators, a department. In Operator Mode the user will only see machines from their own department.", ar: "عيّن دورًا لكل مستخدم، وللعامل قسمًا. في وضع العامل، لن يرى المستخدم سوى آلات قسمه." },
+  usersLoading: { tr: "Kullanıcılar yükleniyor…", en: "Loading users…", ar: "جارٍ تحميل المستخدمين…" },
+  usersNone: { tr: "Henüz kayıtlı kullanıcı yok.", en: "No registered users yet.", ar: "لا يوجد مستخدمون مسجلون بعد." },
+  userNameCol: { tr: "Ad Soyad", en: "Name", ar: "الاسم" },
+  userRoleCol: { tr: "Rol", en: "Role", ar: "الدور" },
+  userDeptCol: { tr: "Departman", en: "Department", ar: "القسم" },
+  userRoleOperator: { tr: "Usta", en: "Operator", ar: "عامل" },
+  userRoleManager: { tr: "Yönetici", en: "Manager", ar: "مدير" },
+  userNoDept: { tr: "— Departman seçin —", en: "— Select department —", ar: "— اختر القسم —" },
+  userDeptAll: { tr: "Tümü (kısıtlama yok)", en: "All (no restriction)", ar: "الكل (بدون قيد)" },
+  userSavedMsg: { tr: "Kullanıcı güncellendi", en: "User updated", ar: "تم تحديث المستخدم" },
+  userLoadError: { tr: "Kullanıcılar yüklenemedi. RLS izinlerini kontrol edin.", en: "Couldn't load users. Check RLS permissions.", ar: "تعذر تحميل المستخدمين. تحقق من أذونات RLS." },
+  noDeptAssignedTitle: { tr: "Departman atanmamış", en: "No department assigned", ar: "لم يتم تعيين قسم" },
+  noDeptAssignedDesc: { tr: "Hesabınıza henüz bir departman atanmadı. Lütfen yöneticinizden Kullanıcılar sayfasından departman atamasını isteyin.", en: "No department has been assigned to your account yet. Ask your manager to assign one from the Users page.", ar: "لم يتم تعيين قسم لحسابك بعد. اطلب من مديرك تعيين قسم من صفحة المستخدمين." },
+  yourDepartment: { tr: "Departmanınız", en: "Your department", ar: "قسمك" },
 
   // ---- Stok / Hammadde ----
   stok: { tr: "Stok", en: "Stock", ar: "المخزون" },
@@ -574,7 +670,7 @@ function AuthTextField({ label, type = "text", value, onChange }) {
   );
 }
 
-function LoginScreen({ lang, dir, setLang, onSignIn, onSignUp }) {
+function LoginScreen({ lang, dir, setLang, onSignIn, onSignUp, themeMode, onToggleTheme }) {
   const [isSignUp, setIsSignUp] = useState(false);
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
@@ -605,7 +701,7 @@ function LoginScreen({ lang, dir, setLang, onSignIn, onSignUp }) {
       <FontImports />
       <div style={{ width: "100%", maxWidth: 380 }}>
         <ErdoorLogo height={52} style={{ marginBottom: 22 }} />
-        <div style={{ display: "flex", justifyContent: "center", gap: 8, marginBottom: 26 }}>
+        <div style={{ display: "flex", justifyContent: "center", alignItems: "center", gap: 8, marginBottom: 26 }}>
           {LANGUAGES.map((l) => (
             <button key={l.code} onClick={() => setLang(l.code)} style={{
               padding: "7px 14px", borderRadius: 99, cursor: "pointer",
@@ -617,6 +713,7 @@ function LoginScreen({ lang, dir, setLang, onSignIn, onSignUp }) {
               {l.label}
             </button>
           ))}
+          <ThemeToggle mode={themeMode} onToggle={onToggleTheme} />
         </div>
         <div style={{ textAlign: "center", marginBottom: 26 }}>
           <div style={{ fontFamily: "'IBM Plex Mono', monospace", fontSize: 12, color: COLORS.textFaint, letterSpacing: 3, textTransform: "uppercase" }}>
@@ -1618,9 +1715,18 @@ function useSharedData() {
 // USTA MODU
 // =================================================================
 
-function UstaMode({ data, onBack, lang, dir }) {
+function UstaMode({ data, onBack, lang, dir, profile, theme }) {
   const now = useNow();
   const { machines, plan, machineStates, setMachineState, appendLog, setPolling, orders, updateOrderStage, foremen } = data;
+  // Departman kısıtlaması: yönetici rolündeki kullanıcılar tüm bölümleri
+  // görür. "usta" rolündeki bir kullanıcı, Kullanıcılar sayfasından kendisine
+  // atanmış departmanın dışındaki makineleri Usta Modu'nda göremez.
+  const isManagerRole = MANAGER_ROLES.includes(profile?.role);
+  const restrictedDeptId = !isManagerRole ? (profile?.departman_id || null) : null;
+  const noDeptAssigned = !isManagerRole && !restrictedDeptId;
+  const visibleDeptGroups = restrictedDeptId
+    ? DEPARTMENT_GROUPS.filter((g) => g.id === restrictedDeptId)
+    : DEPARTMENT_GROUPS;
   const [selectedMachine, setSelectedMachine] = useState(null);
   const [selectedOrderId, setSelectedOrderId] = useState(null);
   const [confirmingStop, setConfirmingStop] = useState(false);
@@ -1886,6 +1992,7 @@ function UstaMode({ data, onBack, lang, dir }) {
             </button>
           )}
           <span style={{ fontFamily: "'IBM Plex Mono', monospace", fontSize: 16, color: COLORS.text }}>{fmtTime(now)}</span>
+          <ThemeToggle mode={theme.mode} onToggle={theme.toggle} style={{ width: 30, height: 30 }} />
         </span>
       </div>
 
@@ -1917,6 +2024,16 @@ function UstaMode({ data, onBack, lang, dir }) {
           <div style={{ fontFamily: "'Archivo', sans-serif", fontWeight: 800, fontSize: 26, color: COLORS.text, margin: "4px 0 22px" }}>
             {t("whichMachine", lang)}
           </div>
+          {noDeptAssigned ? (
+            <div style={{ background: COLORS.accentStopDim, border: `1px solid ${COLORS.accentStop}40`, borderRadius: 16, padding: 22 }}>
+              <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 8 }}>
+                <AlertTriangle size={16} color={COLORS.accentStop} />
+                <span style={{ fontFamily: "'Archivo', sans-serif", fontWeight: 800, fontSize: 16, color: COLORS.text }}>{t("noDeptAssignedTitle", lang)}</span>
+              </div>
+              <div style={{ fontFamily: "'Inter', sans-serif", fontSize: 13.5, color: COLORS.textDim }}>{t("noDeptAssignedDesc", lang)}</div>
+            </div>
+          ) : (
+          <>
           <div style={{ position: "relative", marginBottom: 20 }}>
             <Search size={16} color={COLORS.textFaint} style={{ position: "absolute", top: "50%", transform: "translateY(-50%)", [dir === "rtl" ? "right" : "left"]: 14 }} />
             <input
@@ -1928,7 +2045,7 @@ function UstaMode({ data, onBack, lang, dir }) {
               }}
             />
           </div>
-          {DEPARTMENT_GROUPS.map((group) => {
+          {visibleDeptGroups.map((group) => {
             const groupMachines = machines.filter((m) => m.departmentId === group.id).filter(matchesSearch);
             if (groupMachines.length === 0) return null;
             return (
@@ -1967,10 +2084,12 @@ function UstaMode({ data, onBack, lang, dir }) {
               </div>
             );
           })}
-          {machineSearch.trim() && machines.filter(matchesSearch).length === 0 && (
+          {machineSearch.trim() && machines.filter((m) => (!restrictedDeptId || m.departmentId === restrictedDeptId) && matchesSearch(m)).length === 0 && (
             <div style={{ color: COLORS.textFaint, fontFamily: "'Inter', sans-serif", fontSize: 13, textAlign: "center", padding: "20px 0" }}>
               {t("noMachineMatch", lang)}
             </div>
+          )}
+          </>
           )}
         </div>
       )}
@@ -2621,7 +2740,7 @@ function MachineCard({ machine, state, profileToday, now, onClick, lang, dir }) 
   );
 }
 
-function YoneticiMode({ data, onBack, lang, dir, profile }) {
+function YoneticiMode({ data, onBack, lang, dir, profile, theme }) {
   const now = useNow(2000);
   const { machines, plan, machineStates, log, refresh, orders, stock, setPolling } = data;
   const [tab, setTab] = useState("durum");
@@ -2655,6 +2774,7 @@ function YoneticiMode({ data, onBack, lang, dir, profile }) {
     ]},
     { id: "sistem", labelKey: "navGroupSystem", tabs: [
       { id: "geri-al", labelKey: "undoTitle" },
+      { id: "kullanicilar", labelKey: "usersTab" },
       { id: "ayarlar", labelKey: "settings" },
     ]},
   ];
@@ -2714,6 +2834,7 @@ function YoneticiMode({ data, onBack, lang, dir, profile }) {
             <RefreshCw size={14} />
           </button>
           <span style={{ fontFamily: "'IBM Plex Mono', monospace", fontSize: 13, color: COLORS.text }}>{fmtClock(now)}</span>
+          <ThemeToggle mode={theme.mode} onToggle={theme.toggle} style={{ width: 30, height: 30 }} />
         </div>
       </div>
 
@@ -2918,6 +3039,8 @@ function YoneticiMode({ data, onBack, lang, dir, profile }) {
       {tab === "takvim" && <CalendarPanel data={data} lang={lang} dir={dir} />}
 
       {tab === "geri-al" && <UndoPanel data={data} lang={lang} dir={dir} />}
+
+      {tab === "kullanicilar" && <KullanicilarPanel data={data} lang={lang} dir={dir} />}
 
       {tab === "uretim-grafik" && <UretimGrafigiPanel data={data} lang={lang} dir={dir} />}
 
@@ -3286,6 +3409,138 @@ function PlanCellEditor({ dept, dateIso, machine, currentCell, orders, lang, onS
   );
 }
 
+
+// =================================================================
+// KULLANICILAR — sadece yöneticinin gördüğü panel. Supabase Auth ile
+// kayıt olmuş her kullanıcının "profiles" satırını listeler; buradan
+// rol (usta/yönetici) ve departman ataması yapılır. Departman değeri
+// departments listesindeki "id" alanına karşılık gelen düz bir metindir
+// (örn. "extruder"); Usta Modu bu değere göre makine listesini filtreler.
+// NOT: Bu ekranın çalışması için Supabase tarafında "profiles" tablosuna
+// departman_id (text, null olabilir) kolonu ve yöneticilerin tüm satırları
+// görüp güncelleyebildiği RLS politikaları eklenmiş olmalı (bkz. SQL notu).
+// =================================================================
+function KullanicilarPanel({ data, lang, dir }) {
+  const { departments } = data;
+  const [users, setUsers] = useState(null);
+  const [error, setError] = useState(null);
+  const [savedMsg, setSavedMsg] = useState(null);
+  const [savingId, setSavingId] = useState(null);
+
+  const loadUsers = useCallback(async () => {
+    setError(null);
+    const { data: rows, error: err } = await supabase
+      .from("profiles")
+      .select("id, full_name, role, departman_id")
+      .order("full_name", { ascending: true });
+    if (err) { setError(err.message || t("userLoadError", lang)); setUsers([]); return; }
+    setUsers(rows || []);
+  }, [lang]);
+
+  useEffect(() => { loadUsers(); }, [loadUsers]);
+
+  function flashSaved() {
+    setSavedMsg(t("userSavedMsg", lang));
+    setTimeout(() => setSavedMsg(null), 1500);
+  }
+
+  async function updateUser(id, patch) {
+    setSavingId(id);
+    setUsers((prev) => prev.map((u) => (u.id === id ? { ...u, ...patch } : u)));
+    const { error: err } = await supabase.from("profiles").update(patch).eq("id", id);
+    setSavingId(null);
+    if (err) { setError(err.message); return; }
+    flashSaved();
+  }
+
+  const deptList = departments || [];
+
+  return (
+    <div dir={dir} style={{ maxWidth: 900, margin: "0 auto", padding: "18px 20px 60px", display: "grid", gap: 20 }}>
+      <SavedToast text={savedMsg} />
+      <div>
+        <div style={{ fontFamily: "'Archivo', sans-serif", fontWeight: 800, fontSize: 22, color: COLORS.text }}>
+          {t("usersTitle", lang)}
+        </div>
+        <div style={{ fontFamily: "'Inter', sans-serif", fontSize: 13, color: COLORS.textDim, marginTop: 6, maxWidth: 620 }}>
+          {t("usersNote", lang)}
+        </div>
+      </div>
+
+      {error && (
+        <div style={{ background: COLORS.accentStopDim, border: `1px solid ${COLORS.accentStop}50`, borderRadius: 12, padding: "12px 16px", fontFamily: "'Inter', sans-serif", fontSize: 13, color: COLORS.text }}>
+          {error}
+        </div>
+      )}
+
+      {users === null && !error && (
+        <div style={{ fontFamily: "'Inter', sans-serif", fontSize: 13, color: COLORS.textDim }}>{t("usersLoading", lang)}</div>
+      )}
+
+      {users && users.length === 0 && !error && (
+        <div style={{ fontFamily: "'Inter', sans-serif", fontSize: 13, color: COLORS.textFaint }}>{t("usersNone", lang)}</div>
+      )}
+
+      {users && users.length > 0 && (
+        <div style={{ display: "grid", gap: 10 }}>
+          {users.map((u) => {
+            const isManagerRole = MANAGER_ROLES.includes(u.role);
+            return (
+              <div key={u.id} style={{
+                background: COLORS.bgPanel, border: `1px solid ${COLORS.border}`, borderRadius: 14,
+                padding: "14px 16px", display: "flex", alignItems: "center", gap: 14, flexWrap: "wrap",
+                opacity: savingId === u.id ? 0.6 : 1,
+              }}>
+                <div style={{ flex: "1 1 180px", minWidth: 140 }}>
+                  <div style={{ fontFamily: "'Archivo', sans-serif", fontWeight: 700, fontSize: 15, color: COLORS.text }}>
+                    {u.full_name || t("userNameCol", lang)}
+                  </div>
+                  <div style={{ fontFamily: "'IBM Plex Mono', monospace", fontSize: 11, color: COLORS.textFaint, marginTop: 2 }}>
+                    {u.id}
+                  </div>
+                </div>
+
+                <div style={{ display: "grid", gap: 4 }}>
+                  <label style={{ fontFamily: "'Inter', sans-serif", fontSize: 11, color: COLORS.textFaint }}>{t("userRoleCol", lang)}</label>
+                  <select
+                    value={isManagerRole ? "yonetici" : "usta"}
+                    onChange={(e) => updateUser(u.id, { role: e.target.value })}
+                    style={{
+                      background: COLORS.bgRaised, border: `1px solid ${COLORS.border}`, borderRadius: 10,
+                      padding: "9px 10px", color: COLORS.text, fontFamily: "'Inter', sans-serif", fontSize: 13,
+                    }}
+                  >
+                    <option value="usta">{t("userRoleOperator", lang)}</option>
+                    <option value="yonetici">{t("userRoleManager", lang)}</option>
+                  </select>
+                </div>
+
+                <div style={{ display: "grid", gap: 4 }}>
+                  <label style={{ fontFamily: "'Inter', sans-serif", fontSize: 11, color: COLORS.textFaint }}>{t("userDeptCol", lang)}</label>
+                  <select
+                    value={u.departman_id || ""}
+                    disabled={isManagerRole}
+                    onChange={(e) => updateUser(u.id, { departman_id: e.target.value || null })}
+                    style={{
+                      background: COLORS.bgRaised, border: `1px solid ${COLORS.border}`, borderRadius: 10,
+                      padding: "9px 10px", color: COLORS.text, fontFamily: "'Inter', sans-serif", fontSize: 13,
+                      opacity: isManagerRole ? 0.5 : 1, minWidth: 200,
+                    }}
+                  >
+                    <option value="">{isManagerRole ? t("userDeptAll", lang) : t("userNoDept", lang)}</option>
+                    {deptList.map((d) => (
+                      <option key={d.id} value={d.id}>{d.name}</option>
+                    ))}
+                  </select>
+                </div>
+              </div>
+            );
+          })}
+        </div>
+      )}
+    </div>
+  );
+}
 
 function TanimlarPanel({ data, lang, dir }) {
   const { departments, updateDepartments, orders, addOrder, removeOrder, markOrderDelivered, addOrderStage, removeOrderStage, updateOrderStage, productRoutes, foremen, updateForemen } = data;
@@ -6140,13 +6395,13 @@ function LoadingScreen({ lang = "tr" }) {
 // MOD SEÇİM EKRANI
 // =================================================================
 
-function ModeSelect({ onSelect, lang, setLang, dir, profile, onSignOut }) {
+function ModeSelect({ onSelect, lang, setLang, dir, profile, onSignOut, themeMode, onToggleTheme }) {
   const isManager = MANAGER_ROLES.includes(profile?.role);
   return (
     <div dir={dir} style={{ minHeight: "100vh", background: COLORS.bg, display: "flex", alignItems: "center", justifyContent: "center", padding: 20 }}>
       <div style={{ width: "100%", maxWidth: 420 }}>
         <ErdoorLogo height={56} style={{ marginBottom: 24 }} />
-        <div style={{ display: "flex", justifyContent: "center", gap: 8, marginBottom: 26 }}>
+        <div style={{ display: "flex", justifyContent: "center", alignItems: "center", gap: 8, marginBottom: 26 }}>
           {LANGUAGES.map((l) => (
             <button
               key={l.code}
@@ -6162,6 +6417,7 @@ function ModeSelect({ onSelect, lang, setLang, dir, profile, onSignOut }) {
               {l.label}
             </button>
           ))}
+          <ThemeToggle mode={themeMode} onToggle={onToggleTheme} />
         </div>
         <div style={{ textAlign: "center", marginBottom: 30 }}>
           <div style={{ fontFamily: "'IBM Plex Mono', monospace", fontSize: 12, color: COLORS.textFaint, letterSpacing: 3, textTransform: "uppercase" }}>
@@ -6235,11 +6491,12 @@ export default function App() {
   const data = useSharedData();
   const { lang, setLang, dir, ready } = useLanguage();
   const auth = useAuth();
+  const theme = useTheme();
   const { traceOrderId } = useHashRoute();
 
   if (!ready || auth.loading) return <LoadingScreen lang={lang} />;
   if (!auth.session) {
-    return <LoginScreen lang={lang} dir={dir} setLang={setLang} onSignIn={auth.signIn} onSignUp={auth.signUp} />;
+    return <LoginScreen lang={lang} dir={dir} setLang={setLang} onSignIn={auth.signIn} onSignUp={auth.signUp} themeMode={theme.mode} onToggleTheme={theme.toggle} />;
   }
 
   // QR kod / doğrudan link ile gelinen izlenebilirlik sayfası — giriş
@@ -6257,10 +6514,10 @@ export default function App() {
     <>
       <FontImports />
       {mode === null && (
-        <ModeSelect onSelect={setMode} lang={lang} setLang={setLang} dir={dir} profile={auth.profile} onSignOut={auth.signOut} />
+        <ModeSelect onSelect={setMode} lang={lang} setLang={setLang} dir={dir} profile={auth.profile} onSignOut={auth.signOut} themeMode={theme.mode} onToggleTheme={theme.toggle} />
       )}
-      {mode === "usta" && <UstaMode data={data} onBack={() => setMode(null)} lang={lang} dir={dir} />}
-      {mode === "yonetici" && <YoneticiMode data={data} onBack={() => setMode(null)} lang={lang} dir={dir} profile={auth.profile} />}
+      {mode === "usta" && <UstaMode data={data} onBack={() => setMode(null)} lang={lang} dir={dir} profile={auth.profile} theme={theme} />}
+      {mode === "yonetici" && <YoneticiMode data={data} onBack={() => setMode(null)} lang={lang} dir={dir} profile={auth.profile} theme={theme} />}
     </>
   );
 }
