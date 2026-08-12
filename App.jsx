@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef, useCallback } from "react";
+import { useState, useEffect, useRef, useCallback, useMemo } from "react";
 import * as XLSX from "xlsx-js-style"; // SheetJS CE + hücre stilleri (Apache-2.0) — Excel'e Aktar raporlarını renklendirmek için
 import { createClient } from "@supabase/supabase-js";
 import QRCode from "qrcode";
@@ -284,6 +284,7 @@ const STRINGS = {
   selectProduct: { tr: "Ürün seçin...", en: "Select a product...", ar: "اختر منتجًا..." },
   linkToOrder: { tr: "Hangi sipariş için? (opsiyonel)", en: "For which order? (optional)", ar: "لأي طلب؟ (اختياري)" },
   noOrderLink: { tr: "Sipariş bağlama (genel üretim)", en: "No order link (general production)", ar: "بدون ربط بطلب (إنتاج عام)" },
+  addJobToCell: { tr: "+ İş Ekle", en: "+ Add Job", ar: "+ إضافة عمل" },
   noMatchingOrders: { tr: "Bu ürün için bekleyen sipariş yok. Önce Tanımlar'dan sipariş ekleyin.", en: "No pending orders for this product. Add one from Settings first.", ar: "لا توجد طلبات معلقة لهذا المنتج. أضف طلبًا من الإعدادات أولاً." },
   producingForOrder: { tr: "Sipariş için üretiliyor", en: "Producing for order", ar: "قيد الإنتاج للطلب" },
   stages: { tr: "Üretim Aşamaları", en: "Production Stages", ar: "مراحل الإنتاج" },
@@ -1107,12 +1108,31 @@ function fmtPlanDate(iso, lang) {
 function planKey(dateIso, machineCode) {
   return `plan:${dateIso}:${machineCode}`;
 }
-// Hücre değeri eski formatta düz string (sadece profil) olabilir veya
-// yeni formatta {profile, orderId} objesi olabilir — ikisini de okur.
+// Hücre değeri üç farklı formatta olabilir (geriye dönük uyumluluk için):
+// - eski: düz string (sadece profil)
+// - eski: tekil obje {profile, orderId}
+// - YENİ: bir iş dizisi [{profile, orderId, plannedQty?}, ...] — bir makine
+//   artık aynı gün birden fazla siparişe (sürekli akış) ayrılabiliyor.
+// normalizeCellJobs HER ZAMAN bir dizi döner (boş olabilir).
+function normalizeCellJobs(cell) {
+  if (!cell) return [];
+  if (typeof cell === "string") return cell ? [{ profile: cell, orderId: null }] : [];
+  if (Array.isArray(cell)) return cell.filter((j) => j && j.profile);
+  return cell.profile ? [cell] : [];
+}
+// Geriye dönük uyumluluk: sadece hücrenin BİRİNCİL (ilk) işini döner.
+// Tek-iş varsayan eski ekranlar (örn. Usta Modu özet kutusu) bunu kullanmaya devam eder.
 function normalizeCell(cell) {
-  if (!cell) return null;
-  if (typeof cell === "string") return { profile: cell, orderId: null };
-  return cell;
+  const jobs = normalizeCellJobs(cell);
+  return jobs.length ? jobs[0] : null;
+}
+// Bir hücrenin işlerini kısa bir etiket metnine çevirir — küçük kartlarda/
+// tablolarda birden fazla iş varsa hepsini göstermek yerine kısaca özetler.
+function cellJobsSummary(cell) {
+  const jobs = normalizeCellJobs(cell);
+  if (jobs.length === 0) return "";
+  if (jobs.length === 1) return jobs[0].profile;
+  return `${jobs[0].profile} +${jobs.length - 1}`;
 }
 
 
@@ -1499,10 +1519,15 @@ function useSharedData() {
   useEffect(() => { planRef.current = plan; }, [plan]);
 
   // Tek bir gün/makine hücresini günceller (Yönetici takvimde bir hücre düzenlediğinde).
-  // cellValue: null/"" -> hücreyi temizle, ya da { profile, orderId } objesi.
+  // cellValue: null/"" -> hücreyi temizle, tekil { profile, orderId } objesi (eski
+  // kullanım), ya da bir iş DİZİSİ [{ profile, orderId, plannedQty? }, ...] (yeni:
+  // aynı gün/makine için birden fazla sipariş).
   async function setPlanCell(dateIso, machineCode, cellValue) {
     const day = { ...(planRef.current[dateIso] || {}) };
-    if (cellValue && cellValue.profile) day[machineCode] = cellValue;
+    const jobs = Array.isArray(cellValue)
+      ? cellValue.filter((j) => j && j.profile)
+      : (cellValue && cellValue.profile ? [cellValue] : []);
+    if (jobs.length) day[machineCode] = jobs;
     else delete day[machineCode];
     const newPlan = { ...planRef.current, [dateIso]: day };
     planRef.current = newPlan;
@@ -1777,8 +1802,8 @@ function UstaMode({ data, onBack, lang, dir, profile, theme }) {
   const orderComplete = !!(runningOrder && (state?.produced || 0) >= (runningOrder.miktar || Infinity));
   const backIcon = dir === "rtl" ? { transform: "rotate(180deg)" } : {};
   const todayIso = isoDate(now);
-  const todaysCell = selectedMachine ? normalizeCell((plan[todayIso] || {})[selectedMachine.code]) : null;
-  const linkedOrder = todaysCell?.orderId ? (data.orders || []).find((o) => o.id === todaysCell.orderId) : null;
+  const todaysJobs = selectedMachine ? normalizeCellJobs((plan[todayIso] || {})[selectedMachine.code]) : [];
+  const todaysCell = todaysJobs[0] || null;
   // Makine üretimde ve çok uzun süredir (8+ saat) duruyor mu — unutulmuş olabilir.
   const runElapsedMs = state?.status === "run" ? now - state.startedAt : 0;
   const isLongRunning = state?.status === "run" && runElapsedMs > 8 * 3600 * 1000;
@@ -2057,7 +2082,7 @@ function UstaMode({ data, onBack, lang, dir, profile, theme }) {
                   {groupMachines.map((m) => {
                     const st = machineStates[m.code] || { status: "idle" };
                     const dot = st.status === "run" ? COLORS.accentRun : st.status === "down_pending" ? COLORS.accentWarn : COLORS.accentIdle;
-                    const profileToday = normalizeCell((plan[todayIso] || {})[m.code])?.profile;
+                    const profileToday = cellJobsSummary((plan[todayIso] || {})[m.code]);
                     const pendingCount = (orders || [])
                       .filter((o) => o.durum !== ORDER_STATUS.DELIVERED)
                       .flatMap((o) => availableOrderStages(o))
@@ -2215,12 +2240,19 @@ function UstaMode({ data, onBack, lang, dir, profile, theme }) {
           {todaysCell ? (
             <div style={{ background: COLORS.bgPanel, border: `1px solid ${COLORS.border}`, borderRadius: 16, padding: 22, marginBottom: 18 }}>
               <div style={{ fontFamily: "'IBM Plex Mono', monospace", fontSize: 12, color: COLORS.textFaint, marginBottom: 4 }}>{fmtPlanDate(todayIso, lang)}</div>
-              <div style={{ fontFamily: "'Archivo', sans-serif", fontWeight: 800, fontSize: 22, color: COLORS.accentWarn }}>{todaysCell.profile}</div>
-              {linkedOrder && (
-                <div style={{ fontFamily: "'Inter', sans-serif", fontSize: 13, color: COLORS.textDim, marginTop: 8 }}>
-                  {t("producingForOrder", lang)}: <span style={{ fontFamily: "'IBM Plex Mono', monospace", color: COLORS.text }}>{linkedOrder.id}</span> · {linkedOrder.musteri} · {linkedOrder.miktar} {t("units", lang)}
-                </div>
-              )}
+              {todaysJobs.map((job, ji) => {
+                const jobOrder = job.orderId ? (data.orders || []).find((o) => o.id === job.orderId) : null;
+                return (
+                  <div key={ji} style={{ marginTop: ji > 0 ? 14 : 0, paddingTop: ji > 0 ? 14 : 0, borderTop: ji > 0 ? `1px solid ${COLORS.border}` : "none" }}>
+                    <div style={{ fontFamily: "'Archivo', sans-serif", fontWeight: 800, fontSize: 22, color: COLORS.accentWarn }}>{job.profile}</div>
+                    {jobOrder && (
+                      <div style={{ fontFamily: "'Inter', sans-serif", fontSize: 13, color: COLORS.textDim, marginTop: 8 }}>
+                        {t("producingForOrder", lang)}: <span style={{ fontFamily: "'IBM Plex Mono', monospace", color: COLORS.text }}>{jobOrder.id}</span> · {jobOrder.musteri} · {jobOrder.miktar} {t("units", lang)}
+                      </div>
+                    )}
+                  </div>
+                );
+              })}
             </div>
           ) : (
             <div style={{ background: COLORS.accentStopDim, border: `1px solid ${COLORS.accentStop}40`, borderRadius: 16, padding: 22, marginBottom: 18 }}>
@@ -2575,7 +2607,7 @@ function exportToExcel({ machines, plan, machineStates, log, orders }) {
     const row = { "Tarih": new Date(dateIso + "T00:00:00").toLocaleDateString("tr-TR", { day: "2-digit", month: "long", year: "numeric", weekday: "long" }) };
     const isHoliday = isWeekend(dateIso);
     machines.forEach((m) => {
-      row[m.code] = isHoliday ? "TATİL" : (plan[dateIso][m.code] || "");
+      row[m.code] = isHoliday ? "TATİL" : cellJobsSummary(plan[dateIso][m.code]);
     });
     return row;
   });
@@ -2950,7 +2982,7 @@ function YoneticiMode({ data, onBack, lang, dir, profile, theme }) {
             <div style={{ display: "grid", gap: 12, gridTemplateColumns: "repeat(auto-fill, minmax(270px, 1fr))" }}>
               {machines.map((m) => {
                 const st = machineStates[m.code] || { status: "idle" };
-                const profileToday = normalizeCell((plan[todayIso] || {})[m.code])?.profile;
+                const profileToday = cellJobsSummary((plan[todayIso] || {})[m.code]);
                 return <MachineCard key={m.code} machine={m} state={st} profileToday={profileToday} now={now} onClick={() => {}} lang={lang} dir={dir} />;
               })}
             </div>
@@ -3136,8 +3168,7 @@ function PlanTakvimi({ data, lang, dir }) {
                     {fmtPlanDate(dateIso, lang)}
                   </td>
                   {dept.machines.map((m) => {
-                    const cell = normalizeCell((plan[dateIso] || {})[m.code]);
-                    const linkedOrder = cell?.orderId ? (orders || []).find((o) => o.id === cell.orderId) : null;
+                    const jobs = normalizeCellJobs((plan[dateIso] || {})[m.code]);
                     return (
                       <td key={m.code} style={{ borderBottom: `1px solid ${COLORS.border}`, padding: 2 }}>
                         {holiday ? (
@@ -3149,17 +3180,25 @@ function PlanTakvimi({ data, lang, dir }) {
                             onClick={() => setEditingCell({ dateIso, machine: m })}
                             style={{
                               width: "100%", background: "transparent", border: "none", outline: "none",
-                              color: cell ? COLORS.text : COLORS.textFaint, fontFamily: "'Inter', sans-serif", fontSize: 12,
+                              color: jobs.length ? COLORS.text : COLORS.textFaint, fontFamily: "'Inter', sans-serif", fontSize: 12,
                               padding: "8px 6px", textAlign: "center", cursor: "pointer", display: "flex",
                               flexDirection: "column", alignItems: "center", gap: 2,
                             }}
                           >
-                            <span>{cell?.profile || "—"}</span>
-                            {linkedOrder && (
-                              <span style={{ fontFamily: "'IBM Plex Mono', monospace", fontSize: 10, color: COLORS.accentWarn }}>
-                                {linkedOrder.id}
-                              </span>
-                            )}
+                            {jobs.length === 0 && <span>—</span>}
+                            {jobs.map((job, ji) => {
+                              const linkedOrder = job.orderId ? (orders || []).find((o) => o.id === job.orderId) : null;
+                              return (
+                                <span key={ji} style={{ display: "flex", flexDirection: "column", alignItems: "center", marginTop: ji > 0 ? 4 : 0 }}>
+                                  <span>{job.profile}</span>
+                                  {linkedOrder && (
+                                    <span style={{ fontFamily: "'IBM Plex Mono', monospace", fontSize: 10, color: COLORS.accentWarn }}>
+                                      {linkedOrder.id}
+                                    </span>
+                                  )}
+                                </span>
+                              );
+                            })}
                           </button>
                         )}
                       </td>
@@ -3188,10 +3227,10 @@ function PlanTakvimi({ data, lang, dir }) {
           dept={dept}
           dateIso={editingCell.dateIso}
           machine={editingCell.machine}
-          currentCell={normalizeCell((plan[editingCell.dateIso] || {})[editingCell.machine.code])}
+          currentJobs={normalizeCellJobs((plan[editingCell.dateIso] || {})[editingCell.machine.code])}
           orders={orders || []}
           lang={lang}
-          onSave={(cellValue) => handleCellSave(editingCell.dateIso, editingCell.machine.code, cellValue)}
+          onSave={(jobs) => handleCellSave(editingCell.dateIso, editingCell.machine.code, jobs)}
           onClose={() => setEditingCell(null)}
         />
       )}
@@ -3226,8 +3265,10 @@ function OtoCizelgePanel({ data, lang, dir }) {
     setApplying(true);
     try {
       for (const [dateIso, dayCell] of Object.entries(preview)) {
-        for (const [machineCode, cellValue] of Object.entries(dayCell)) {
-          await setPlanCell(dateIso, machineCode, { profile: cellValue.profile, orderId: cellValue.orderId });
+        for (const [machineCode, jobs] of Object.entries(dayCell)) {
+          // Plan takvimi artık makine/gün başına birden fazla iş tutabiliyor —
+          // simülasyonun o gün o makineye ayırdığı TÜM işler doğrudan yazılıyor.
+          await setPlanCell(dateIso, machineCode, jobs);
         }
       }
       setSavedMsg(t("scheduleAppliedToast", lang));
@@ -3317,20 +3358,24 @@ function OtoCizelgePanel({ data, lang, dir }) {
                         {dateIso}
                       </td>
                       {allMachines.map((m) => {
-                        const cell = dayCell[m.code];
+                        const jobs = dayCell[m.code]; // artık dizi: aynı gün birden fazla iş olabilir
                         const hasExisting = !!normalizeCell(existingDay[m.code])?.profile;
                         return (
                           <td key={m.code} style={{ padding: "8px 10px", borderBottom: `1px solid ${COLORS.border}` }}>
-                            {cell ? (
-                              <div style={{
-                                padding: "6px 8px", borderRadius: 8,
-                                background: hasExisting ? COLORS.accentWarnDim : COLORS.accentRunDim,
-                                border: `1px solid ${(hasExisting ? COLORS.accentWarn : COLORS.accentRun)}40`,
-                              }}>
-                                <div style={{ color: COLORS.text, fontWeight: 600, fontSize: 12 }}>{cell.profile}</div>
-                                <div style={{ color: COLORS.textFaint, fontFamily: "'IBM Plex Mono', monospace", fontSize: 10.5 }}>
-                                  {cell.orderId} · {cell.plannedQty}
-                                </div>
+                            {jobs && jobs.length ? (
+                              <div style={{ display: "grid", gap: 4 }}>
+                                {jobs.map((cell, ji) => (
+                                  <div key={ji} style={{
+                                    padding: "6px 8px", borderRadius: 8,
+                                    background: hasExisting ? COLORS.accentWarnDim : COLORS.accentRunDim,
+                                    border: `1px solid ${(hasExisting ? COLORS.accentWarn : COLORS.accentRun)}40`,
+                                  }}>
+                                    <div style={{ color: COLORS.text, fontWeight: 600, fontSize: 12 }}>{cell.profile}</div>
+                                    <div style={{ color: COLORS.textFaint, fontFamily: "'IBM Plex Mono', monospace", fontSize: 10.5 }}>
+                                      {cell.orderId} · {cell.plannedQty}
+                                    </div>
+                                  </div>
+                                ))}
                               </div>
                             ) : <span style={{ color: COLORS.textFaint }}>—</span>}
                           </td>
@@ -3349,18 +3394,39 @@ function OtoCizelgePanel({ data, lang, dir }) {
 }
 
 
-function PlanCellEditor({ dept, dateIso, machine, currentCell, orders, lang, onSave, onClose }) {
-  const [profile, setProfile] = useState(currentCell?.profile || "");
-  const [orderId, setOrderId] = useState(currentCell?.orderId || "");
+// Bir makine/gün hücresi artık BİRDEN FAZLA iş (sipariş) tutabiliyor —
+// bu editör bir satır listesi olarak çalışır: her satır bir ürün + (varsa)
+// bağlı sipariş. "+ İş Ekle" ile aynı gün/makineye ikinci/üçüncü bir iş
+// eklenebilir (sürekli akışı — bir iş bitince makinenin diğerine geçmesini
+// — manuel planda da yansıtmak için).
+function PlanCellEditor({ dept, dateIso, machine, currentJobs, orders, lang, onSave, onClose }) {
+  const initialRows = currentJobs && currentJobs.length
+    ? currentJobs.map((j) => ({ profile: j.profile || "", orderId: j.orderId || "" }))
+    : [{ profile: "", orderId: "" }];
+  const [rows, setRows] = useState(initialRows);
 
-  // Sadece bu ürüne uygun ve henüz teslim edilmemiş siparişler önerilir.
-  const matchingOrders = orders.filter((o) => o.urun === profile && o.durum !== ORDER_STATUS.DELIVERED);
+  function updateRow(idx, patch) {
+    setRows(rows.map((r, i) => (i === idx ? { ...r, ...patch } : r)));
+  }
+  function addRow() {
+    setRows([...rows, { profile: "", orderId: "" }]);
+  }
+  function removeRow(idx) {
+    setRows(rows.filter((_, i) => i !== idx));
+  }
+
+  function handleSave() {
+    const jobs = rows
+      .filter((r) => r.profile)
+      .map((r) => ({ profile: r.profile, orderId: r.orderId || null }));
+    onSave(jobs.length ? jobs : null);
+  }
 
   return (
     <div onClick={onClose} style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,0.6)", display: "flex", alignItems: "flex-end", justifyContent: "center", zIndex: 60 }}>
       <div onClick={(e) => e.stopPropagation()} style={{
         background: COLORS.bgPanel, borderTop: `1px solid ${COLORS.border}`, borderRadius: "20px 20px 0 0",
-        padding: "24px 22px 30px", width: "100%", maxWidth: 480,
+        padding: "24px 22px 30px", width: "100%", maxWidth: 480, maxHeight: "85vh", overflowY: "auto",
       }}>
         <div style={{ fontFamily: "'Archivo', sans-serif", fontWeight: 800, fontSize: 18, color: COLORS.text, marginBottom: 4 }}>
           {machine.code} · {fmtPlanDate(dateIso, lang)}
@@ -3369,40 +3435,66 @@ function PlanCellEditor({ dept, dateIso, machine, currentCell, orders, lang, onS
           {machine.name}
         </div>
 
-        <div style={{ fontFamily: "'Inter', sans-serif", fontSize: 13, color: COLORS.textDim, marginBottom: 8 }}>
-          {t("departmentProducts", lang)}
-        </div>
-        <select
-          value={profile}
-          onChange={(e) => { setProfile(e.target.value); setOrderId(""); }}
-          style={{ ...inputStyle, marginBottom: 18, padding: "12px 10px" }}
-        >
-          <option value="">—</option>
-          {dept.products.map((p) => <option key={p} value={p}>{p}</option>)}
-        </select>
-
-        {profile && (
-          <>
-            <div style={{ fontFamily: "'Inter', sans-serif", fontSize: 13, color: COLORS.textDim, marginBottom: 8 }}>
-              {t("linkToOrder", lang)}
-            </div>
-            <select value={orderId} onChange={(e) => setOrderId(e.target.value)} style={{ ...inputStyle, marginBottom: 18, padding: "12px 10px" }}>
-              <option value="">{t("noOrderLink", lang)}</option>
-              {matchingOrders.map((o) => (
-                <option key={o.id} value={o.id}>{o.id} · {o.musteri} · {o.miktar} {t("units", lang)}</option>
-              ))}
-            </select>
-            {matchingOrders.length === 0 && (
-              <div style={{ fontFamily: "'Inter', sans-serif", fontSize: 11.5, color: COLORS.textFaint, marginTop: -10, marginBottom: 18 }}>
-                {t("noMatchingOrders", lang)}
+        {rows.map((row, idx) => {
+          const matchingOrders = orders.filter((o) => o.urun === row.profile && o.durum !== ORDER_STATUS.DELIVERED);
+          return (
+            <div key={idx} style={{ marginBottom: 18, paddingBottom: idx < rows.length - 1 ? 18 : 0, borderBottom: idx < rows.length - 1 ? `1px solid ${COLORS.border}` : "none" }}>
+              <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 8 }}>
+                <div style={{ fontFamily: "'Inter', sans-serif", fontSize: 13, color: COLORS.textDim }}>
+                  {t("departmentProducts", lang)}{rows.length > 1 ? ` · ${idx + 1}` : ""}
+                </div>
+                {rows.length > 1 && (
+                  <button onClick={() => removeRow(idx)} style={{ background: "none", border: `1px solid ${COLORS.border}`, borderRadius: 8, color: COLORS.textFaint, cursor: "pointer", width: 24, height: 24, display: "flex", alignItems: "center", justifyContent: "center" }}>
+                    <X size={12} />
+                  </button>
+                )}
               </div>
-            )}
-          </>
-        )}
+              <select
+                value={row.profile}
+                onChange={(e) => updateRow(idx, { profile: e.target.value, orderId: "" })}
+                style={{ ...inputStyle, marginBottom: 12, padding: "12px 10px", width: "100%" }}
+              >
+                <option value="">—</option>
+                {dept.products.map((p) => <option key={p} value={p}>{p}</option>)}
+              </select>
+
+              {row.profile && (
+                <>
+                  <div style={{ fontFamily: "'Inter', sans-serif", fontSize: 13, color: COLORS.textDim, marginBottom: 8 }}>
+                    {t("linkToOrder", lang)}
+                  </div>
+                  <select value={row.orderId} onChange={(e) => updateRow(idx, { orderId: e.target.value })} style={{ ...inputStyle, padding: "12px 10px", width: "100%" }}>
+                    <option value="">{t("noOrderLink", lang)}</option>
+                    {matchingOrders.map((o) => (
+                      <option key={o.id} value={o.id}>{o.id} · {o.musteri} · {o.miktar} {t("units", lang)}</option>
+                    ))}
+                  </select>
+                  {matchingOrders.length === 0 && (
+                    <div style={{ fontFamily: "'Inter', sans-serif", fontSize: 11.5, color: COLORS.textFaint, marginTop: 6 }}>
+                      {t("noMatchingOrders", lang)}
+                    </div>
+                  )}
+                </>
+              )}
+            </div>
+          );
+        })}
+
+        <button
+          onClick={addRow}
+          style={{
+            display: "flex", alignItems: "center", gap: 6, background: "transparent",
+            border: `1px dashed ${COLORS.border}`, color: COLORS.textDim, padding: "10px 14px", borderRadius: 10,
+            fontFamily: "'Inter', sans-serif", fontSize: 12.5, fontWeight: 600, cursor: "pointer", width: "100%",
+            justifyContent: "center", marginBottom: 18,
+          }}
+        >
+          <Plus size={14} /> {t("addJobToCell", lang)}
+        </button>
 
         <div style={{ display: "flex", gap: 10 }}>
           <BigButton onClick={onClose} variant="ghost" style={{ flex: 1, padding: "14px 0" }}>{t("cancel", lang)}</BigButton>
-          <BigButton onClick={() => onSave(profile ? { profile, orderId: orderId || null } : null)} variant="run" style={{ flex: 1, padding: "14px 0" }}>{t("saved", lang)}</BigButton>
+          <BigButton onClick={handleSave} variant="run" style={{ flex: 1, padding: "14px 0" }}>{t("saved", lang)}</BigButton>
         </div>
       </div>
     </div>
@@ -3965,7 +4057,7 @@ async function parseProformaPdf(file) {
 // kendi başlığı ve kendi sayfası altında ayrı bir sekme.
 // =================================================================
 function SiparislerPanel({ data, lang, dir }) {
-  const { departments, orders, addOrder, removeOrder, markOrderDelivered, addOrderStage, removeOrderStage, updateOrderStage, updateOrders, productRoutes } = data;
+  const { departments, orders, addOrder, removeOrder, markOrderDelivered, addOrderStage, removeOrderStage, updateOrderStage, updateOrders, productRoutes, log } = data;
   const [orderForm, setOrderForm] = useState({ siparisKodu: "", formNo: "", tarih: "", musteri: "", teslimTarihi: "", not: "" });
   const [formItems, setFormItems] = useState([{ urun: "", renk: "", olcu: "", miktar: "", birim: "adet", siparis: "", kategori: "" }]);
   const [stagePickers, setStagePickers] = useState({}); // orderId -> selected machine code (draft, before "Ekle")
@@ -4046,6 +4138,29 @@ function SiparislerPanel({ data, lang, dir }) {
   const allOrderProducts = allProductsFrom(departments);
   // Sipariş makine seçenekleri: tüm bölümlerin makineleri + Kanat makineleri.
   const allOrderMachines = allMachinesFrom(departments);
+
+  // Formdaki her geçerli kalem için, MEVCUT bekleyen tüm siparişlerin (kaç
+  // tane olursa olsun) arkasına eklenmiş gibi kuyruk-farkındalıklı bir
+  // simülasyon çalıştırıp "en erken bu tarihte biter" tahmini üretir.
+  // calcOrderTermin'in aksine burada makinelerdeki mevcut kuyruk da hesaba
+  // katılır — bu yüzden 40 sipariş de olsa 250 sipariş de olsa gerçekçidir.
+  const newOrderEstimate = useMemo(() => {
+    const validItems = formItems.filter((it) => it.urun && parseInt(it.miktar, 10) > 0);
+    if (validItems.length === 0) return null;
+    const perItem = validItems.map((item, i) => {
+      const route = findRouteForOrder(productRoutes, item);
+      if (!route) return { urun: item.urun, noRoute: true };
+      const asamalar = route.stages.map((s, si) => ({ id: `DRAFT-${i}-${si}`, makine: s.machine, durum: STAGE_STATUS.WAITING, cikan: 0 }));
+      const draftOrder = { id: `__draft_${i}`, urun: item.urun, miktar: parseInt(item.miktar, 10) || 0, asamalar };
+      const { etaDate, timedOut } = estimateNewOrderCompletion(draftOrder, orders, log);
+      return { urun: item.urun, etaDate, timedOut };
+    });
+    const dated = perItem.filter((p) => p.etaDate);
+    const overall = dated.length ? new Date(Math.max(...dated.map((p) => p.etaDate.getTime()))) : null;
+    const anyNoRoute = perItem.some((p) => p.noRoute);
+    const anyTimedOut = perItem.some((p) => p.timedOut);
+    return { perItem, overall, anyNoRoute, anyTimedOut };
+  }, [formItems, productRoutes, orders, log]);
 
   // Gerçek sipariş formlarında (fotoğraftaki gibi) tek bir form numarası
   // altında birden fazla kalem (model/miktar/birim) olabiliyor. Her kalem,
@@ -4186,10 +4301,38 @@ function SiparislerPanel({ data, lang, dir }) {
             {orderCodeError}
           </div>
         )}
-        <div style={{ display: "grid", gridTemplateColumns: "1.3fr 1fr", gap: 8, marginBottom: 12 }}>
+        <div style={{ display: "grid", gridTemplateColumns: "1.3fr 1fr", gap: 8, marginBottom: 6 }}>
           <input value={orderForm.musteri} onChange={(e) => setOrderForm({ ...orderForm, musteri: e.target.value })} placeholder={t("orderCustomer", lang)} style={inputStyle} />
           <input type="date" value={orderForm.teslimTarihi} onChange={(e) => setOrderForm({ ...orderForm, teslimTarihi: e.target.value })} style={inputStyle} title={t("orderDueDate", lang)} />
         </div>
+        {newOrderEstimate && (() => {
+          const { overall, anyNoRoute, anyTimedOut } = newOrderEstimate;
+          const requested = orderForm.teslimTarihi ? new Date(orderForm.teslimTarihi + "T00:00:00") : null;
+          const late = overall && requested && overall.getTime() > requested.getTime();
+          const color = late ? COLORS.accentStop : anyTimedOut ? COLORS.accentWarn : COLORS.accentRun;
+          return (
+            <div style={{
+              display: "flex", alignItems: "flex-start", gap: 8, padding: "8px 10px", borderRadius: 8, marginBottom: 12,
+              fontFamily: "'Inter', sans-serif", fontSize: 12, lineHeight: 1.5,
+              background: `${color}15`, color, border: `1px solid ${color}30`,
+            }}>
+              <Clock size={13} style={{ marginTop: 2, flexShrink: 0 }} />
+              <div>
+                {overall ? (
+                  <>
+                    Mevcut sipariş kuyruğuna göre bu sipariş en erken <b>{overall.toLocaleDateString("tr-TR", { day: "2-digit", month: "long", year: "numeric" })}</b> tarihinde bitebilir.
+                    {late && <> Girdiğiniz termin ({new Date(orderForm.teslimTarihi + "T00:00:00").toLocaleDateString("tr-TR")}) bu tahminden ÖNCE — kuyruk yoğunluğuna göre tutmayabilir.</>}
+                  </>
+                ) : anyTimedOut ? (
+                  "Mevcut kuyruk çok yoğun — 240 iş günü içinde bitiş tahmini üretilemedi. Bu ürünler için önceliği gözden geçirin."
+                ) : (
+                  "Tahmini bitiş hesaplanamadı."
+                )}
+                {anyNoRoute && <div style={{ marginTop: 2 }}>Not: Bazı ürünler için tanımlı üretim rotası yok, o kalemler bu tahmine dahil edilmedi.</div>}
+              </div>
+            </div>
+          );
+        })()}
         <textarea
           value={orderForm.not}
           onChange={(e) => setOrderForm({ ...orderForm, not: e.target.value })}
@@ -4894,16 +5037,36 @@ const TERMIN_RISK_STYLE = {
 // Sonuç, gerçek veriyi DEĞİŞTİRMEZ — sadece önizleme/öneri döner;
 // uygulamak için ayrıca setPlanCell çağrılması gerekir.
 // =================================================================
-function generateAutoSchedule({ orders, machines, log, days = 14 }) {
-  const activeOrders = (orders || []).filter((o) => o.durum === ORDER_STATUS.PENDING);
-  // Simülasyon için aşama çıktılarının bir kopyası — orijinal siparişlere dokunulmaz.
+// Ortak simülasyon çekirdeği. `activeOrders` ÇAĞIRAN tarafından zaten
+// öncelik sırasına göre dizilmiş olmalı (dizideki sıra = öncelik).
+// GÜNCELLEME: Bir makine artık günde TEK bir siparişle sınırlı değil.
+// Her makinenin o günkü kapasitesi bir "bütçe" gibi tutuluyor; öncelik
+// sırasındaki bir sipariş bu bütçeyi tüketmeden biterse (örn. kalan
+// ihtiyacı günlük kapasiteden azsa), kalan kapasite AYNI GÜN İÇİNDE
+// sıradaki siparişe akıyor — gerçek üretimdeki sürekli akışla (bir iş
+// bitince makine hemen diğerine geçer) birebir örtüşsün diye.
+// Hem günlük plan önizlemesini (preview: machineCode -> [ {profile,
+// orderId, plannedQty}, ... ]) hem de her siparişin SON aşamasının ne
+// zaman (hangi tarihte) miktarı tamamladığını (completionDates) döner.
+function runScheduleSimulation({ activeOrders, log, days = 14 }) {
   const sim = {};
   activeOrders.forEach((o) => {
     sim[o.id] = {};
     (o.asamalar || []).forEach((s) => { sim[o.id][s.id] = s.cikan || 0; });
   });
 
-  const preview = {}; // dateIso -> { machineCode: { profile, orderId } }
+  // Her makinenin saatlik/günlük hızı gün boyunca sabit — tekrar tekrar
+  // log'u taramamak için bir kere hesaplanıp önbelleğe alınıyor.
+  const dailyCapacityCache = {};
+  function getDailyCapacity(machineCode) {
+    if (!(machineCode in dailyCapacityCache)) {
+      dailyCapacityCache[machineCode] = terminMachineRate(machineCode, log) * TERMIN_WORK_HOURS_PER_DAY;
+    }
+    return dailyCapacityCache[machineCode];
+  }
+
+  const preview = {}; // dateIso -> { machineCode: [ {profile, orderId, plannedQty}, ... ] }
+  const completionDates = {}; // orderId -> dateIso (son aşama miktarı tamamladığı gün)
   let cursor = new Date();
   cursor.setHours(0, 0, 0, 0);
   let scheduled = 0;
@@ -4914,30 +5077,68 @@ function generateAutoSchedule({ orders, machines, log, days = 14 }) {
     scheduled++;
     const dateIso = isoDate(cursor);
     const dayCell = {};
-    const usedMachines = new Set();
+    const remainingCapacity = {}; // machineCode -> o gün için kalan kapasite (paylaşılan bütçe)
 
     for (const order of activeOrders) {
       const stages = order.asamalar || [];
       for (let i = 0; i < stages.length; i++) {
         const stage = stages[i];
-        if (usedMachines.has(stage.makine)) continue;
         const cikanNow = sim[order.id][stage.id];
         if (cikanNow >= (order.miktar || 0)) continue; // bu aşama simülasyonda zaten bitti
         const inputLimit = i === 0 ? (order.miktar || 0) : sim[order.id][stages[i - 1].id];
         if (inputLimit <= cikanNow) continue; // önceki aşamadan henüz girdi yok
-        const rate = terminMachineRate(stage.makine, log);
-        const dailyCapacity = rate * TERMIN_WORK_HOURS_PER_DAY;
-        const produceQty = Math.min(dailyCapacity, inputLimit - cikanNow, (order.miktar || 0) - cikanNow);
+
+        if (!(stage.makine in remainingCapacity)) remainingCapacity[stage.makine] = getDailyCapacity(stage.makine);
+        const capLeft = remainingCapacity[stage.makine];
+        if (capLeft <= 0) continue; // bu makine bugün için tamamen dolu — sıradaki uygun aşamaya/siparişe bak
+
+        const produceQty = Math.min(capLeft, inputLimit - cikanNow, (order.miktar || 0) - cikanNow);
         if (produceQty <= 0) continue;
+
         sim[order.id][stage.id] = cikanNow + produceQty;
-        dayCell[stage.makine] = { profile: order.urun, orderId: order.id, plannedQty: Math.round(produceQty) };
-        usedMachines.add(stage.makine);
+        remainingCapacity[stage.makine] = capLeft - produceQty;
+        if (!dayCell[stage.makine]) dayCell[stage.makine] = [];
+        dayCell[stage.makine].push({ profile: order.urun, orderId: order.id, plannedQty: Math.round(produceQty) });
         break; // bu sipariş için bugün bir aşamaya yer ayrıldı, sıradaki siparişe geç
       }
     }
     if (Object.keys(dayCell).length) preview[dateIso] = dayCell;
+
+    for (const order of activeOrders) {
+      if (completionDates[order.id]) continue;
+      const stages = order.asamalar || [];
+      if (stages.length === 0) continue;
+      const lastStage = stages[stages.length - 1];
+      if (sim[order.id][lastStage.id] >= (order.miktar || 0)) {
+        completionDates[order.id] = dateIso;
+      }
+    }
   }
-  return preview;
+  return { preview, completionDates, simulatedDays: scheduled };
+}
+
+function generateAutoSchedule({ orders, machines, log, days = 14 }) {
+  const activeOrders = (orders || []).filter((o) => o.durum === ORDER_STATUS.PENDING);
+  return runScheduleSimulation({ activeOrders, log, days }).preview;
+}
+
+// Henüz KAYDEDİLMEMİŞ (taslak) bir siparişin, mevcut TÜM bekleyen siparişlerin
+// (kaç tane olursa olsun — 40, 250, fark etmez) arkasına en düşük öncelikle
+// eklendiği varsayılarak, gerçek makine kuyruğuna göre en erken ne zaman
+// bitebileceğini hesaplar. calcOrderTermin'den farkı: o fonksiyon bir
+// siparişi TEK BAŞINAYMIŞ gibi (makine sadece ona çalışıyormuş gibi) hesaplar;
+// bu fonksiyon ise aynı makinelerde önde bekleyen diğer siparişlerin süresini
+// de simüle eder. Böylece yeni sipariş girilirken müşteriye verilecek terminin
+// gerçekten tutup tutmayacağı görülebilir.
+function estimateNewOrderCompletion(draftOrder, orders, log, maxDays = 240) {
+  const existingPending = (orders || []).filter((o) => o.durum === ORDER_STATUS.PENDING);
+  const activeOrders = [...existingPending, draftOrder];
+  const { completionDates, simulatedDays } = runScheduleSimulation({ activeOrders, log, days: maxDays });
+  const dateIso = completionDates[draftOrder.id] || null;
+  return {
+    etaDate: dateIso ? new Date(dateIso + "T00:00:00") : null,
+    timedOut: !dateIso && simulatedDays >= maxDays,
+  };
 }
 
 function terminFmtGun(n) { return n < 1 ? `${Math.round(n * 24)} sa` : `${n.toFixed(1)} gün`; }
