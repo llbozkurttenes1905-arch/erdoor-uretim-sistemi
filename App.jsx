@@ -43,23 +43,25 @@ const supabase = createClient(SUPABASE_URL, SUPABASE_PUBLISHABLE_KEY);
 // panel, kenarlık, yazı ve "dim" (soluk dolgu) renkleri değişiyor.
 // =================================================================
 const DARK_COLORS = {
-  bg: "#15171A", bgPanel: "#1D2024", bgRaised: "#262A2F", border: "#34383E",
-  text: "#F2F0EA", textDim: "#9A9D9F", textFaint: "#6B6E70",
-  accentRun: "#5FB87A", accentRunDim: "#1A2B20",
-  accentStop: "#E8533D", accentStopDim: "#2E1F1C",
-  accentWarn: "#E8A33D", accentWarnDim: "#2E2818",
-  accentIdle: "#5C6066",
-  brand: "#D70E16", brandDim: "#2E1114",
+  bg: "#14161A", bgPanel: "#1B1E23", bgRaised: "#22262C", border: "#2B2F35", borderSoft: "#23262B",
+  text: "#F1EEE6", textDim: "#9B9E9F", textFaint: "#65686B",
+  accentRun: "#4FA968", accentRunDim: "#17281D",
+  accentStop: "#D1503A", accentStopDim: "#2A1B17",
+  accentWarn: "#D99A3D", accentWarnDim: "#2A2316",
+  accentIdle: "#54585C",
+  brand: "#D70E16", brandDim: "#2B1315",
+  shadowCard: "0 1px 0 rgba(0,0,0,.4), 0 8px 24px -12px rgba(0,0,0,.5)",
 };
 
 const LIGHT_COLORS = {
   ...DARK_COLORS,
-  bg: "#F4F3EE", bgPanel: "#FFFFFF", bgRaised: "#FFFFFF", border: "#DEDBD2",
+  bg: "#F3F1EA", bgPanel: "#FFFFFF", bgRaised: "#FFFFFF", border: "#D6D0C0", borderSoft: "#EAE7DD",
   text: "#1C1D1F", textDim: "#5A5D60", textFaint: "#8B8E90",
-  accentRunDim: "#E3F3E8",
-  accentStopDim: "#FBE7E2",
-  accentWarnDim: "#FCF0DC",
-  brandDim: "#FCE4E5",
+  accentRunDim: "#E3F0E6",
+  accentStopDim: "#FAE6E0",
+  accentWarnDim: "#FAEED9",
+  brandDim: "#FBE2E3",
+  shadowCard: "0 1px 0 rgba(28,29,31,.04), 0 8px 20px -14px rgba(28,29,31,.18)",
 };
 
 const COLORS = { ...DARK_COLORS };
@@ -661,6 +663,7 @@ function AuthTextField({ label, type = "text", value, onChange }) {
         type={type}
         value={value}
         onChange={(e) => onChange(e.target.value)}
+        className="ds-input"
         style={{
           background: COLORS.bgRaised, border: `1px solid ${COLORS.border}`, borderRadius: 10,
           padding: "11px 12px", color: COLORS.text, fontFamily: "'Inter', sans-serif", fontSize: 14,
@@ -1254,10 +1257,52 @@ function ErdoorLogo({ height = 40, style }) {
 function FontImports() {
   return (
     <style>{`
-      @import url('https://fonts.googleapis.com/css2?family=Archivo:wght@700;800&family=Inter:wght@400;500;600&family=IBM+Plex+Mono:wght@500;600&display=swap');
+      @import url('https://fonts.googleapis.com/css2?family=Archivo:wght@600;700;800&family=Inter:wght@400;500;600;700&family=IBM+Plex+Mono:wght@500;600&display=swap');
       * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
       html, body { margin: 0; padding: 0; height: 100%; background: ${COLORS.bg}; overscroll-behavior-y: none; }
       #root { min-height: 100%; background: ${COLORS.bg}; }
+
+      :focus-visible { outline: 2px solid ${COLORS.brand}; outline-offset: 2px; border-radius: 4px; }
+      @media (prefers-reduced-motion: reduce) { *, *::before, *::after { animation-duration: 0.001ms !important; transition-duration: 0.001ms !important; } }
+
+      ::-webkit-scrollbar { width: 10px; height: 10px; }
+      ::-webkit-scrollbar-track { background: transparent; }
+      ::-webkit-scrollbar-thumb { background: ${COLORS.border}; border-radius: 20px; border: 2px solid ${COLORS.bg}; }
+      ::-webkit-scrollbar-thumb:hover { background: ${COLORS.textFaint}; }
+
+      .ds-input { transition: border-color 0.12s ease; }
+      .ds-input:focus { border-color: ${COLORS.brand} !important; }
+
+      /* Sipariş kalemi satırları: masaüstünde 8-kolon tablo, mobilde
+         etiketli tek kartlara dönüşür (yatay kaydırma yerine). */
+      .orderitem-head { display: grid; grid-template-columns: 1.5fr 0.9fr 0.9fr 0.7fr 0.9fr 1fr 1fr 32px; gap: 8px; }
+      .orderitem-row { display: grid; grid-template-columns: 1.5fr 0.9fr 0.9fr 0.7fr 0.9fr 1fr 1fr 32px; gap: 8px; }
+      .mobile-field-label { display: none; }
+      @media (max-width: 900px) {
+        .orderitem-head { display: none; }
+        .orderitem-row {
+          grid-template-columns: 1fr 1fr; gap: 10px 12px; padding: 14px; margin-bottom: 8px;
+          background: ${COLORS.bgRaised}; border: 1px solid ${COLORS.border}; border-radius: 10px; position: relative;
+        }
+        .orderitem-row > div:first-child { grid-column: 1 / -1; }
+        .orderitem-row > button { position: absolute; top: 10px; right: 10px; }
+        .mobile-field-label { display: block; font-family: 'IBM Plex Mono', monospace; font-size: 10px; font-weight: 600; letter-spacing: .06em; text-transform: uppercase; color: ${COLORS.textFaint}; margin-bottom: 4px; }
+      }
+      @media (max-width: 520px) {
+        .orderitem-row { grid-template-columns: 1fr; }
+        .orderitem-row > div:first-child { grid-column: auto; }
+      }
+
+      /* Genel amaçlı 3/2 kolonlu form gridleri — masaüstünde yan yana,
+         mobilde alt alta. */
+      .ds-grid-3 { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 8px; }
+      .ds-grid-2 { display: grid; grid-template-columns: 1.3fr 1fr; gap: 8px; }
+      @media (max-width: 640px) {
+        .ds-grid-3 { grid-template-columns: 1fr 1fr; }
+      }
+      @media (max-width: 480px) {
+        .ds-grid-3, .ds-grid-2 { grid-template-columns: 1fr; }
+      }
     `}</style>
   );
 }
@@ -2088,20 +2133,28 @@ function UstaMode({ data, onBack, lang, dir, profile, theme }) {
                       .flatMap((o) => availableOrderStages(o))
                       .filter((s) => s.makine === m.code).length;
                     return (
-                      <BigButton key={m.code} onClick={() => pickMachine(m)} style={{ padding: "20px", display: "flex", alignItems: "center", justifyContent: "space-between" }}>
+                      <BigButton
+                        key={m.code}
+                        onClick={() => pickMachine(m)}
+                        style={{
+                          padding: "18px 20px", display: "flex", alignItems: "center", justifyContent: "space-between",
+                          borderRadius: 12, borderLeft: `4px solid ${dot}`, border: `1px solid ${COLORS.border}`,
+                          background: COLORS.bgPanel,
+                        }}
+                      >
                         <span style={{ display: "flex", alignItems: "center", gap: 12 }}>
-                          <span style={{ width: 9, height: 9, borderRadius: 99, background: dot, flexShrink: 0 }} />
+                          <span style={{ width: 9, height: 9, borderRadius: 99, background: dot, flexShrink: 0, boxShadow: st.status === "run" ? `0 0 0 3px ${COLORS.accentRunDim}` : "none" }} />
                           <span style={{ display: "flex", flexDirection: "column", alignItems: dir === "rtl" ? "flex-end" : "flex-start" }}>
-                            <span style={{ fontFamily: "'Archivo', sans-serif", fontSize: 18 }}>{m.code}</span>
-                            <span style={{ fontFamily: "'Inter', sans-serif", fontWeight: 400, fontSize: 13, color: COLORS.textDim }}>{m.name}</span>
+                            <span style={{ fontFamily: "'Archivo', sans-serif", fontWeight: 700, fontSize: 17, color: COLORS.text }}>{m.code}</span>
+                            <span style={{ fontFamily: "'Inter', sans-serif", fontWeight: 400, fontSize: 12.5, color: COLORS.textDim, marginTop: 1 }}>{m.name}</span>
                             {pendingCount > 0 ? (
-                              <span style={{ fontFamily: "'IBM Plex Mono', monospace", fontSize: 11, color: COLORS.accentRun, marginTop: 2 }}>{pendingCount} {t("orders", lang)}</span>
+                              <span style={{ fontFamily: "'IBM Plex Mono', monospace", fontSize: 11, color: COLORS.accentRun, marginTop: 3 }}>{pendingCount} {t("orders", lang)}</span>
                             ) : profileToday && (
-                              <span style={{ fontFamily: "'IBM Plex Mono', monospace", fontSize: 11, color: COLORS.accentWarn, marginTop: 2 }}>{profileToday}</span>
+                              <span style={{ fontFamily: "'IBM Plex Mono', monospace", fontSize: 11, color: COLORS.accentWarn, marginTop: 3 }}>{profileToday}</span>
                             )}
                           </span>
                         </span>
-                        <ChevronLeft size={20} style={{ transform: dir === "rtl" ? "none" : "rotate(180deg)", color: COLORS.textDim }} />
+                        <ChevronLeft size={18} style={{ transform: dir === "rtl" ? "none" : "rotate(180deg)", color: COLORS.textFaint, flexShrink: 0 }} />
                       </BigButton>
                     );
                   })}
@@ -2238,7 +2291,7 @@ function UstaMode({ data, onBack, lang, dir, profile, theme }) {
             {t("noOrdersOnMachine", lang)}
           </div>
           {todaysCell ? (
-            <div style={{ background: COLORS.bgPanel, border: `1px solid ${COLORS.border}`, borderRadius: 16, padding: 22, marginBottom: 18 }}>
+            <div style={{ background: COLORS.bgPanel, border: `1px solid ${COLORS.border}`, borderLeft: `4px solid ${COLORS.accentWarn}`, borderRadius: 12, padding: 22, marginBottom: 18 }}>
               <div style={{ fontFamily: "'IBM Plex Mono', monospace", fontSize: 12, color: COLORS.textFaint, marginBottom: 4 }}>{fmtPlanDate(todayIso, lang)}</div>
               {todaysJobs.map((job, ji) => {
                 const jobOrder = job.orderId ? (data.orders || []).find((o) => o.id === job.orderId) : null;
@@ -2285,7 +2338,7 @@ function UstaMode({ data, onBack, lang, dir, profile, theme }) {
             </div>
           </div>
 
-          <div style={{ background: COLORS.bgPanel, border: `1px solid ${COLORS.border}`, borderRadius: 14, padding: "16px 18px" }}>
+          <div style={{ background: COLORS.bgPanel, border: `1px solid ${COLORS.border}`, borderLeft: `4px solid ${COLORS.accentRun}`, borderRadius: 12, padding: "16px 18px" }}>
             <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between" }}>
               <div style={{ fontFamily: "'IBM Plex Mono', monospace", fontSize: 12, color: COLORS.textDim }}>{t("producingProfile", lang)}</div>
               {state.orderId && (
@@ -4284,7 +4337,7 @@ function SiparislerPanel({ data, lang, dir }) {
           </div>
         )}
 
-        <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 8, marginBottom: 8 }}>
+        <div className="ds-grid-3" style={{ marginBottom: 8 }}>
           <div>
             <input
               value={orderForm.siparisKodu}
@@ -4301,7 +4354,7 @@ function SiparislerPanel({ data, lang, dir }) {
             {orderCodeError}
           </div>
         )}
-        <div style={{ display: "grid", gridTemplateColumns: "1.3fr 1fr", gap: 8, marginBottom: 6 }}>
+        <div className="ds-grid-2" style={{ marginBottom: 6 }}>
           <input value={orderForm.musteri} onChange={(e) => setOrderForm({ ...orderForm, musteri: e.target.value })} placeholder={t("orderCustomer", lang)} style={inputStyle} />
           <input type="date" value={orderForm.teslimTarihi} onChange={(e) => setOrderForm({ ...orderForm, teslimTarihi: e.target.value })} style={inputStyle} title={t("orderDueDate", lang)} />
         </div>
@@ -4345,59 +4398,77 @@ function SiparislerPanel({ data, lang, dir }) {
         <datalist id="urunOptionsList">
           {allOrderProducts.map((p) => <option key={p} value={p} />)}
         </datalist>
-        <div style={{ overflowX: "auto", marginBottom: 8 }}>
-          <div style={{ minWidth: 820 }}>
-            <div style={{
-              display: "grid", gridTemplateColumns: "1.5fr 0.9fr 0.9fr 0.7fr 0.9fr 1fr 1fr 32px", gap: 8,
-              padding: "0 0 6px", borderBottom: `2px solid ${COLORS.border}`, marginBottom: 6,
-            }}>
-              {["colModel", "colRenk", "colOlcu", "colMiktar", "colBirim", "colSiparis", "colKategori"].map((k) => (
-                <div key={k} style={{ fontFamily: "'Inter', sans-serif", fontSize: 10.5, fontWeight: 700, letterSpacing: 0.5, color: COLORS.textFaint }}>
-                  {t(k, lang)}
-                </div>
-              ))}
-              <div />
+        <div className="orderitem-head" style={{
+          padding: "0 0 6px", borderBottom: `2px solid ${COLORS.border}`, marginBottom: 6,
+        }}>
+          {["colModel", "colRenk", "colOlcu", "colMiktar", "colBirim", "colSiparis", "colKategori"].map((k) => (
+            <div key={k} style={{ fontFamily: "'Inter', sans-serif", fontSize: 10.5, fontWeight: 700, letterSpacing: 0.5, color: COLORS.textFaint }}>
+              {t(k, lang)}
             </div>
-            <div style={{ display: "grid", gap: 6 }}>
-              {formItems.map((row, idx) => (
-                <div key={idx}>
-                  <div style={{ display: "grid", gridTemplateColumns: "1.5fr 0.9fr 0.9fr 0.7fr 0.9fr 1fr 1fr 32px", gap: 8 }}>
-                    <input
-                      list="urunOptionsList"
-                      value={row.urun}
-                      onChange={(e) => updateFormItemRow(idx, { urun: e.target.value })}
-                      placeholder={t("selectProduct", lang)}
-                      style={inputStyle}
-                    />
-                    <input value={row.renk} onChange={(e) => updateFormItemRow(idx, { renk: e.target.value })} placeholder={t("colRenk", lang)} style={inputStyle} />
-                    <input value={row.olcu} onChange={(e) => updateFormItemRow(idx, { olcu: e.target.value })} placeholder={t("colOlcu", lang)} style={inputStyle} />
-                    <input
-                      type="number" min="1" value={row.miktar}
-                      onChange={(e) => updateFormItemRow(idx, { miktar: e.target.value })}
-                      placeholder={t("orderQty", lang)}
-                      style={{ ...inputStyle, border: `1px solid ${rowErrors[idx] ? COLORS.accentStop : COLORS.border}` }}
-                    />
-                    <select value={row.birim} onChange={(e) => updateFormItemRow(idx, { birim: e.target.value })} style={inputStyle}>
-                      <option value="adet">ADET</option>
-                      <option value="takım">TAKIM</option>
-                      <option value="m2">M²</option>
-                      <option value="kg">KG</option>
-                    </select>
-                    <input value={row.siparis} onChange={(e) => updateFormItemRow(idx, { siparis: e.target.value })} placeholder={t("colSiparis", lang)} style={inputStyle} />
-                    <input value={row.kategori} onChange={(e) => updateFormItemRow(idx, { kategori: e.target.value })} placeholder={t("colKategori", lang)} style={inputStyle} />
-                    <button onClick={() => removeFormItemRow(idx)} style={{ background: "none", border: `1px solid ${COLORS.border}`, borderRadius: 8, color: COLORS.textFaint, cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center" }}>
-                      <X size={13} />
-                    </button>
-                  </div>
-                  {rowErrors[idx] && (
-                    <div style={{ fontFamily: "'Inter', sans-serif", fontSize: 11, color: COLORS.accentStop, marginTop: 3 }}>
-                      {rowErrors[idx]}
-                    </div>
-                  )}
+          ))}
+          <div />
+        </div>
+        <div style={{ display: "grid", gap: 6, marginBottom: 8 }}>
+          {formItems.map((row, idx) => (
+            <div key={idx}>
+              <div className="orderitem-row">
+                <div>
+                  <span className="mobile-field-label">{t("colModel", lang)}</span>
+                  <input
+                    list="urunOptionsList"
+                    value={row.urun}
+                    onChange={(e) => updateFormItemRow(idx, { urun: e.target.value })}
+                    placeholder={t("selectProduct", lang)}
+                    className="ds-input"
+                    style={inputStyle}
+                  />
                 </div>
-              ))}
+                <div>
+                  <span className="mobile-field-label">{t("colRenk", lang)}</span>
+                  <input value={row.renk} onChange={(e) => updateFormItemRow(idx, { renk: e.target.value })} placeholder={t("colRenk", lang)} className="ds-input" style={inputStyle} />
+                </div>
+                <div>
+                  <span className="mobile-field-label">{t("colOlcu", lang)}</span>
+                  <input value={row.olcu} onChange={(e) => updateFormItemRow(idx, { olcu: e.target.value })} placeholder={t("colOlcu", lang)} className="ds-input" style={inputStyle} />
+                </div>
+                <div>
+                  <span className="mobile-field-label">{t("colMiktar", lang)}</span>
+                  <input
+                    type="number" min="1" value={row.miktar}
+                    onChange={(e) => updateFormItemRow(idx, { miktar: e.target.value })}
+                    placeholder={t("orderQty", lang)}
+                    className="ds-input"
+                    style={{ ...inputStyle, border: `1px solid ${rowErrors[idx] ? COLORS.accentStop : COLORS.border}` }}
+                  />
+                </div>
+                <div>
+                  <span className="mobile-field-label">{t("colBirim", lang)}</span>
+                  <select value={row.birim} onChange={(e) => updateFormItemRow(idx, { birim: e.target.value })} className="ds-input" style={inputStyle}>
+                    <option value="adet">ADET</option>
+                    <option value="takım">TAKIM</option>
+                    <option value="m2">M²</option>
+                    <option value="kg">KG</option>
+                  </select>
+                </div>
+                <div>
+                  <span className="mobile-field-label">{t("colSiparis", lang)}</span>
+                  <input value={row.siparis} onChange={(e) => updateFormItemRow(idx, { siparis: e.target.value })} placeholder={t("colSiparis", lang)} className="ds-input" style={inputStyle} />
+                </div>
+                <div>
+                  <span className="mobile-field-label">{t("colKategori", lang)}</span>
+                  <input value={row.kategori} onChange={(e) => updateFormItemRow(idx, { kategori: e.target.value })} placeholder={t("colKategori", lang)} className="ds-input" style={inputStyle} />
+                </div>
+                <button onClick={() => removeFormItemRow(idx)} style={{ background: "none", border: `1px solid ${COLORS.border}`, borderRadius: 8, color: COLORS.textFaint, cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center", height: 34 }}>
+                  <X size={13} />
+                </button>
+              </div>
+              {rowErrors[idx] && (
+                <div style={{ fontFamily: "'Inter', sans-serif", fontSize: 11, color: COLORS.accentStop, marginTop: 3 }}>
+                  {rowErrors[idx]}
+                </div>
+              )}
             </div>
-          </div>
+          ))}
         </div>
         <div style={{ display: "flex", gap: 8 }}>
           <button onClick={addFormItemRow} style={{ display: "flex", alignItems: "center", gap: 6, padding: "8px 12px", borderRadius: 8, border: `1px solid ${COLORS.border}`, background: "transparent", color: COLORS.textDim, fontFamily: "'Inter', sans-serif", fontSize: 12, fontWeight: 600, cursor: "pointer" }}>
