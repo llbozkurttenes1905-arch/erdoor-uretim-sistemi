@@ -273,6 +273,10 @@ const STRINGS = {
   foremenListTitle: { tr: "Usta Listesi", en: "Foremen List", ar: "قائمة الأسطوات" },
   foremenListNote: { tr: "Buraya eklenen ustalar, her makinedeki \"Teslim Eden / Teslim Alan\" seçeneklerinde görünür.", en: "Foremen added here appear in each machine's \"Handed Over By / Received By\" options.", ar: "الأسطوات المضافون هنا يظهرون في خيارات \"التسليم/الاستلام\" لكل ماكينة." },
   newForemanPlaceholder: { tr: "Yeni usta adı", en: "New foreman name", ar: "اسم أسطى جديد" },
+  renklerListTitle: { tr: "Renk/Kısaltma Listesi", en: "Color/Abbreviation List", ar: "قائمة الألوان" },
+  renklerListNote: { tr: "Proforma PDF yüklendiğinde model metninden rengi otomatik ayıklamak için kullanılır (örn. \"B.TEAK\", \"D.BEYAZ\"). Buradaki listede olmayan bir renk proformada geçerse o satırda renk boş kalır — buraya ekleyince bir sonraki yüklemede otomatik yakalanır.", en: "Used to auto-detect color from the model text when a proforma PDF is uploaded (e.g. \"B.TEAK\", \"D.BEYAZ\"). A color not in this list will be left blank when parsed — add it here and it will be picked up on the next upload.", ar: "يُستخدم لاكتشاف اللون تلقائيًا." },
+  newRenkPlaceholder: { tr: "Yeni renk/kısaltma (örn. B.TEAK)", en: "New color/abbreviation (e.g. B.TEAK)", ar: "لون/اختصار جديد" },
+  noRouteForModelWarning: { tr: "\"{code}\" için tanımlı rota yok — Tanımlar > Ürün Rotaları'ndan ekleyin. Sipariş yine de kaydedilebilir, rota eklenene kadar üretim adımları boş kalır.", en: "No route defined for \"{code}\" — add it under Settings > Product Routes. The order can still be saved; production stages stay empty until a route is added.", ar: "لا يوجد مسار محدد لـ \"{code}\"." },
   orders: { tr: "Siparişler", en: "Orders", ar: "الطلبات" },
   orderProduct: { tr: "Ürün", en: "Product", ar: "المنتج" },
   orderCustomer: { tr: "Müşteri", en: "Customer", ar: "العميل" },
@@ -1090,6 +1094,18 @@ const DEFAULT_STOCK = [
   { id: "STK-005", name: "Tutkal", unit: "kg", qty: 320, criticalLevel: 80 },
 ];
 
+// Proforma PDF'inden gelen model metninden (örn. "ER300 KANAT B.TEAK
+// KOM.SEREN STRAFOR 800X2020X40") rengi ayıklamak için kullanılan bilinen
+// renk/kısaltma listesi. Sabit kod listesi değil — Tanımlar ekranından
+// (Yönetici Modu) eklenip çıkarılabilir, Supabase'de saklanır; burası
+// sadece ilk kurulum (seed) değeridir. Yeni bir renk kısaltması proformada
+// ilk kez görülürse o satırda renk boş kalır — kullanıcı Tanımlar'a
+// ekleyince bir sonraki proformada otomatik yakalanır.
+const DEFAULT_RENKLER = [
+  "B.TEAK", "D.BEYAZ", "K.CEVİZ", "K.CEVIZ", "D.CEVİZ", "D.CEVIZ",
+  "TEAK", "BEYAZ", "ANTRASİT", "ANTRASIT", "KREM",
+];
+
 // Ürün Rotaları / Reçeteleri: her ürünün hangi makinelerden sırayla geçtiği
 // ve her aşamada hangi malzemeden ne kadar tükettiği. Yönetici tarafından
 // "Rota / Reçete" sekmesinden tanımlanır. Yapı:
@@ -1391,6 +1407,7 @@ function useSharedData() {
   const [machineStates, setMachineStates] = useState({});
   const [log, setLog] = useState([]);
   const [stock, setStockState] = useState(null);
+  const [renkler, setRenklerState] = useState(null);
   const [stockMovements, setStockMovements] = useState([]);
   const [purchaseRequests, setPurchaseRequestsState] = useState(null);
   const [productRoutes, setProductRoutesState] = useState(null);
@@ -1415,7 +1432,7 @@ function useSharedData() {
     isRefreshing.current = true;
     try {
       const versionAtStart = writeVersion.current;
-      const [dep0, ord, p, l, sk, skMoves, pr, routes, ships, calExc, undo, fore] = await Promise.all([
+      const [dep0, ord, p, l, sk, skMoves, pr, routes, ships, calExc, undo, fore, renk] = await Promise.all([
         loadShared("departments", DEFAULT_DEPARTMENTS),
         loadShared("orders", DEFAULT_ORDERS),
         loadShared("plan", {}),
@@ -1428,6 +1445,7 @@ function useSharedData() {
         loadShared("calendar-exceptions", {}),
         loadShared("undo-log", []),
         loadShared("foremen", []),
+        loadShared("renkler", DEFAULT_RENKLER),
       ]);
 
       // Göç/migration: daha önce kaydedilmiş departman listelerinde "kanat"
@@ -1472,6 +1490,7 @@ function useSharedData() {
       setCalendarExceptionsState(calExc);
       setUndoLogState(undo);
       setForemenState(fore);
+      setRenklerState(renk);
       setLoading(false);
     } finally {
       isRefreshing.current = false;
@@ -1520,6 +1539,11 @@ function useSharedData() {
   async function updateForemen(newForemen) {
     setForemenState(newForemen);
     await saveShared("foremen", newForemen);
+  }
+
+  async function updateRenkler(newRenkler) {
+    setRenklerState(newRenkler);
+    await saveShared("renkler", newRenkler);
   }
 
   const ordersRef = useRef(orders);
@@ -1840,8 +1864,8 @@ function useSharedData() {
   return {
     departments, machines, orders, plan, machineStates, log, loading,
     stock, stockMovements, purchaseRequests, productRoutes,
-    shipments, calendarExceptions, undoLog, foremen,
-    refresh, setMachineState, appendLog, updateDepartments, updateForemen, setPlanCell, setPolling,
+    shipments, calendarExceptions, undoLog, foremen, renkler,
+    refresh, setMachineState, appendLog, updateDepartments, updateForemen, updateRenkler, setPlanCell, setPolling,
     addOrder, removeOrder, markOrderDelivered, addOrderStage, removeOrderStage, updateOrderStage, updateOrders,
     addStockItem, removeStockItem, adjustStockQty,
     addPurchaseRequest, removePurchaseRequest, advancePurchaseStatus,
@@ -3759,9 +3783,10 @@ function KullanicilarPanel({ data, lang, dir }) {
 }
 
 function TanimlarPanel({ data, lang, dir }) {
-  const { departments, updateDepartments, orders, addOrder, removeOrder, markOrderDelivered, addOrderStage, removeOrderStage, updateOrderStage, productRoutes, foremen, updateForemen } = data;
+  const { departments, updateDepartments, orders, addOrder, removeOrder, markOrderDelivered, addOrderStage, removeOrderStage, updateOrderStage, productRoutes, foremen, updateForemen, renkler, updateRenkler } = data;
   const [localDepartments, setLocalDepartments] = useState(departments);
   const [newForemanText, setNewForemanText] = useState("");
+  const [newRenkText, setNewRenkText] = useState("");
   const [activeDept, setActiveDept] = useState(departments?.[0]?.id || "extruder");
   const [savedMsg, setSavedMsg] = useState(null);
   const [newProductText, setNewProductText] = useState("");
@@ -3839,6 +3864,16 @@ function TanimlarPanel({ data, lang, dir }) {
   }
   function removeForeman(name) {
     updateForemen((foremen || []).filter((f) => f !== name));
+  }
+
+  function addRenk() {
+    const name = newRenkText.trim();
+    if (!name || (renkler || []).includes(name)) return;
+    updateRenkler([...(renkler || []), name]);
+    setNewRenkText("");
+  }
+  function removeRenk(name) {
+    updateRenkler((renkler || []).filter((r) => r !== name));
   }
 
   function addProduct() {
@@ -3985,6 +4020,35 @@ function TanimlarPanel({ data, lang, dir }) {
                 ))}
               </div>
             </div>
+
+            {/* Renk/Kısaltma Listesi — proforma yüklendiğinde model metninden
+                otomatik renk ayıklamak için kullanılır (bkz. splitModelRenkOlcu).
+                Sabit kod listesi değil, buradan yönetiliyor. */}
+            <div style={{ marginTop: 18 }}>
+              <div style={{ fontFamily: "'Archivo', sans-serif", fontWeight: 700, fontSize: 14, color: COLORS.text, marginBottom: 4 }}>{t("renklerListTitle", lang)}</div>
+              <div style={{ fontSize: 11.5, color: COLORS.textDim, marginBottom: 10 }}>{t("renklerListNote", lang)}</div>
+              <div style={{ display: "flex", gap: 6, marginBottom: 10 }}>
+                <input
+                  value={newRenkText} onChange={(e) => setNewRenkText(e.target.value)}
+                  onKeyDown={(e) => { if (e.key === "Enter") addRenk(); }}
+                  placeholder={t("newRenkPlaceholder", lang)}
+                  style={{ ...inputStyle, flex: 1 }}
+                />
+                <button onClick={addRenk} style={{ display: "flex", alignItems: "center", gap: 4, background: COLORS.accentRunDim, border: `1px solid ${COLORS.accentRun}50`, color: COLORS.accentRun, padding: "0 12px", borderRadius: 8, cursor: "pointer" }}>
+                  <Plus size={14} />
+                </button>
+              </div>
+              <div style={{ display: "flex", flexWrap: "wrap", gap: 6 }}>
+                {(renkler || []).map((r) => (
+                  <div key={r} style={{ display: "flex", alignItems: "center", gap: 6, background: COLORS.bgPanel, border: `1px solid ${COLORS.border}`, borderRadius: 20, padding: "5px 6px 5px 12px", fontSize: 12, color: COLORS.text, fontFamily: "'IBM Plex Mono', monospace" }}>
+                    {r}
+                    <button onClick={() => removeRenk(r)} style={{ background: "none", border: "none", color: COLORS.accentStop, cursor: "pointer", display: "flex" }}>
+                      <X size={12} />
+                    </button>
+                  </div>
+                ))}
+              </div>
+            </div>
           </div>
 
           {/* Ürün/Profil Listesi */}
@@ -4124,7 +4188,63 @@ function joinProformaRange(row, xMin, xMax) {
     .trim();
 }
 
-async function parseProformaPdf(file) {
+// Ölçü her zaman SAYIxSAYI(xSAYI) kalıbında geçtiği için (örn. 800X2020X40)
+// tamamen deterministik bir regex ile ayıklanabilir — bilinen liste gerekmez.
+const OLCU_REGEX = /\b(\d{2,4})\s*[xX*]\s*(\d{2,4})(?:\s*[xX*]\s*(\d{1,3}))?\b/;
+
+// Proformadan gelen ham model metninden ("ER300 KANAT B.TEAK KOM.SEREN
+// STRAFOR 800X2020X40") ölçüyü ve (bilinen bir renk listesindeyse) rengi
+// ayıklar, geri kalan temiz metni `urun` olarak döner. `bilinenRenkler`
+// Tanımlar ekranından yönetilen (Supabase'de saklanan) bir listedir —
+// koda sabit yazılmaz. Liste eksikse o satırda renk boş kalır; bu hata
+// değildir, kullanıcı elle girip/Tanımlar'a ekleyerek listeyi zamanla
+// tamamlar.
+// Kapı MODEL KODU deseni: 1-4 harf + 2-5 rakam (ER300, ER1010, ER1014 vb.).
+// Bir proforma satırının başındaki kelime bu kalıba uyuyorsa, o satır
+// sabit bir kapı modelidir — rota o KODA göre eşleşir, kalan açıklama
+// (KANAT KOM.SEREN STRAFOR gibi) rotayı hiç ilgilendirmez.
+const MODEL_CODE_REGEX = /^[A-ZÇĞİÖŞÜ]{1,4}\d{2,5}$/;
+
+function splitModelRenkOlcu(rawModel, bilinenRenkler) {
+  let text = rawModel;
+
+  let olcu = "";
+  const olcuMatch = text.match(OLCU_REGEX);
+  if (olcuMatch) {
+    olcu = olcuMatch[0].replace(/\s+/g, "").toUpperCase();
+    text = text.replace(olcuMatch[0], " ");
+  }
+
+  // En uzun renk adından başlanır — kısa kısaltmaların (örn. "TEAK") uzun
+  // olanların (örn. "B.TEAK") içinde yanlışlıkla eşleşip onu bozmasını önler.
+  let renk = "";
+  const siraliRenkler = [...(bilinenRenkler || [])].sort((a, b) => b.length - a.length);
+  for (const r of siraliRenkler) {
+    const kacisli = r.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+    const re = new RegExp(`\\b${kacisli}\\b`, "i");
+    if (re.test(text)) {
+      renk = r;
+      text = text.replace(re, " ");
+      break;
+    }
+  }
+
+  const cleaned = text.replace(/\s{2,}/g, " ").trim();
+
+  // Satırın en baştaki kelimesi sabit bir model koduysa (ER300, ER1010...),
+  // `urun` SADECE o kod olur — "KANAT KOM.SEREN STRAFOR" gibi geri kalan
+  // açıklama kaybolmaz, kategori alanına taşınır (rapor/arama için).
+  const leadingToken = cleaned.split(/\s+/)[0] || "";
+  if (MODEL_CODE_REGEX.test(leadingToken)) {
+    const restDesc = cleaned.slice(leadingToken.length).trim();
+    return { urun: leadingToken, renk, olcu, kategori: restDesc };
+  }
+
+  const urun = cleaned;
+  return { urun, renk, olcu };
+}
+
+async function parseProformaPdf(file, bilinenRenkler) {
   const buffer = await file.arrayBuffer();
   const pdf = await pdfjsLib.getDocument({ data: buffer }).promise;
 
@@ -4155,8 +4275,9 @@ async function parseProformaPdf(file) {
       if (model && miktarMatch && birimMatch) {
         const birimRaw = birimMatch[0].toUpperCase();
         const birim = birimRaw === "ADET" ? "adet" : birimRaw === "TAKIM" ? "takım" : birimRaw.toLowerCase();
+        const { urun, renk, olcu, kategori } = splitModelRenkOlcu(model, bilinenRenkler);
         items.push({
-          urun: model, renk: "", olcu: "", siparis: "", kategori: "",
+          urun, renk, olcu, siparis: "", kategori: kategori || "",
           miktar: String(Math.round(parseFloat(miktarMatch[0].replace(",", ".")))),
           birim,
         });
@@ -4181,7 +4302,7 @@ async function parseProformaPdf(file) {
 // kendi başlığı ve kendi sayfası altında ayrı bir sekme.
 // =================================================================
 function SiparislerPanel({ data, lang, dir }) {
-  const { departments, orders, addOrder, removeOrder, markOrderDelivered, addOrderStage, removeOrderStage, updateOrderStage, updateOrders, productRoutes, log } = data;
+  const { departments, orders, addOrder, removeOrder, markOrderDelivered, addOrderStage, removeOrderStage, updateOrderStage, updateOrders, productRoutes, log, renkler } = data;
   const [orderForm, setOrderForm] = useState({ siparisKodu: "", formNo: "", tarih: "", musteri: "", teslimTarihi: "", not: "" });
   const [formItems, setFormItems] = useState([{ urun: "", renk: "", olcu: "", miktar: "", birim: "adet", siparis: "", kategori: "" }]);
   const [stagePickers, setStagePickers] = useState({}); // orderId -> selected machine code (draft, before "Ekle")
@@ -4218,7 +4339,7 @@ function SiparislerPanel({ data, lang, dir }) {
     if (!file) return;
     setPdfStatus({ type: "loading", text: t("pdfParsing", lang) });
     try {
-      const parsed = await parseProformaPdf(file);
+      const parsed = await parseProformaPdf(file, renkler || DEFAULT_RENKLER);
       if (!parsed.items.length) {
         setPdfStatus({ type: "empty", text: t("pdfParseEmpty", lang) });
         return;
@@ -4536,6 +4657,11 @@ function SiparislerPanel({ data, lang, dir }) {
               {rowErrors[idx] && (
                 <div style={{ fontFamily: "'Inter', sans-serif", fontSize: 11, color: COLORS.accentStop, marginTop: 3 }}>
                   {rowErrors[idx]}
+                </div>
+              )}
+              {!rowErrors[idx] && MODEL_CODE_REGEX.test((row.urun || "").trim()) && !findRouteForOrder(productRoutes, row) && (
+                <div style={{ fontFamily: "'Inter', sans-serif", fontSize: 11, color: COLORS.accentWarn, marginTop: 3, display: "flex", alignItems: "center", gap: 5 }}>
+                  <AlertTriangle size={11} /> {t("noRouteForModelWarning", lang, { code: row.urun.trim() })}
                 </div>
               )}
             </div>
