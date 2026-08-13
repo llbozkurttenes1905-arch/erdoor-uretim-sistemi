@@ -392,6 +392,12 @@ const STRINGS = {
   routeProduct: { tr: "Ürün", en: "Product", ar: "المنتج" },
   routeStagesTitle: { tr: "Makine Sırası (Rota)", en: "Machine Sequence (Route)", ar: "تسلسل الآلات" },
   routeConsumablesTitle: { tr: "Aşama Başına Tüketilen Malzeme", en: "Material Consumed Per Stage", ar: "المواد المستهلكة لكل مرحلة" },
+  independentStage: { tr: "bağımsız", en: "independent", ar: "مستقل" },
+  stageMultiplierHint: { tr: "Çarpan: bu aşama sipariş miktarının kaç katını üretir (örn. 1 kapı için 2 levha → 2 yazın). Bağımsız: bu aşama bir önceki aşamayı beklemez, kendi ham maddesinden besilenir.", en: "Multiplier: how many units this stage produces per order unit (e.g. 2 sheets per door → enter 2). Independent: this stage doesn't wait on the previous stage, it's fed from its own raw material.", ar: "المضاعف: كم عدد الوحدات." },
+  colorVariantToggle: { tr: "Renge/desene göre değişir (malzeme siparişe göre otomatik seçilsin)", en: "Varies by color/pattern (auto-select material per order)", ar: "يختلف حسب اللون" },
+  colorVariantLabel: { tr: "Renge göre", en: "By color", ar: "حسب اللون" },
+  colorVariantPrefixPlaceholder: { tr: "Ortak isim öneki (örn. \"Folyo - \")", en: "Shared name prefix (e.g. \"Foil - \")", ar: "بادئة الاسم المشتركة" },
+  colorVariantHint: { tr: "Bu önekle başlayan tüm stok kalemleri (örn. \"Folyo - Beyaz Teak\", \"Folyo - Antrasit\") aday olur; sipariş metninde hangi rengin adı geçiyorsa o stok kalemi otomatik seçilir.", en: "All stock items starting with this prefix (e.g. \"Foil - White Teak\", \"Foil - Anthracite\") become candidates; whichever color name appears in the order text is auto-selected.", ar: "جميع عناصر المخزون التي تبدأ بهذه البادئة." },
   addConsumable: { tr: "Malzeme Ekle", en: "Add Material", ar: "إضافة مادة" },
   qtyPerUnit: { tr: "Birim başına miktar", en: "Qty per unit", ar: "الكمية لكل وحدة" },
   saveRoute: { tr: "Rotayı Kaydet", en: "Save Route", ar: "حفظ المسار" },
@@ -440,17 +446,20 @@ const STRINGS = {
   downtimeParetoTitle: { tr: "Duruş Nedenleri — Pareto", en: "Downtime Reasons — Pareto", ar: "أسباب التوقف — باريتو" },
   downtimeParetoDesc: { tr: "Kayıtlı duruşların toplam süresine göre sıralanmış nedenler (sadece süresi kaydedilen duruşlar dahildir).", en: "Downtime reasons ranked by total recorded duration.", ar: "أسباب التوقف مرتبة حسب المدة الإجمالية." },
   noDowntimeData: { tr: "Henüz süresi kaydedilmiş duruş yok", en: "No downtime with recorded duration yet", ar: "لا توجد بيانات توقف بعد" },
-  riskTitle: { tr: "Termin Riski — Gereken Hız vs Gerçek Hız", en: "Delivery Risk — Required vs Actual Rate", ar: "خطر التسليم" },
-  riskDesc: { tr: "Kalan adet / kalan iş günü = gereken hız. Tatil ve mesai istisnaları (Takvim sekmesi) hesaba katılır. Bu siparişe ait geçmiş üretim kayıtlarından hesaplanan gerçek hızla karşılaştırılır.", en: "Remaining qty / remaining working days = required rate (calendar exceptions are taken into account), compared with the actual rate from this order's production logs.", ar: "الكمية المتبقية / أيام العمل المتبقية." },
+  riskTitle: { tr: "Termin Tahmini — Kuyruk ve Kapasiteye Göre", en: "Delivery Estimate — Based on Queue & Capacity", ar: "تقدير التسليم" },
+  riskDesc: { tr: "Teslim tarihi girilmesi gerekmez. Mevcut aktif sipariş kuyruğu ve bölüm/makine bazlı gerçek üretim kapasitesine (geçmiş kayıtlardan hesaplanır) göre her siparişin ne zaman biteceği simüle edilir. Teslim tarihi girilmiş bir sipariş varsa ayrıca ona göre risk de gösterilir.", en: "No due date required. Simulates when each order will finish based on the current active order queue and real per-department/machine production capacity (from history). If a due date is set, risk vs that date is also shown.", ar: "لا حاجة لتاريخ تسليم. يحاكي وقت انتهاء كل طلب." },
   noRiskData: { tr: "Aktif sipariş yok", en: "No active orders", ar: "لا توجد طلبات نشطة" },
   requiredRate: { tr: "Gereken Hız", en: "Required Rate", ar: "المعدل المطلوب" },
   actualRate: { tr: "Gerçek Hız", en: "Actual Rate", ar: "المعدل الفعلي" },
   perDay: { tr: "adet/iş günü", en: "units/workday", ar: "وحدة/يوم عمل" },
   noProductionLogYet: { tr: "Bu sipariş için henüz üretim kaydı yok", en: "No production log for this order yet", ar: "لا يوجد سجل إنتاج لهذا الطلب بعد" },
   onTrack: { tr: "YETİŞİYOR", en: "ON TRACK", ar: "على المسار" },
-  atRisk: { tr: "RİSKLİ", en: "AT RISK", ar: "في خطر" },
+  atRisk: { tr: "SINIRDA", en: "AT RISK", ar: "في خطر" },
   daysLeft: { tr: "iş günü kaldı", en: "working days left", ar: "أيام عمل متبقية" },
-  overdue: { tr: "TESLİM TARİHİ GEÇTİ", en: "OVERDUE", ar: "متأخر" },
+  overdue: { tr: "GECİKME", en: "OVERDUE", ar: "متأخر" },
+  estimatedFinish: { tr: "TAHMİNİ ÇIKIŞ", en: "ESTIMATED FINISH", ar: "الانتهاء المقدر" },
+  estFinishLabel: { tr: "Tahmini Çıkış", en: "Estimated Finish", ar: "الانتهاء المقدر" },
+  queueOverloaded: { tr: "KUYRUK ÇOK YOĞUN", en: "QUEUE OVERLOADED", ar: "الطابور مزدحم" },
 
   // ---- QR İzlenebilirlik ----
   qrTitle: { tr: "Ürün İzlenebilirlik QR", en: "Product Traceability QR", ar: "رمز QR للتتبع" },
@@ -909,13 +918,53 @@ function currentOrderStage(order) {
   return (order.asamalar || []).find((s) => s.durum !== STAGE_STATUS.DONE) || null;
 }
 
+// Bir aşamanın HEDEF miktarı — normalde sipariş miktarının aynısıdır, ama
+// bazı aşamalar (örn. levha üretimi: 1 kapı için ön+arka 2 levha gerekir)
+// sipariş miktarının bir KATINI üretir. Rota tanımında bu aşamaya bir
+// `hedefCarpan` (varsayılan 1) verilmişse, o çarpanla çarpılır. Bu çarpan
+// order.asamalar oluşturulurken rotadan kopyalanıp doğrudan aşamanın
+// üzerinde saklanır (bkz. buildStagesFromRoute) — böylece rota sonradan
+// değişse bile geçmiş siparişlerin hedefi sabit kalır.
+function stageTargetQty(order, stage) {
+  return (order.miktar || 0) * (stage?.hedefCarpan || 1);
+}
+
+// Renge göre değişen sarf malzemesi çözümlemesi: bir rota aşamasının
+// tükettiği malzeme (örn. folyo) siparişe göre değişen bir renk/desense
+// sahipse, consumable'da SABİT bir stockItemId yerine bir `colorVariantPrefix`
+// tanımlanır (örn. "Folyo - "). O zaman bu fonksiyon, o önekle başlayan TÜM
+// stok kalemlerini adaylar olarak alır, her adayın önek SONRASI kalan kısmını
+// (renk adı) siparişin renk metniyle (önce order.renk, yoksa order.urun)
+// karşılaştırır ve EN UZUN eşleşen (en spesifik) adayı seçer — böylece sabit
+// bir renk listesi koda yazılmaz, hangi renkler varsa stoktan otomatik gelir.
+function resolveConsumableStockItemId(consumable, stock, order) {
+  if (!consumable.colorVariantPrefix) return consumable.stockItemId;
+  const prefix = consumable.colorVariantPrefix;
+  const candidates = (stock || []).filter((s) => (s.name || "").startsWith(prefix));
+  if (candidates.length === 0) return null;
+  const searchText = `${order.renk || ""} ${order.urun || ""}`.toLowerCase();
+  let best = null, bestLen = 0;
+  for (const c of candidates) {
+    const suffix = c.name.slice(prefix.length).trim().toLowerCase();
+    if (suffix && searchText.includes(suffix) && suffix.length > bestLen) {
+      best = c; bestLen = suffix.length;
+    }
+  }
+  return best ? best.id : null;
+}
+
 // Bir aşamaya "girdi" olarak ne kadar yarı mamul geldiği:
-// - İlk aşama: siparişin tamamı (hammadde/kesim her zaman başlayabilir)
-// - Sonraki aşamalar: BİR ÖNCEKİ aşamanın o ana kadar ürettiği (cikan) miktar
+// - İlk aşama VEYA "bağımsız" (kendi ham madde/malzemesinden beslenen,
+//   önceki aşamayı beklemeyen — örn. levha makinesi) bir aşama: bu
+//   aşamanın kendi hedefi (stageTargetQty) — sipariş miktarı her zaman
+//   başlayabilir.
+// - Sonraki (bağımlı) aşamalar: BİR ÖNCEKİ aşamanın o ana kadar ürettiği
+//   (cikan) miktar.
 // Böylece bir aşama %100 bitmeden, ürettiği kısım bir sonraki makineye akabilir.
 function stageInputLimit(order, stageIndex) {
   const stages = order.asamalar || [];
-  if (stageIndex <= 0) return order.miktar || 0;
+  const stage = stages[stageIndex];
+  if (stageIndex <= 0 || stage?.bagimsiz) return stageTargetQty(order, stage);
   return stages[stageIndex - 1]?.cikan || 0;
 }
 
@@ -935,15 +984,36 @@ function availableOrderStages(order) {
 // Amaç: iş kuralı değişince (örn. "kalan miktar" hesabına fire dahil edilsin gibi)
 // tek yerden değiştirilsin, panolar birbiriyle tutarsız kalmasın.
 
-// Bir aşamanın, sipariş toplamına göre henüz üretilmemiş (kalan) miktarı.
+// Bir aşamanın, KENDİ HEDEFİNE göre henüz üretilmemiş (kalan) miktarı.
+// (Levha gibi çarpanlı aşamalarda bu, sipariş miktarından FARKLI olabilir.)
 function remainingStageQty(order, stage) {
-  return Math.max(0, (order.miktar || 0) - (stage.cikan || 0));
+  return Math.max(0, stageTargetQty(order, stage) - (stage.cikan || 0));
 }
 
 // Bir siparişin/kalemin ürününe karşılık gelen üretim rotasını bulur.
 // `entity` en az { urun } alanına sahip olmalı (sipariş ya da form kalemi olabilir).
+//
+// Kanat (kapı) siparişlerinde `urun` metni proformadan geldiği için uzun ve
+// değişkendir — örn. "ER300 Kanat Beyaz Teak Kompozit Seren Strafor
+// 800x2020x40" (model + renk + malzeme + ölçü hepsi tek metinde). Ama kapı
+// MODELİ (ER300, ER1010 vb.) sabittir ve proforma satırının HER ZAMAN en
+// başındaki kelimedir. Bu yüzden önce tam metin eşleşmesi denenir (Extruder/
+// Laminasyon/Deck gibi rotası tam ürün adıyla kaydedilmiş bölümler için),
+// bulunamazsa metnin baştaki kelimesi (model kodu) rotanın adıyla
+// karşılaştırılır — böylece "ER300" için bir kere rota kurulduğunda, renk/
+// ölçüsü ne olursa olsun "ER300" ile başlayan her proforma satırı aynı
+// rotayı otomatik kullanır.
 function findRouteForOrder(routes, entity) {
-  return (routes || []).find((r) => r.productName === entity.urun);
+  if (!routes || !entity) return null;
+  const raw = entity.urun || "";
+  const exact = routes.find((r) => r.productName === raw);
+  if (exact) return exact;
+  const leadingToken = raw.trim().split(/\s+/)[0] || "";
+  if (leadingToken && leadingToken !== raw) {
+    const byModelCode = routes.find((r) => r.productName === leadingToken);
+    if (byModelCode) return byModelCode;
+  }
+  return null;
 }
 
 // Tüm PENDING siparişlerin, henüz tamamlanmamış aşamalarındaki kalan miktarını
@@ -1522,7 +1592,7 @@ function useSharedData() {
       clamped = newCikan < requested;
       merged.cikan = newCikan;
       merged.durum = newCikan <= 0 ? STAGE_STATUS.WAITING
-        : newCikan >= (order.miktar || 0) ? STAGE_STATUS.DONE
+        : newCikan >= stageTargetQty(order, merged) ? STAGE_STATUS.DONE
         : STAGE_STATUS.RUNNING;
 
       const delta = newCikan - prevCikan;
@@ -1532,9 +1602,10 @@ function useSharedData() {
         if (routeStage?.consumables?.length) {
           for (const c of routeStage.consumables) {
             const qty = Number(c.qtyPerUnit) || 0;
-            if (qty > 0) {
-              await adjustStockQty(c.stockItemId, -qty * delta, `Otomatik tüketim: ${order.urun} — ${stage.makine} (${order.id})`);
-              consumedForUndo.push({ stockItemId: c.stockItemId, qty: qty * delta });
+            const resolvedStockItemId = resolveConsumableStockItemId(c, stockRef.current, order);
+            if (qty > 0 && resolvedStockItemId) {
+              await adjustStockQty(resolvedStockItemId, -qty * delta, `Otomatik tüketim: ${order.urun} — ${stage.makine} (${order.id})`);
+              consumedForUndo.push({ stockItemId: resolvedStockItemId, qty: qty * delta });
             }
           }
         }
@@ -2205,7 +2276,7 @@ function UstaMode({ data, onBack, lang, dir, profile, theme }) {
                       <span style={{ fontFamily: "'Archivo', sans-serif", fontSize: 17 }}>{order.urun}</span>
                     </span>
                     <span style={{ fontFamily: "'Inter', sans-serif", fontWeight: 400, fontSize: 12.5, color: COLORS.textDim }}>
-                      {order.musteri} · {stageIdx + 1}/{(order.asamalar || []).length} {t("stageProgress", lang)} · {stage.cikan}/{order.miktar} {t("units", lang)}
+                      {order.musteri} · {stageIdx + 1}/{(order.asamalar || []).length} {t("stageProgress", lang)} · {stage.cikan}/{stageTargetQty(order, stage)} {t("units", lang)}
                       {order.teslimTarihi && ` · ${t("due", lang)} ${fmtDateShort(order.teslimTarihi)}`}
                     </span>
                     {stageIdx > 0 && (
@@ -2233,7 +2304,7 @@ function UstaMode({ data, onBack, lang, dir, profile, theme }) {
               <span style={{ fontFamily: "'Archivo', sans-serif", fontWeight: 800, fontSize: 22, color: COLORS.text }}>{selectedEntry.order.urun}</span>
             </div>
             <div style={{ fontFamily: "'Inter', sans-serif", fontSize: 13, color: COLORS.textDim, marginTop: 6 }}>
-              {selectedEntry.order.musteri} · {selectedEntry.order.miktar} {t("units", lang)}
+              {selectedEntry.order.musteri} · {stageTargetQty(selectedEntry.order, selectedEntry.stage)} {t("units", lang)}
               {selectedEntry.order.teslimTarihi && ` · ${t("due", lang)} ${fmtDateShort(selectedEntry.order.teslimTarihi)}`}
               {(selectedEntry.order.renk || selectedEntry.order.olcu || selectedEntry.order.kategori) && (
                 <> · {[selectedEntry.order.renk, selectedEntry.order.olcu, selectedEntry.order.kategori].filter(Boolean).join(" · ")}</>
@@ -2256,7 +2327,7 @@ function UstaMode({ data, onBack, lang, dir, profile, theme }) {
               {((order) => {
                 const idx = (order.asamalar || []).findIndex((s) => s.id === selectedEntry.stage.id);
                 return `${idx + 1}/${(order.asamalar || []).length} ${t("stageProgress", lang)}`;
-              })(selectedEntry.order)} · <span style={{ color: COLORS.accentWarn, fontWeight: 700 }}>{selectedEntry.stage.cikan}/{selectedEntry.order.miktar} {t("units", lang)}</span>
+              })(selectedEntry.order)} · <span style={{ color: COLORS.accentWarn, fontWeight: 700 }}>{selectedEntry.stage.cikan}/{stageTargetQty(selectedEntry.order, selectedEntry.stage)} {t("units", lang)}</span>
             </div>
             {(() => {
               const idx = (selectedEntry.order.asamalar || []).findIndex((s) => s.id === selectedEntry.stage.id);
@@ -4203,7 +4274,7 @@ function SiparislerPanel({ data, lang, dir }) {
     const perItem = validItems.map((item, i) => {
       const route = findRouteForOrder(productRoutes, item);
       if (!route) return { urun: item.urun, noRoute: true };
-      const asamalar = route.stages.map((s, si) => ({ id: `DRAFT-${i}-${si}`, makine: s.machine, durum: STAGE_STATUS.WAITING, cikan: 0 }));
+      const asamalar = route.stages.map((s, si) => ({ id: `DRAFT-${i}-${si}`, makine: s.machine, durum: STAGE_STATUS.WAITING, cikan: 0, hedefCarpan: s.hedefCarpan || 1, bagimsiz: !!s.bagimsiz }));
       const draftOrder = { id: `__draft_${i}`, urun: item.urun, miktar: parseInt(item.miktar, 10) || 0, asamalar };
       const { etaDate, timedOut } = estimateNewOrderCompletion(draftOrder, orders, log);
       return { urun: item.urun, etaDate, timedOut };
@@ -4283,7 +4354,7 @@ function SiparislerPanel({ data, lang, dir }) {
       const id = candidateIds[i];
       const route = findRouteForOrder(productRoutes, item);
       const asamalar = route
-        ? route.stages.map((s, si) => ({ id: `AS${Date.now().toString().slice(-6)}${si}${Math.floor(Math.random() * 90)}`, makine: s.machine, durum: STAGE_STATUS.WAITING, cikan: 0 }))
+        ? route.stages.map((s, si) => ({ id: `AS${Date.now().toString().slice(-6)}${si}${Math.floor(Math.random() * 90)}`, makine: s.machine, durum: STAGE_STATUS.WAITING, cikan: 0, hedefCarpan: s.hedefCarpan || 1, bagimsiz: !!s.bagimsiz }))
         : [];
       await addOrder({
         id, urun: item.urun, musteri: orderForm.musteri || "—",
@@ -4827,7 +4898,9 @@ function calcMaterialRequirements(orders, routes, stock) {
       routeStage.consumables.forEach((c) => {
         const qty = (Number(c.qtyPerUnit) || 0) * remaining;
         if (qty <= 0) return;
-        needs[c.stockItemId] = (needs[c.stockItemId] || 0) + qty;
+        const resolvedStockItemId = resolveConsumableStockItemId(c, stock, order);
+        if (!resolvedStockItemId) return;
+        needs[resolvedStockItemId] = (needs[resolvedStockItemId] || 0) + qty;
       });
     });
   });
@@ -5154,16 +5227,17 @@ function runScheduleSimulation({ activeOrders, log, days = 14 }) {
       const stages = order.asamalar || [];
       for (let i = 0; i < stages.length; i++) {
         const stage = stages[i];
+        const target = stageTargetQty(order, stage);
         const cikanNow = sim[order.id][stage.id];
-        if (cikanNow >= (order.miktar || 0)) continue; // bu aşama simülasyonda zaten bitti
-        const inputLimit = i === 0 ? (order.miktar || 0) : sim[order.id][stages[i - 1].id];
+        if (cikanNow >= target) continue; // bu aşama simülasyonda zaten bitti
+        const inputLimit = (i === 0 || stage.bagimsiz) ? target : sim[order.id][stages[i - 1].id];
         if (inputLimit <= cikanNow) continue; // önceki aşamadan henüz girdi yok
 
         if (!(stage.makine in remainingCapacity)) remainingCapacity[stage.makine] = getDailyCapacity(stage.makine);
         const capLeft = remainingCapacity[stage.makine];
         if (capLeft <= 0) continue; // bu makine bugün için tamamen dolu — sıradaki uygun aşamaya/siparişe bak
 
-        const produceQty = Math.min(capLeft, inputLimit - cikanNow, (order.miktar || 0) - cikanNow);
+        const produceQty = Math.min(capLeft, inputLimit - cikanNow, target - cikanNow);
         if (produceQty <= 0) continue;
 
         sim[order.id][stage.id] = cikanNow + produceQty;
@@ -5180,7 +5254,7 @@ function runScheduleSimulation({ activeOrders, log, days = 14 }) {
       const stages = order.asamalar || [];
       if (stages.length === 0) continue;
       const lastStage = stages[stages.length - 1];
-      if (sim[order.id][lastStage.id] >= (order.miktar || 0)) {
+      if (sim[order.id][lastStage.id] >= stageTargetQty(order, lastStage)) {
         completionDates[order.id] = dateIso;
       }
     }
@@ -5381,27 +5455,37 @@ function RotaPanel({ data, lang, dir }) {
   const allMachines = departments ? allMachinesFrom(departments) : [];
 
   const [productName, setProductName] = useState("");
-  const [stageMachines, setStageMachines] = useState([]); // ["MK-EX2", "MK-FOL", ...]
+  const [stageMachines, setStageMachines] = useState([]); // [{ machine, hedefCarpan, bagimsiz }]
   const [machinePicker, setMachinePicker] = useState("");
-  const [consumables, setConsumables] = useState([]); // [{ machine, stockItemId, qtyPerUnit }]
+  const [stageMultiplier, setStageMultiplier] = useState("1");
+  const [stageIndependent, setStageIndependent] = useState(false);
+  const [consumables, setConsumables] = useState([]); // [{ machine, stockItemId?, colorVariantPrefix?, qtyPerUnit }]
   const [cMachine, setCMachine] = useState("");
+  const [cColorVariant, setCColorVariant] = useState(false);
   const [cStock, setCStock] = useState("");
+  const [cPrefix, setCPrefix] = useState("");
   const [cQty, setCQty] = useState("");
 
   if (!productRoutes || !stock) return <LoadingScreen lang={lang} />;
 
   function addStageToDraft() {
     if (!machinePicker) return;
-    setStageMachines([...stageMachines, machinePicker]);
-    setMachinePicker("");
+    setStageMachines([...stageMachines, { machine: machinePicker, hedefCarpan: Number(stageMultiplier) || 1, bagimsiz: stageIndependent }]);
+    setMachinePicker(""); setStageMultiplier("1"); setStageIndependent(false);
   }
   function removeStageFromDraft(idx) {
     setStageMachines(stageMachines.filter((_, i) => i !== idx));
   }
   function addConsumableToDraft() {
-    if (!cMachine || !cStock || !cQty) return;
-    setConsumables([...consumables, { machine: cMachine, stockItemId: cStock, qtyPerUnit: Number(cQty) }]);
-    setCMachine(""); setCStock(""); setCQty("");
+    if (!cMachine || !cQty) return;
+    if (cColorVariant) {
+      if (!cPrefix.trim()) return;
+      setConsumables([...consumables, { machine: cMachine, colorVariantPrefix: cPrefix.trim(), qtyPerUnit: Number(cQty) }]);
+    } else {
+      if (!cStock) return;
+      setConsumables([...consumables, { machine: cMachine, stockItemId: cStock, qtyPerUnit: Number(cQty) }]);
+    }
+    setCMachine(""); setCStock(""); setCPrefix(""); setCColorVariant(false); setCQty("");
   }
   function removeConsumableFromDraft(idx) {
     setConsumables(consumables.filter((_, i) => i !== idx));
@@ -5409,9 +5493,11 @@ function RotaPanel({ data, lang, dir }) {
 
   function saveRoute() {
     if (!productName || stageMachines.length === 0) return;
-    const stages = stageMachines.map((machine) => ({
-      machine,
-      consumables: consumables.filter((c) => c.machine === machine).map(({ stockItemId, qtyPerUnit }) => ({ stockItemId, qtyPerUnit })),
+    const stages = stageMachines.map(({ machine, hedefCarpan, bagimsiz }) => ({
+      machine, hedefCarpan: hedefCarpan || 1, bagimsiz: !!bagimsiz,
+      consumables: consumables.filter((c) => c.machine === machine).map(({ stockItemId, colorVariantPrefix, qtyPerUnit }) =>
+        colorVariantPrefix ? { colorVariantPrefix, qtyPerUnit } : { stockItemId, qtyPerUnit }
+      ),
     }));
     addProductRoute({ id: `RT-${Date.now().toString().slice(-6)}`, productName, stages });
     setProductName(""); setStageMachines([]); setConsumables([]);
@@ -5450,6 +5536,8 @@ function RotaPanel({ data, lang, dir }) {
                       background: COLORS.bgRaised, border: `1px solid ${COLORS.border}`, padding: "4px 9px", borderRadius: 7,
                     }}>
                       {machineName(s.machine)}
+                      {s.hedefCarpan > 1 && <span style={{ color: COLORS.accentWarn, marginLeft: 6 }}>×{s.hedefCarpan}</span>}
+                      {s.bagimsiz && <span style={{ color: COLORS.accentRun, marginLeft: 6, fontSize: 10 }}>({t("independentStage", lang)})</span>}
                       {s.consumables?.length > 0 && (
                         <span style={{ color: COLORS.accentWarn, marginLeft: 6 }}>({s.consumables.length})</span>
                       )}
@@ -5483,24 +5571,35 @@ function RotaPanel({ data, lang, dir }) {
         <div>
           <div style={{ fontFamily: "'Inter', sans-serif", fontSize: 12, color: COLORS.textDim, marginBottom: 6 }}>{t("routeStagesTitle", lang)}</div>
           <div style={{ display: "flex", flexWrap: "wrap", gap: 6, marginBottom: 8 }}>
-            {stageMachines.map((m, i) => (
+            {stageMachines.map((s, i) => (
               <span key={i} style={{ display: "flex", alignItems: "center", gap: 6, fontFamily: "'IBM Plex Mono', monospace", fontSize: 11.5, color: COLORS.text, background: COLORS.bgRaised, border: `1px solid ${COLORS.border}`, padding: "4px 6px 4px 9px", borderRadius: 7 }}>
-                {i + 1}. {machineName(m)}
+                {i + 1}. {machineName(s.machine)}
+                {s.hedefCarpan > 1 && <span style={{ color: COLORS.accentWarn }}>×{s.hedefCarpan}</span>}
+                {s.bagimsiz && <span style={{ color: COLORS.accentRun, fontSize: 10 }}>({t("independentStage", lang)})</span>}
                 <button onClick={() => removeStageFromDraft(i)} style={{ background: "none", border: "none", color: COLORS.textFaint, cursor: "pointer", display: "flex", padding: 0 }}>
                   <X size={12} />
                 </button>
               </span>
             ))}
           </div>
-          <div style={{ display: "flex", gap: 8 }}>
-            <select value={machinePicker} onChange={(e) => setMachinePicker(e.target.value)} style={{ ...inputStyle, flex: 1 }}>
+          <div style={{ display: "flex", gap: 8, flexWrap: "wrap", alignItems: "center" }}>
+            <select value={machinePicker} onChange={(e) => setMachinePicker(e.target.value)} style={{ ...inputStyle, flex: 1, minWidth: 180 }}>
               <option value="">{t("selectMachine", lang)}</option>
               {allMachines.map((m) => <option key={m.code} value={m.code}>{m.name} ({m.code})</option>)}
             </select>
-            <button onClick={addStageToDraft} style={{ padding: "0 16px", borderRadius: 8, border: `1px solid ${COLORS.accentRun}50`, background: COLORS.accentRunDim, color: COLORS.accentRun, fontFamily: "'Inter', sans-serif", fontSize: 12.5, fontWeight: 600, cursor: "pointer" }}>
+            <input
+              type="number" min="1" step="1" value={stageMultiplier} onChange={(e) => setStageMultiplier(e.target.value)}
+              title={t("stageMultiplierHint", lang)} style={{ ...inputStyle, width: 70 }}
+            />
+            <label style={{ display: "flex", alignItems: "center", gap: 6, fontFamily: "'Inter', sans-serif", fontSize: 12, color: COLORS.textDim, cursor: "pointer", whiteSpace: "nowrap" }}>
+              <input type="checkbox" checked={stageIndependent} onChange={(e) => setStageIndependent(e.target.checked)} />
+              {t("independentStage", lang)}
+            </label>
+            <button onClick={addStageToDraft} style={{ padding: "0 16px", height: 40, borderRadius: 8, border: `1px solid ${COLORS.accentRun}50`, background: COLORS.accentRunDim, color: COLORS.accentRun, fontFamily: "'Inter', sans-serif", fontSize: 12.5, fontWeight: 600, cursor: "pointer" }}>
               {t("addStage", lang)}
             </button>
           </div>
+          <div style={{ fontFamily: "'Inter', sans-serif", fontSize: 11, color: COLORS.textFaint, marginTop: 6 }}>{t("stageMultiplierHint", lang)}</div>
         </div>
 
         <div>
@@ -5508,26 +5607,44 @@ function RotaPanel({ data, lang, dir }) {
           <div style={{ display: "grid", gap: 6, marginBottom: 8 }}>
             {consumables.map((c, i) => (
               <div key={i} style={{ display: "flex", alignItems: "center", gap: 8, fontFamily: "'Inter', sans-serif", fontSize: 12.5, color: COLORS.textDim }}>
-                <span style={{ flex: 1 }}>{machineName(c.machine)} → {stockName(c.stockItemId)} × {c.qtyPerUnit}</span>
+                <span style={{ flex: 1 }}>
+                  {machineName(c.machine)} → {c.colorVariantPrefix ? `${t("colorVariantLabel", lang)}: "${c.colorVariantPrefix}…"` : stockName(c.stockItemId)} × {c.qtyPerUnit}
+                </span>
                 <button onClick={() => removeConsumableFromDraft(i)} style={{ background: "none", border: "none", color: COLORS.textFaint, cursor: "pointer" }}>
                   <Trash2 size={13} />
                 </button>
               </div>
             ))}
           </div>
-          <div style={{ display: "grid", gridTemplateColumns: "1.2fr 1.2fr 0.8fr auto", gap: 8 }}>
-            <select value={cMachine} onChange={(e) => setCMachine(e.target.value)} style={inputStyle}>
-              <option value="">{t("selectMachine", lang)}</option>
-              {stageMachines.map((m) => <option key={m} value={m}>{machineName(m)}</option>)}
-            </select>
-            <select value={cStock} onChange={(e) => setCStock(e.target.value)} style={inputStyle}>
-              <option value="">{t("selectStockItem", lang)}</option>
-              {stock.map((s) => <option key={s.id} value={s.id}>{s.name} ({s.unit})</option>)}
-            </select>
-            <input type="number" placeholder={t("qtyPerUnit", lang)} value={cQty} onChange={(e) => setCQty(e.target.value)} style={inputStyle} />
-            <button onClick={addConsumableToDraft} style={{ padding: "0 14px", borderRadius: 8, border: `1px solid ${COLORS.border}`, background: "transparent", color: COLORS.textDim, fontFamily: "'Inter', sans-serif", fontSize: 12, cursor: "pointer" }}>
-              <Plus size={14} />
-            </button>
+          <div style={{ display: "grid", gap: 8 }}>
+            <label style={{ display: "flex", alignItems: "center", gap: 6, fontFamily: "'Inter', sans-serif", fontSize: 12, color: COLORS.textDim, cursor: "pointer" }}>
+              <input type="checkbox" checked={cColorVariant} onChange={(e) => setCColorVariant(e.target.checked)} />
+              {t("colorVariantToggle", lang)}
+            </label>
+            <div style={{ display: "grid", gridTemplateColumns: "1.2fr 1.2fr 0.8fr auto", gap: 8 }}>
+              <select value={cMachine} onChange={(e) => setCMachine(e.target.value)} style={inputStyle}>
+                <option value="">{t("selectMachine", lang)}</option>
+                {stageMachines.map((s) => <option key={s.machine} value={s.machine}>{machineName(s.machine)}</option>)}
+              </select>
+              {cColorVariant ? (
+                <input
+                  value={cPrefix} onChange={(e) => setCPrefix(e.target.value)}
+                  placeholder={t("colorVariantPrefixPlaceholder", lang)} style={inputStyle}
+                />
+              ) : (
+                <select value={cStock} onChange={(e) => setCStock(e.target.value)} style={inputStyle}>
+                  <option value="">{t("selectStockItem", lang)}</option>
+                  {stock.map((s) => <option key={s.id} value={s.id}>{s.name} ({s.unit})</option>)}
+                </select>
+              )}
+              <input type="number" placeholder={t("qtyPerUnit", lang)} value={cQty} onChange={(e) => setCQty(e.target.value)} style={inputStyle} />
+              <button onClick={addConsumableToDraft} style={{ padding: "0 14px", borderRadius: 8, border: `1px solid ${COLORS.border}`, background: "transparent", color: COLORS.textDim, fontFamily: "'Inter', sans-serif", fontSize: 12, cursor: "pointer" }}>
+                <Plus size={14} />
+              </button>
+            </div>
+            {cColorVariant && (
+              <div style={{ fontFamily: "'Inter', sans-serif", fontSize: 11, color: COLORS.textFaint }}>{t("colorVariantHint", lang)}</div>
+            )}
           </div>
         </div>
 
@@ -5657,7 +5774,7 @@ function SevkiyatPanel({ data, lang, dir }) {
                   <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
                     <div style={{ fontFamily: "'Inter', sans-serif", fontSize: 12.5, color: COLORS.text }}>
                       {stage ? (
-                        <>{t("currentLocation", lang)}: <span style={{ color: COLORS.accentWarn, fontWeight: 700 }}>{machineName(stage.makine)}</span> · {stage.cikan}/{o.miktar}</>
+                        <>{t("currentLocation", lang)}: <span style={{ color: COLORS.accentWarn, fontWeight: 700 }}>{machineName(stage.makine)}</span> · {stage.cikan}/{stageTargetQty(o, stage)}</>
                       ) : (
                         <span style={{ color: COLORS.textFaint }}>—</span>
                       )}
@@ -6035,27 +6152,33 @@ function VerimlilikSections({ data, lang, dir }) {
     return { label: meta ? downtimeLabel(meta.id, lang) : reasonId, value: ms, color: CHART_LINE_COLORS[i % CHART_LINE_COLORS.length] };
   });
 
-  // ---- 3) Termin Riski: gereken hız (kalan/gün) vs bu siparişin log'lardan hesaplanan gerçek hızı ----
+  // ---- 3) Termin Tahmini: teslim tarihi girilmiş olması GEREKMEZ. Mevcut
+  // aktif sipariş kuyruğu + bölüm/makine bazlı gerçek kapasiteye (laminasyon,
+  // kanat, vb. — terminMachineRate log'lardan hesaplar) göre HER aktif
+  // siparişin ne zaman biteceğini tek bir simülasyonla hesaplar — "500 kapı
+  // sipariş verdi, ne zaman çıkar" sorusunun cevabı budur. Ayrıca (varsa)
+  // müşteriye söylenmiş bir teslim tarihi girilmişse, o tarihle karşılaştırıp
+  // ayrıca risk de gösterir.
   const today = new Date(); today.setHours(0, 0, 0, 0);
-  const riskList = orders.filter((o) => o.durum === ORDER_STATUS.PENDING && o.teslimTarihi).map((o) => {
+  const pendingOrdersAll = orders.filter((o) => o.durum === ORDER_STATUS.PENDING);
+  const { completionDates: terminCompletionDates } = runScheduleSimulation({ activeOrders: pendingOrdersAll, log, days: 240 });
+  const riskList = pendingOrdersAll.map((o) => {
     const stages = o.asamalar || [];
     const lastStage = stages[stages.length - 1];
     const remaining = lastStage ? remainingStageQty(o, lastStage) : (o.miktar || 0);
-    const due = new Date(o.teslimTarihi + "T00:00:00");
-    // Takvim istisnalarını (tatil/mesai) hesaba katan gerçek iş günü sayısı —
-    // ham takvim günü farkı değil.
-    const daysLeft = workingDaysBetween(today, due, calendarExceptions);
-
-    const relevantLogs = log.filter((l) => l.type === "üretim" && l.detail?.orderId === o.id && l.detail?.durationMs > 0);
-    let actualRate = null;
-    if (relevantLogs.length > 0) {
-      const totalQty = relevantLogs.reduce((s, l) => s + (l.detail.qty || 0), 0);
-      const totalMs = relevantLogs.reduce((s, l) => s + (l.detail.durationMs || 0), 0);
-      if (totalMs > 0) actualRate = totalQty / (totalMs / 86400000);
-    }
-    const requiredRate = remaining / Math.max(daysLeft, 0.1);
-    return { order: o, remaining, daysLeft, requiredRate, actualRate };
-  }).sort((a, b) => a.daysLeft - b.daysLeft);
+    const completionIso = terminCompletionDates[o.id] || null;
+    const estFinish = completionIso ? new Date(completionIso + "T00:00:00") : null;
+    const hasDue = !!o.teslimTarihi;
+    const due = hasDue ? new Date(o.teslimTarihi + "T00:00:00") : null;
+    const daysLeftToDue = hasDue ? workingDaysBetween(today, due, calendarExceptions) : null;
+    const late = hasDue && estFinish && estFinish.getTime() > due.getTime();
+    return { order: o, remaining, estFinish, hasDue, due, daysLeftToDue, late };
+  }).sort((a, b) => {
+    if (a.estFinish && b.estFinish) return a.estFinish.getTime() - b.estFinish.getTime();
+    if (a.estFinish) return -1;
+    if (b.estFinish) return 1;
+    return 0;
+  });
 
   return (
     <>
@@ -6121,33 +6244,53 @@ function VerimlilikSections({ data, lang, dir }) {
       <div style={{ background: COLORS.bgPanel, border: `1px solid ${COLORS.border}`, borderRadius: 16, padding: 18 }}>
         <div style={{ fontFamily: "'Archivo', sans-serif", fontWeight: 700, fontSize: 15, color: COLORS.text, marginBottom: 4 }}>{t("riskTitle", lang)}</div>
         <div style={{ fontFamily: "'Inter', sans-serif", fontSize: 12, color: COLORS.textFaint, marginBottom: 14 }}>{t("riskDesc", lang)}</div>
-        {riskList.length === 0 && <div style={{ color: COLORS.textFaint, fontFamily: "'Inter', sans-serif", fontSize: 13 }}>{t("noRiskData", lang)}</div>}
+        {riskList.length === 0 && (
+          <div style={{ color: COLORS.textFaint, fontFamily: "'Inter', sans-serif", fontSize: 13 }}>{t("noRiskData", lang)}</div>
+        )}
         <div style={{ display: "grid", gap: 10 }}>
-          {riskList.map(({ order, remaining, daysLeft, requiredRate, actualRate }) => {
-            const overdue = daysLeft < 0;
-            const onTrack = actualRate !== null && actualRate >= requiredRate;
+          {riskList.map(({ order, remaining, estFinish, hasDue, due, daysLeftToDue, late }) => {
+            const timedOut = !estFinish;
+            // Rozet mantığı: teslim tarihi girilmişse ona göre GECİKME/SINIRDA/UYGUN;
+            // girilmemişse (asıl kullanım şekli) sadece tahmini bitiş tarihi nötr renkte gösterilir.
+            let badgeLabel, badgeColor, badgeBg, badgeBorder;
+            if (timedOut) {
+              badgeLabel = t("queueOverloaded", lang); badgeColor = COLORS.accentStop; badgeBg = COLORS.accentStopDim; badgeBorder = COLORS.accentStop;
+            } else if (hasDue) {
+              const marginDays = daysLeftToDue - Math.max(0, workingDaysBetween(today, estFinish, calendarExceptions));
+              if (late) { badgeLabel = t("overdue", lang); badgeColor = COLORS.accentStop; badgeBg = COLORS.accentStopDim; badgeBorder = COLORS.accentStop; }
+              else if (marginDays <= 2) { badgeLabel = t("atRisk", lang); badgeColor = COLORS.accentWarn; badgeBg = COLORS.accentWarnDim; badgeBorder = COLORS.accentWarn; }
+              else { badgeLabel = t("onTrack", lang); badgeColor = COLORS.accentRun; badgeBg = COLORS.accentRunDim; badgeBorder = COLORS.accentRun; }
+            } else {
+              badgeLabel = t("estimatedFinish", lang); badgeColor = COLORS.accentRun; badgeBg = COLORS.accentRunDim; badgeBorder = COLORS.accentRun;
+            }
             return (
-              <div key={order.id} style={{ border: `1px solid ${COLORS.border}`, borderRadius: 12, padding: "12px 14px" }}>
+              <div key={order.id} style={{ border: `1px solid ${COLORS.border}`, borderLeft: `4px solid ${badgeColor}`, borderRadius: 12, padding: "12px 14px" }}>
                 <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", flexWrap: "wrap", gap: 8 }}>
                   <div>
                     <div style={{ fontFamily: "'Archivo', sans-serif", fontWeight: 700, fontSize: 13.5, color: COLORS.text }}>{order.urun} · {order.id}</div>
                     <div style={{ fontFamily: "'Inter', sans-serif", fontSize: 11.5, color: COLORS.textFaint, marginTop: 2 }}>
-                      {remaining} {t("units", lang)} {overdue ? "" : `· ${Math.ceil(daysLeft)} ${t("daysLeft", lang)}`}
+                      {remaining} {t("units", lang)}{order.musteri ? ` · ${order.musteri}` : ""}
                     </div>
                   </div>
                   <span style={{
                     fontFamily: "'Inter', sans-serif", fontSize: 10.5, fontWeight: 700, padding: "4px 10px", borderRadius: 99,
-                    color: overdue ? COLORS.accentStop : actualRate === null ? COLORS.textFaint : onTrack ? COLORS.accentRun : COLORS.accentStop,
-                    background: overdue ? COLORS.accentStopDim : actualRate === null ? COLORS.bgRaised : onTrack ? COLORS.accentRunDim : COLORS.accentStopDim,
-                    border: `1px solid ${overdue || (!onTrack && actualRate !== null) ? COLORS.accentStop + "50" : actualRate === null ? COLORS.border : COLORS.accentRun + "50"}`,
+                    color: badgeColor, background: badgeBg, border: `1px solid ${badgeColor}50`,
                   }}>
-                    {overdue ? t("overdue", lang) : actualRate === null ? t("noProductionLogYet", lang) : onTrack ? t("onTrack", lang) : t("atRisk", lang)}
+                    {badgeLabel}
                   </span>
                 </div>
-                <div style={{ display: "flex", gap: 22, marginTop: 10, fontFamily: "'IBM Plex Mono', monospace", fontSize: 12 }}>
-                  <div><span style={{ color: COLORS.textFaint }}>{t("requiredRate", lang)}: </span><span style={{ color: COLORS.text }}>{requiredRate.toFixed(1)} {t("perDay", lang)}</span></div>
-                  {actualRate !== null && (
-                    <div><span style={{ color: COLORS.textFaint }}>{t("actualRate", lang)}: </span><span style={{ color: onTrack ? COLORS.accentRun : COLORS.accentStop }}>{actualRate.toFixed(1)} {t("perDay", lang)}</span></div>
+                <div style={{ display: "flex", gap: 22, marginTop: 10, flexWrap: "wrap", fontFamily: "'IBM Plex Mono', monospace", fontSize: 12 }}>
+                  <div>
+                    <span style={{ color: COLORS.textFaint }}>{t("estFinishLabel", lang)}: </span>
+                    <span style={{ color: timedOut ? COLORS.accentStop : COLORS.text, fontWeight: 600 }}>
+                      {timedOut ? t("queueOverloaded", lang) : estFinish.toLocaleDateString("tr-TR", { day: "2-digit", month: "long", year: "numeric" })}
+                    </span>
+                  </div>
+                  {hasDue && (
+                    <div>
+                      <span style={{ color: COLORS.textFaint }}>{t("orderDueDate", lang)}: </span>
+                      <span style={{ color: COLORS.text }}>{due.toLocaleDateString("tr-TR")}</span>
+                    </div>
                   )}
                 </div>
               </div>
@@ -6269,7 +6412,7 @@ function TraceView({ orderId, data, lang, dir, onBack }) {
                 }} />
                 <div style={{ fontFamily: "'Archivo', sans-serif", fontWeight: 700, fontSize: 13.5, color: COLORS.text }}>{machineName(s.makine)}</div>
                 <div style={{ fontFamily: "'IBM Plex Mono', monospace", fontSize: 11.5, color: COLORS.textFaint, marginTop: 3 }}>
-                  {s.cikan || 0} / {order.miktar} {t("units", lang)} · {s.durum === STAGE_STATUS.DONE ? t("stageDone", lang) : s.durum === STAGE_STATUS.RUNNING ? t("stageRunning", lang) : t("stageWaiting", lang)}
+                  {s.cikan || 0} / {stageTargetQty(order, s)} {t("units", lang)} · {s.durum === STAGE_STATUS.DONE ? t("stageDone", lang) : s.durum === STAGE_STATUS.RUNNING ? t("stageRunning", lang) : t("stageWaiting", lang)}
                 </div>
               </div>
             ))}
@@ -6638,7 +6781,7 @@ function KanbanPanel({ data, lang, dir }) {
                       ))}
                     </div>
                     <div style={{ fontFamily: "'Inter', sans-serif", fontSize: 11, color: COLORS.textDim, marginTop: 8 }}>
-                      {stage ? `${stage.cikan}/${o.miktar} ${o.birim ? o.birim.toUpperCase() : t("units", lang)}` : `${o.miktar} ${o.birim ? o.birim.toUpperCase() : t("units", lang)} · ${t("readyBadge", lang)}`}
+                      {stage ? `${stage.cikan}/${stageTargetQty(o, stage)} ${o.birim ? o.birim.toUpperCase() : t("units", lang)}` : `${o.miktar} ${o.birim ? o.birim.toUpperCase() : t("units", lang)} · ${t("readyBadge", lang)}`}
                     </div>
                   </div>
                 );
