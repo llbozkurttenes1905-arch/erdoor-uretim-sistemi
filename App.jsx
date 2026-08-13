@@ -518,7 +518,7 @@ const STRINGS = {
   colOlcu: { tr: "ÖLÇÜ", en: "SIZE", ar: "المقاس" },
   colMiktar: { tr: "MİKTAR", en: "QTY", ar: "الكمية" },
   colBirim: { tr: "BİRİM", en: "UNIT", ar: "الوحدة" },
-  colSiparis: { tr: "SİPARİŞ", en: "ORDER", ar: "الطلب" },
+  colSiparis: { tr: "NOT / TALİMAT", en: "NOTE", ar: "ملاحظة" },
   colKategori: { tr: "KATEGORİ", en: "CATEGORY", ar: "الفئة" },
 
   undoExcessOver: { tr: "fazla girildi", en: "over-entered", ar: "تم إدخال زيادة" },
@@ -1148,12 +1148,23 @@ function guessOrderDepartment(order) {
   if (order && order.kategori) {
     const k = order.kategori.trim().toLowerCase();
     if (DEPARTMENT_GROUPS.some((g) => g.id === k)) return k;
+    // kategori serbest metin olabilir (proformadan gelen "KANAT KOM.SEREN
+    // STRAFOR" gibi artık geriye kalan açıklama) — içindeki anahtar
+    // kelimelere bakılır.
+    if (k.includes("deck")) return "deck";
+    if (k.includes("kanat")) return "kanat";
+    if (k.includes("pervaz") || k.includes("kasa")) return "laminasyon";
+    if (k.includes("profil") || k.includes("ekstr")) return "extruder";
   }
   const u = ((order && order.urun) || "").toUpperCase();
   if (u.includes("DECK")) return "deck";
   if (u.includes("KANAT")) return "kanat";
   if (u.includes("PERVAZ") || u.includes("KASA")) return "laminasyon";
   if (u.includes("PROFIL") || u.includes("EKSTR")) return "extruder";
+  // urun artık sadece çıplak model kodu olabilir (ER300, ER1010 — "KANAT"
+  // kelimesi kategoriye taşındığı için burada geçmez). Model kodu deseniyle
+  // eşleşen her şey sabit bir kapı modelidir -> Kanat Üretimi.
+  if (MODEL_CODE_REGEX.test(u.trim())) return "kanat";
   return null;
 }
 
@@ -4190,7 +4201,7 @@ function joinProformaRange(row, xMin, xMax) {
 
 // Ölçü her zaman SAYIxSAYI(xSAYI) kalıbında geçtiği için (örn. 800X2020X40)
 // tamamen deterministik bir regex ile ayıklanabilir — bilinen liste gerekmez.
-const OLCU_REGEX = /\b(\d{2,4})\s*[xX*]\s*(\d{2,4})(?:\s*[xX*]\s*(\d{1,3}))?\b/;
+const OLCU_REGEX = /\b(\d{2,4})\s*[xX*]\s*(\d{2,4})(?:\s*[xX*]\s*(\d{1,4}))?\b/;
 
 // Proformadan gelen ham model metninden ("ER300 KANAT B.TEAK KOM.SEREN
 // STRAFOR 800X2020X40") ölçüyü ve (bilinen bir renk listesindeyse) rengi
@@ -4205,24 +4216,45 @@ const OLCU_REGEX = /\b(\d{2,4})\s*[xX*]\s*(\d{2,4})(?:\s*[xX*]\s*(\d{1,3}))?\b/;
 // (KANAT KOM.SEREN STRAFOR gibi) rotayı hiç ilgilendirmez.
 const MODEL_CODE_REGEX = /^[A-ZÇĞİÖŞÜ]{1,4}\d{2,5}$/;
 
-function splitModelRenkOlcu(rawModel, bilinenRenkler) {
+// Bazı proforma şablonlarında orta sütundaki not, aynı içerik iki alt-sütuna
+// yan yana kopyalanmış gibi geliyor (örn. "Oda Kilit BOY 196 CM OLACAKOda
+// Kilit BOY 196 CM OLACAK"). Metin tam olarak ikiye bölünüp iki yarı birbirinin
+// aynısıysa, tekrar eden kısmı atıp tek kopya bırakır; değilse dokunmaz.
+function dedupeRepeatedText(text) {
+  const trimmed = (text || "").trim();
+  if (!trimmed) return "";
+  const half = Math.floor(trimmed.length / 2);
+  if (trimmed.length % 2 === 0 && trimmed.slice(0, half).trim() === trimmed.slice(half).trim()) {
+    return trimmed.slice(0, half).trim();
+  }
+  return trimmed;
+}
+
+function splitModelRenkOlcu(rawModel, bilinenRenkler, extraSearchText = "") {
   let text = rawModel;
 
   let olcu = "";
-  const olcuMatch = text.match(OLCU_REGEX);
+  let olcuMatch = text.match(OLCU_REGEX);
+  if (!olcuMatch && extraSearchText) {
+    // Ölçü model sütununa sığmayıp kesilmiş veya yan sütuna taşmış olabilir
+    // (örn. laminasyon kalemlerinde) — orta sütundaki nota da bakılır.
+    olcuMatch = extraSearchText.match(OLCU_REGEX);
+  }
   if (olcuMatch) {
     olcu = olcuMatch[0].replace(/\s+/g, "").toUpperCase();
-    text = text.replace(olcuMatch[0], " ");
+    text = text.replace(olcuMatch[0], " "); // model metninde yoksa bu no-op'tur, zararsız
   }
 
   // En uzun renk adından başlanır — kısa kısaltmaların (örn. "TEAK") uzun
-  // olanların (örn. "B.TEAK") içinde yanlışlıkla eşleşip onu bozmasını önler.
+  // olanların (örn. "B.TEAK", "BEYAZ TEAK") içinde yanlışlıkla eşleşip onu
+  // bozmasını önler. Renk hem model metninde hem orta sütun notunda aranır.
   let renk = "";
+  const searchScope = `${text} ${extraSearchText || ""}`;
   const siraliRenkler = [...(bilinenRenkler || [])].sort((a, b) => b.length - a.length);
   for (const r of siraliRenkler) {
     const kacisli = r.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
     const re = new RegExp(`\\b${kacisli}\\b`, "i");
-    if (re.test(text)) {
+    if (re.test(searchScope)) {
       renk = r;
       text = text.replace(re, " ");
       break;
@@ -4250,6 +4282,8 @@ async function parseProformaPdf(file, bilinenRenkler) {
 
   let musteri = "", tarih = "", siparisNo = "";
   const items = [];
+  let inNotesSection = false;
+  const notLines = [];
 
   for (let p = 1; p <= pdf.numPages; p++) {
     const page = await pdf.getPage(p);
@@ -4257,8 +4291,9 @@ async function parseProformaPdf(file, bilinenRenkler) {
     const rows = groupProformaRows(content.items);
 
     for (const row of rows) {
+      const fullText = row.slice().sort((a, b) => a.x - b.x).map((w) => w.text).join("").replace(/\s+/g, " ").trim();
+
       if (p === 1) {
-        const fullText = row.slice().sort((a, b) => a.x - b.x).map((w) => w.text).join("").replace(/\s+/g, " ").trim();
         const dateMatch = fullText.match(/\b(\d{2}\.\d{2}\.\d{4})\b/);
         if (dateMatch && !tarih) tarih = dateMatch[1];
         const noMatch = fullText.match(/\bE(\d{15,})\b/);
@@ -4267,7 +4302,27 @@ async function parseProformaPdf(file, bilinenRenkler) {
         if (musteriMatch && !musteri) musteri = musteriMatch[1].trim();
       }
 
+      // Sayfanın altındaki genel "Not :" bloğu (siparişin tamamı için geçerli
+      // — örn. "KANAT 196 -KASA 200 OLACAKTIR", "AKSESUARLAR HARİÇTİR").
+      // Bu etiketi gördükten sonraki TÜM satırlar not olarak toplanır.
+      if (/^NOT\s*:?\s*$/i.test(fullText) || /^NOT\s*:/i.test(fullText)) {
+        inNotesSection = true;
+        const afterLabel = fullText.replace(/^NOT\s*:?\s*/i, "").trim();
+        if (afterLabel) notLines.push(afterLabel);
+        continue;
+      }
+      if (inNotesSection) {
+        if (fullText) notLines.push(fullText);
+        continue;
+      }
+
       const model = joinProformaRange(row, 0, 230);
+      // MODEL ile MİKTAR sütunu arasındaki orta bölge — bazı proformalarda
+      // buraya kalem başına özel bir talimat/not yazılıyor (örn. "Oda Kilit
+      // BOY 196 CM OLACAK", "BOY 200 OLACAKTIR"). Ayrı bir alana (siparis)
+      // taşınır, model metnine karışmaz.
+      const rowNoteRaw = joinProformaRange(row, 230, 478);
+      const rowNote = dedupeRepeatedText(rowNoteRaw);
       const miktarText = joinProformaRange(row, 478, 533);
       const birimText = joinProformaRange(row, 533, 620);
       const miktarMatch = miktarText.match(/\d+[.,]?\d*/);
@@ -4275,15 +4330,18 @@ async function parseProformaPdf(file, bilinenRenkler) {
       if (model && miktarMatch && birimMatch) {
         const birimRaw = birimMatch[0].toUpperCase();
         const birim = birimRaw === "ADET" ? "adet" : birimRaw === "TAKIM" ? "takım" : birimRaw.toLowerCase();
-        const { urun, renk, olcu, kategori } = splitModelRenkOlcu(model, bilinenRenkler);
+        // Ölçü bazen MODEL sütununa sığmayıp orta sütuna taşabiliyor —
+        // önce model metninde aranır, bulunamazsa orta sütun notunda da aranır.
+        const { urun, renk, olcu, kategori } = splitModelRenkOlcu(model, bilinenRenkler, rowNote);
         items.push({
-          urun, renk, olcu, siparis: "", kategori: kategori || "",
+          urun, renk, olcu, siparis: rowNote, kategori: kategori || "",
           miktar: String(Math.round(parseFloat(miktarMatch[0].replace(",", ".")))),
           birim,
         });
       }
     }
   }
+  const not = notLines.join("\n");
 
   // Sipariş no "E202600000000665" -> yıl (2026) + sıra no (665).
   // Kısa, okunabilir bir sipariş kodu üretilir: "SIP-665".
@@ -4293,7 +4351,7 @@ async function parseProformaPdf(file, bilinenRenkler) {
 
   return {
     musteri, tarih: tarih ? tarih.split(".").reverse().join("-") : "",
-    formNo: siparisNo, siparisKodu, items,
+    formNo: siparisNo, siparisKodu, items, not,
   };
 }
 
@@ -4350,6 +4408,7 @@ function SiparislerPanel({ data, lang, dir }) {
         formNo: parsed.formNo || prev.formNo,
         tarih: parsed.tarih || prev.tarih,
         musteri: parsed.musteri || prev.musteri,
+        not: parsed.not ? (prev.not ? `${prev.not}\n${parsed.not}` : parsed.not) : prev.not,
       }));
       setFormItems(parsed.items);
       setOrderCodeError("");
