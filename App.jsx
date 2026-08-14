@@ -204,6 +204,9 @@ const STRINGS = {
   downtimeSaved: { tr: "Duruş kaydedildi:", en: "Downtime saved:", ar: "تم تسجيل التوقف:" },
   loading: { tr: "Yükleniyor…", en: "Loading…", ar: "جارٍ التحميل…" },
   noAssignedOrder: { tr: "Atanmış iş yok", en: "No order assigned", ar: "لا يوجد عمل مخصص" },
+  currentlyRunningLabel: { tr: "Şu An Üretimde", en: "Currently Running", ar: "قيد الإنتاج الآن" },
+  queuedForMachineLabel: { tr: "Bu Makinede Sırada", en: "Queued On This Machine", ar: "في الانتظار على هذه الماكينة" },
+  recentActivityLabel: { tr: "Son Hareketler", en: "Recent Activity", ar: "آخر الأنشطة" },
   status: { tr: "Durum", en: "Status", ar: "الحالة" },
   settings: { tr: "Tanımlar", en: "Settings", ar: "الإعدادات" },
   exportExcel: { tr: "Excel'e Aktar", en: "Export to Excel", ar: "تصدير إلى إكسل" },
@@ -339,6 +342,8 @@ const STRINGS = {
   userRoleManager: { tr: "Yönetici", en: "Manager", ar: "مدير" },
   userNoDept: { tr: "— Departman seçin —", en: "— Select department —", ar: "— اختر القسم —" },
   userDeptAll: { tr: "Tümü (kısıtlama yok)", en: "All (no restriction)", ar: "الكل (بدون قيد)" },
+  deleteUserBtn: { tr: "Kullanıcıyı sil", en: "Delete user", ar: "حذف المستخدم" },
+  confirmDeleteUser: { tr: "Silmeyi onayla", en: "Confirm delete", ar: "تأكيد الحذف" },
   userSavedMsg: { tr: "Kullanıcı güncellendi", en: "User updated", ar: "تم تحديث المستخدم" },
   userLoadError: { tr: "Kullanıcılar yüklenemedi. RLS izinlerini kontrol edin.", en: "Couldn't load users. Check RLS permissions.", ar: "تعذر تحميل المستخدمين. تحقق من أذونات RLS." },
   noDeptAssignedTitle: { tr: "Departman atanmamış", en: "No department assigned", ar: "لم يتم تعيين قسم" },
@@ -512,6 +517,7 @@ const STRINGS = {
   orderNotes: { tr: "Ustalara Not (opsiyonel)", en: "Note for Operators (optional)", ar: "ملاحظة للعمال (اختياري)" },
   orderNotesPlaceholder: { tr: "Örn: bu sipariş için özel talimat, dikkat edilecek nokta...", en: "e.g. special instructions for this order...", ar: "مثال: تعليمات خاصة لهذا الطلب" },
   orderNotesLabelUsta: { tr: "Not", en: "Note", ar: "ملاحظة" },
+  itemNoteLabelUsta: { tr: "Kalem Notu", en: "Item Note", ar: "ملاحظة البند" },
 
   colModel: { tr: "MODEL", en: "MODEL", ar: "الموديل" },
   colRenk: { tr: "RENK", en: "COLOR", ar: "اللون" },
@@ -526,6 +532,7 @@ const STRINGS = {
   undoReasonLabel: { tr: "Neden", en: "Reason", ar: "السبب" },
   undoReasonPrompt: { tr: "Bu düzeltmenin nedeni nedir? (opsiyonel)", en: "What is the reason for this correction? (optional)", ar: "ما سبب هذا التصحيح؟ (اختياري)" },
   formLabel: { tr: "Form:", en: "Form:", ar: "نموذج:" },
+  itemsInFormLabel: { tr: "kalem", en: "items", ar: "بند" },
 
   // ---- Kanban ----
   kanbanTitle: { tr: "Kanban", en: "Kanban", ar: "كانبان" },
@@ -1102,7 +1109,7 @@ const DEFAULT_STOCK = [
 // ilk kez görülürse o satırda renk boş kalır — kullanıcı Tanımlar'a
 // ekleyince bir sonraki proformada otomatik yakalanır.
 const DEFAULT_RENKLER = [
-  "B.TEAK", "D.BEYAZ", "K.CEVİZ", "K.CEVIZ", "D.CEVİZ", "D.CEVIZ",
+  "BEYAZ TEAK", "B.TEAK", "D.BEYAZ", "K.CEVİZ", "K.CEVIZ", "D.CEVİZ", "D.CEVIZ",
   "TEAK", "BEYAZ", "ANTRASİT", "ANTRASIT", "KREM",
 ];
 
@@ -2314,6 +2321,11 @@ function UstaMode({ data, onBack, lang, dir, profile, theme }) {
                       {order.musteri} · {stageIdx + 1}/{(order.asamalar || []).length} {t("stageProgress", lang)} · {stage.cikan}/{stageTargetQty(order, stage)} {t("units", lang)}
                       {order.teslimTarihi && ` · ${t("due", lang)} ${fmtDateShort(order.teslimTarihi)}`}
                     </span>
+                    {order.siparis && (
+                      <span style={{ display: "flex", alignItems: "center", gap: 4, fontFamily: "'Inter', sans-serif", fontWeight: 600, fontSize: 11.5, color: COLORS.accentWarn }}>
+                        <AlertTriangle size={11} /> {order.siparis}
+                      </span>
+                    )}
                     {stageIdx > 0 && (
                       <span style={{ fontFamily: "'Inter', sans-serif", fontWeight: 600, fontSize: 12, color: COLORS.accentRun }}>
                         {t("inputAvailableLabel", lang)}: {inputLimit} {t("units", lang)}
@@ -2355,6 +2367,23 @@ function UstaMode({ data, onBack, lang, dir, profile, theme }) {
                 </div>
                 <div style={{ fontFamily: "'Inter', sans-serif", fontSize: 13, color: COLORS.text, lineHeight: 1.45 }}>
                   {selectedEntry.order.not}
+                </div>
+              </div>
+            )}
+            {selectedEntry.order.siparis && (
+              <div style={{
+                marginTop: 10, padding: "10px 12px", borderRadius: 10,
+                background: COLORS.accentWarnDim, border: `1px solid ${COLORS.accentWarn}50`,
+                display: "flex", alignItems: "flex-start", gap: 8,
+              }}>
+                <AlertTriangle size={14} style={{ color: COLORS.accentWarn, flexShrink: 0, marginTop: 2 }} />
+                <div>
+                  <div style={{ fontFamily: "'Inter', sans-serif", fontSize: 10.5, fontWeight: 700, letterSpacing: 0.5, textTransform: "uppercase", color: COLORS.accentWarn, marginBottom: 3 }}>
+                    {t("itemNoteLabelUsta", lang)}
+                  </div>
+                  <div style={{ fontFamily: "'Inter', sans-serif", fontSize: 13, color: COLORS.text, lineHeight: 1.45 }}>
+                    {selectedEntry.order.siparis}
+                  </div>
                 </div>
               </div>
             )}
@@ -2931,11 +2960,156 @@ function MachineCard({ machine, state, profileToday, now, onClick, lang, dir }) 
   );
 }
 
+// Durum sayfasında bir makine kartına tıklayınca açılan detay paneli:
+// şu an ne üretiyor, bugünkü plan, bu makinede sırada bekleyen siparişler
+// (öncelik sırasına göre) ve son hareketler (log) tek ekranda.
+function MachineDetailSheet({ machine, state, orders, plan, log, todayIso, now, lang, dir, onClose }) {
+  const meta = statusMeta(state.status, lang);
+  const elapsed = state.startedAt ? now - state.startedAt : null;
+  const linkedOrder = state.orderId ? orders.find((o) => o.id === state.orderId) : null;
+  const linkedStage = linkedOrder && state.stageId ? (linkedOrder.asamalar || []).find((s) => s.id === state.stageId) : null;
+  const target = linkedOrder && linkedStage ? stageTargetQty(linkedOrder, linkedStage) : null;
+
+  const todaysJobs = normalizeCellJobs((plan[todayIso] || {})[machine.code]);
+
+  // Bu makinede SIRADA bekleyen siparişler: aşama listesinde bu makineye
+  // ait, henüz tamamlanmamış bir aşaması olan ve o aşama sıradaki ilk
+  // (currentOrderStage) aşama olan siparişler — öncelik sırasına göre.
+  const queued = orders
+    .filter((o) => o.durum === ORDER_STATUS.PENDING)
+    .map((o) => {
+      const cur = currentOrderStage(o);
+      return cur && cur.makine === machine.code ? { order: o, stage: cur } : null;
+    })
+    .filter(Boolean)
+    .filter(({ order, stage }) => !(state.status === "run" && order.id === state.orderId && stage.id === state.stageId));
+
+  const recentLogs = (log || [])
+    .filter((l) => l.machine === machine.code)
+    .sort((a, b) => (b.time || 0) - (a.time || 0))
+    .slice(0, 6);
+
+  return (
+    <div onClick={onClose} style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,0.6)", display: "flex", alignItems: "flex-end", justifyContent: "center", zIndex: 60 }}>
+      <div onClick={(e) => e.stopPropagation()} style={{
+        background: COLORS.bgPanel, borderTop: `1px solid ${COLORS.border}`, borderRadius: "20px 20px 0 0",
+        padding: "22px 20px 30px", width: "100%", maxWidth: 520, maxHeight: "85vh", overflowY: "auto",
+      }}>
+        <div style={{ display: "flex", alignItems: "flex-start", justifyContent: "space-between", marginBottom: 18 }}>
+          <div>
+            <div style={{ fontFamily: "'Archivo', sans-serif", fontWeight: 800, fontSize: 24, color: COLORS.text }}>{machine.code}</div>
+            <div style={{ fontFamily: "'Inter', sans-serif", fontSize: 13, color: COLORS.textDim, marginTop: 2 }}>{machine.name}</div>
+          </div>
+          <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+            <div style={{ display: "flex", alignItems: "center", gap: 6, padding: "5px 10px", borderRadius: 99, background: meta.dim }}>
+              <div style={{ width: 7, height: 7, borderRadius: 99, background: meta.color }} />
+              <span style={{ fontFamily: "'IBM Plex Mono', monospace", fontSize: 11, color: meta.color, fontWeight: 600 }}>{meta.label}</span>
+            </div>
+            <button onClick={onClose} style={{ background: "none", border: "none", color: COLORS.textFaint, cursor: "pointer", display: "flex" }}><X size={18} /></button>
+          </div>
+        </div>
+
+        {/* Şu an üretimde */}
+        {state.status === "run" && (
+          <div style={{ background: COLORS.bgRaised, border: `1px solid ${COLORS.border}`, borderLeft: `4px solid ${COLORS.accentRun}`, borderRadius: 12, padding: 16, marginBottom: 16 }}>
+            <div style={{ fontFamily: "'IBM Plex Mono', monospace", fontSize: 10.5, fontWeight: 700, letterSpacing: 0.5, textTransform: "uppercase", color: COLORS.accentRun, marginBottom: 6 }}>
+              {t("currentlyRunningLabel", lang)}
+            </div>
+            <div style={{ display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap" }}>
+              <span style={{ fontFamily: "'Archivo', sans-serif", fontWeight: 700, fontSize: 16, color: COLORS.text }}>{state.profile}</span>
+              {state.orderId && <span style={{ fontFamily: "'IBM Plex Mono', monospace", fontSize: 12, color: COLORS.accentWarn }}>{state.orderId}</span>}
+            </div>
+            {linkedOrder && (
+              <div style={{ fontFamily: "'Inter', sans-serif", fontSize: 12.5, color: COLORS.textDim, marginTop: 4 }}>
+                {linkedOrder.musteri}
+                {(linkedOrder.renk || linkedOrder.olcu) && ` · ${[linkedOrder.renk, linkedOrder.olcu].filter(Boolean).join(" · ")}`}
+              </div>
+            )}
+            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginTop: 10 }}>
+              <span style={{ fontFamily: "'IBM Plex Mono', monospace", fontSize: 15, fontWeight: 700, color: COLORS.accentRun }}>
+                {state.produced || 0}{target ? ` / ${target}` : ""} {t("units", lang)}
+              </span>
+              <span style={{ fontFamily: "'Inter', sans-serif", fontSize: 12, color: COLORS.textFaint }}>{fmtDurationShort(elapsed)} {t("workingFor", lang)}</span>
+            </div>
+          </div>
+        )}
+
+        {state.status === "down_pending" && (
+          <div style={{ background: COLORS.accentStopDim, border: `1px solid ${COLORS.accentStop}50`, borderLeft: `4px solid ${COLORS.accentStop}`, borderRadius: 12, padding: 16, marginBottom: 16 }}>
+            <div style={{ fontFamily: "'IBM Plex Mono', monospace", fontSize: 13, color: COLORS.accentStop, fontWeight: 700 }}>
+              {fmtDurationShort(elapsed)} {t("waitingFor", lang)} · {t("reasonPending", lang)}
+            </div>
+          </div>
+        )}
+
+        {/* Bugünün planı */}
+        {todaysJobs.length > 0 && (
+          <div style={{ marginBottom: 16 }}>
+            <div style={{ fontFamily: "'IBM Plex Mono', monospace", fontSize: 10.5, color: COLORS.textFaint, letterSpacing: 1, textTransform: "uppercase", marginBottom: 8 }}>
+              {t("todaysPlan", lang)}
+            </div>
+            <div style={{ display: "grid", gap: 6 }}>
+              {todaysJobs.map((job, i) => (
+                <div key={i} style={{ display: "flex", justifyContent: "space-between", alignItems: "center", background: COLORS.bgRaised, border: `1px solid ${COLORS.border}`, borderRadius: 9, padding: "8px 12px" }}>
+                  <span style={{ fontFamily: "'Inter', sans-serif", fontSize: 12.5, color: COLORS.text, fontWeight: 600 }}>{job.profile}</span>
+                  {job.orderId && <span style={{ fontFamily: "'IBM Plex Mono', monospace", fontSize: 11, color: COLORS.accentWarn }}>{job.orderId}</span>}
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
+
+        {/* Sırada bekleyen işler */}
+        <div style={{ marginBottom: 16 }}>
+          <div style={{ fontFamily: "'IBM Plex Mono', monospace", fontSize: 10.5, color: COLORS.textFaint, letterSpacing: 1, textTransform: "uppercase", marginBottom: 8 }}>
+            {t("queuedForMachineLabel", lang)} {queued.length > 0 && `(${queued.length})`}
+          </div>
+          {queued.length === 0 ? (
+            <div style={{ fontFamily: "'Inter', sans-serif", fontSize: 12.5, color: COLORS.textFaint }}>{t("noAssignedOrder", lang)}</div>
+          ) : (
+            <div style={{ display: "grid", gap: 6 }}>
+              {queued.slice(0, 8).map(({ order, stage }, i) => (
+                <div key={order.id} style={{ display: "flex", alignItems: "center", gap: 10, background: COLORS.bgRaised, border: `1px solid ${COLORS.border}`, borderRadius: 9, padding: "8px 12px" }}>
+                  <span style={{ fontFamily: "'IBM Plex Mono', monospace", fontSize: 10.5, color: COLORS.textFaint, border: `1px solid ${COLORS.border}`, borderRadius: 5, padding: "1px 5px" }}>{i + 1}</span>
+                  <span style={{ flex: 1, minWidth: 0 }}>
+                    <div style={{ fontFamily: "'Inter', sans-serif", fontSize: 12.5, fontWeight: 600, color: COLORS.text, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{order.urun}</div>
+                    <div style={{ fontFamily: "'IBM Plex Mono', monospace", fontSize: 10.5, color: COLORS.textFaint }}>{order.id} · {remainingStageQty(order, stage)} {t("units", lang)}</div>
+                  </span>
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+
+        {/* Son hareketler */}
+        {recentLogs.length > 0 && (
+          <div>
+            <div style={{ fontFamily: "'IBM Plex Mono', monospace", fontSize: 10.5, color: COLORS.textFaint, letterSpacing: 1, textTransform: "uppercase", marginBottom: 8 }}>
+              {t("recentActivityLabel", lang)}
+            </div>
+            <div style={{ display: "grid", gap: 6 }}>
+              {recentLogs.map((l, i) => (
+                <div key={i} style={{ display: "flex", justifyContent: "space-between", gap: 10, fontFamily: "'Inter', sans-serif", fontSize: 12, color: COLORS.textDim, borderBottom: i < recentLogs.length - 1 ? `1px solid ${COLORS.borderSoft}` : "none", paddingBottom: 6 }}>
+                  <span style={{ overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{l.label}</span>
+                  <span style={{ fontFamily: "'IBM Plex Mono', monospace", fontSize: 11, color: COLORS.textFaint, flexShrink: 0 }}>
+                    {l.time ? new Date(l.time).toLocaleString("tr-TR", { day: "2-digit", month: "2-digit", hour: "2-digit", minute: "2-digit" }) : ""}
+                  </span>
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}
+
 function YoneticiMode({ data, onBack, lang, dir, profile, theme }) {
   const now = useNow(2000);
   const { machines, plan, machineStates, log, refresh, orders, stock, setPolling } = data;
   const [tab, setTab] = useState("durum");
   const [sidebarOpen, setSidebarOpen] = useState(false);
+  const [selectedMachineDetail, setSelectedMachineDetail] = useState(null); // Durum sayfasında tıklanan makine
   const [openNavGroups, setOpenNavGroups] = useState({ uretim: true, malzeme: true, analiz: true, sistem: true });
   const todayIso = isoDate(now);
 
@@ -2946,7 +3120,6 @@ function YoneticiMode({ data, onBack, lang, dir, profile, theme }) {
     { id: "uretim", labelKey: "navGroupProduction", tabs: [
       { id: "durum", labelKey: "status" },
       { id: "siparisler", labelKey: "orders" },
-      { id: "dijital-ikiz", labelKey: "digitalTwinTitle" },
       { id: "kanban", labelKey: "kanbanTitle" },
       { id: "plan", labelKey: "productionPlan" },
       { id: "oto-plan", labelKey: "autoScheduleTab" },
@@ -2974,7 +3147,7 @@ function YoneticiMode({ data, onBack, lang, dir, profile, theme }) {
   // yenilemesi (4s) bu sekmelerde yerel state'i ezip yazılanı kaybettirebilir.
   // Sadece "durum" salt-okunur olduğu için orada canlı kalmasında sakınca yok.
   useEffect(() => {
-    setPolling(tab === "durum" || tab === "dijital-ikiz");
+    setPolling(tab === "durum");
     return () => setPolling(true);
   }, [tab, setPolling]);
 
@@ -3037,6 +3210,7 @@ function YoneticiMode({ data, onBack, lang, dir, profile, theme }) {
             background: COLORS.bgPanel, borderRight: dir === "rtl" ? "none" : `1px solid ${COLORS.border}`,
             borderLeft: dir === "rtl" ? `1px solid ${COLORS.border}` : "none",
             padding: "20px 14px", display: "flex", flexDirection: "column", gap: 4,
+            overflowY: "auto", WebkitOverflowScrolling: "touch", paddingBottom: "max(20px, env(safe-area-inset-bottom))",
           }}>
             <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", padding: "0 8px 16px" }}>
               <ErdoorLogo height={22} style={{ margin: 0 }} />
@@ -3142,10 +3316,25 @@ function YoneticiMode({ data, onBack, lang, dir, profile, theme }) {
               {machines.map((m) => {
                 const st = machineStates[m.code] || { status: "idle" };
                 const profileToday = cellJobsSummary((plan[todayIso] || {})[m.code]);
-                return <MachineCard key={m.code} machine={m} state={st} profileToday={profileToday} now={now} onClick={() => {}} lang={lang} dir={dir} />;
+                return <MachineCard key={m.code} machine={m} state={st} profileToday={profileToday} now={now} onClick={() => setSelectedMachineDetail(m)} lang={lang} dir={dir} />;
               })}
             </div>
           </div>
+
+          {selectedMachineDetail && (
+            <MachineDetailSheet
+              machine={selectedMachineDetail}
+              state={machineStates[selectedMachineDetail.code] || { status: "idle" }}
+              orders={orders || []}
+              plan={plan}
+              log={log}
+              todayIso={todayIso}
+              now={now}
+              lang={lang}
+              dir={dir}
+              onClose={() => setSelectedMachineDetail(null)}
+            />
+          )}
 
           <div style={{ display: "grid", gap: 16, gridTemplateColumns: "repeat(auto-fit, minmax(300px, 1fr))" }}>
             <div style={{ background: COLORS.bgPanel, border: `1px solid ${COLORS.border}`, borderRadius: 16, padding: 18 }}>
@@ -3206,8 +3395,6 @@ function YoneticiMode({ data, onBack, lang, dir, profile, theme }) {
       )}
 
       {tab === "siparisler" && <SiparislerPanel data={data} lang={lang} dir={dir} />}
-
-      {tab === "dijital-ikiz" && <DigitalTwinPanel data={data} lang={lang} dir={dir} />}
 
       {tab === "kanban" && <KanbanPanel data={data} lang={lang} dir={dir} />}
 
@@ -3704,6 +3891,25 @@ function KullanicilarPanel({ data, lang, dir }) {
     flashSaved();
   }
 
+  const [confirmingDeleteId, setConfirmingDeleteId] = useState(null);
+
+  // NOT: Bu sadece "profiles" tablosundaki uygulama profilini (rol/departman
+  // ataması) siler. Kullanıcının Supabase Auth üzerindeki asıl GİRİŞ HESABINI
+  // (e-posta/şifre) silmez — çünkü bu, tarayıcıya asla konulmaması gereken bir
+  // "service role" (admin) anahtarı gerektirir. Profili silinen kullanıcı
+  // profilsiz/rolsüz kalır (erişimi ciddi şekilde kısıtlanır) ama hesabı
+  // tamamen kapatmak isterseniz Supabase Dashboard'dan (Authentication >
+  // Users) elle silmeniz gerekir.
+  async function removeUser(id) {
+    setSavingId(id);
+    const { error: err } = await supabase.from("profiles").delete().eq("id", id);
+    setSavingId(null);
+    setConfirmingDeleteId(null);
+    if (err) { setError(err.message); return; }
+    setUsers((prev) => prev.filter((u) => u.id !== id));
+    flashSaved();
+  }
+
   const deptList = departments || [];
 
   return (
@@ -3783,6 +3989,45 @@ function KullanicilarPanel({ data, lang, dir }) {
                       <option key={d.id} value={d.id}>{d.name}</option>
                     ))}
                   </select>
+                </div>
+
+                <div style={{ display: "flex", alignItems: "flex-end", height: "100%" }}>
+                  {confirmingDeleteId === u.id ? (
+                    <div style={{ display: "flex", gap: 6 }}>
+                      <button
+                        onClick={() => removeUser(u.id)}
+                        style={{
+                          display: "flex", alignItems: "center", gap: 6, padding: "9px 12px", borderRadius: 10,
+                          border: `1px solid ${COLORS.accentStop}`, background: COLORS.accentStopDim, color: COLORS.accentStop,
+                          fontFamily: "'Inter', sans-serif", fontSize: 12.5, fontWeight: 700, cursor: "pointer",
+                        }}
+                      >
+                        <Trash2 size={13} /> {t("confirmDeleteUser", lang)}
+                      </button>
+                      <button
+                        onClick={() => setConfirmingDeleteId(null)}
+                        style={{
+                          padding: "9px 12px", borderRadius: 10, border: `1px solid ${COLORS.border}`,
+                          background: "transparent", color: COLORS.textDim,
+                          fontFamily: "'Inter', sans-serif", fontSize: 12.5, cursor: "pointer",
+                        }}
+                      >
+                        {t("cancel", lang)}
+                      </button>
+                    </div>
+                  ) : (
+                    <button
+                      onClick={() => setConfirmingDeleteId(u.id)}
+                      title={t("deleteUserBtn", lang)}
+                      style={{
+                        display: "flex", alignItems: "center", justifyContent: "center", width: 36, height: 36,
+                        borderRadius: 10, border: `1px solid ${COLORS.border}`, background: "transparent",
+                        color: COLORS.accentStop, cursor: "pointer",
+                      }}
+                    >
+                      <Trash2 size={15} />
+                    </button>
+                  )}
                 </div>
               </div>
             );
@@ -4370,6 +4615,7 @@ function SiparislerPanel({ data, lang, dir }) {
   const [pdfStatus, setPdfStatus] = useState(null); // { type: "loading"|"success"|"error"|"empty", text }
   const pdfInputRef = useRef(null);
   const [categoryFilter, setCategoryFilter] = useState("all"); // "all" | "kanat" | "laminasyon" | "deck" | "extruder" | "other"
+  const [collapsedForms, setCollapsedForms] = useState({}); // formNo -> true (katlanmış/kapalı)
 
   // Sipariş listesindeki DİZİ SIRASI = üretim önceliği (üstteki önce
   // yapılır). Filtrelenmiş görünümde bile ok tuşları, gerçek (tüm
@@ -4774,7 +5020,8 @@ function SiparislerPanel({ data, lang, dir }) {
           const filteredOrders = categoryFilter === "all"
             ? (orders || [])
             : (orders || []).filter((o) => (guessOrderDepartment(o) || "other") === categoryFilter);
-          return filteredOrders.map((o, visibleIdx) => {
+
+          const renderOrderCard = (o, visibleIdx) => {
           const delivered = o.durum === ORDER_STATUS.DELIVERED;
           const stages = o.asamalar || [];
           const doneCount = stages.filter((s) => s.durum === STAGE_STATUS.DONE).length;
@@ -4925,7 +5172,63 @@ function SiparislerPanel({ data, lang, dir }) {
               </div>
             </div>
           );
-        });
+          };
+
+          // Aynı proformadan (aynı formNo) gelen kalemler tek bir katlanır
+          // kutu altında gruplanır — sipariş öncelik sırası (visibleIdx) ve
+          // yukarı/aşağı taşıma mantığı DEĞİŞMEDEN, sadece görsel gruplama
+          // eklenir.
+          const groupsMap = new Map();
+          filteredOrders.forEach((o, visibleIdx) => {
+            const key = o.formNo || `__single__${o.id}`;
+            if (!groupsMap.has(key)) groupsMap.set(key, { formNo: o.formNo || null, items: [] });
+            groupsMap.get(key).items.push({ order: o, visibleIdx });
+          });
+          const groups = Array.from(groupsMap.values());
+
+          return groups.map((group) => {
+            if (group.items.length === 1) {
+              const { order: o, visibleIdx } = group.items[0];
+              return renderOrderCard(o, visibleIdx);
+            }
+            const isCollapsed = collapsedForms[group.formNo] !== false; // varsayılan: katlanmış
+            const first = group.items[0].order;
+            const totalQty = group.items.reduce((s, { order: o }) => s + (o.miktar || 0), 0);
+            const allDelivered = group.items.every(({ order: o }) => o.durum === ORDER_STATUS.DELIVERED);
+            return (
+              <div key={group.formNo} style={{ border: `1px solid ${COLORS.border}`, borderRadius: 12, overflow: "hidden" }}>
+                <button
+                  onClick={() => setCollapsedForms((prev) => ({ ...prev, [group.formNo]: !isCollapsed }))}
+                  style={{
+                    width: "100%", display: "flex", alignItems: "center", justifyContent: "space-between",
+                    padding: "13px 16px", background: COLORS.bgRaised, border: "none", cursor: "pointer",
+                    borderLeft: `4px solid ${allDelivered ? COLORS.accentRun : COLORS.accentWarn}`,
+                  }}
+                >
+                  <span style={{ display: "flex", alignItems: "center", gap: 10, flexWrap: "wrap" }}>
+                    <Layers size={14} style={{ color: COLORS.accentWarn, flexShrink: 0 }} />
+                    <span style={{ fontFamily: "'IBM Plex Mono', monospace", fontSize: 12, color: COLORS.text }}>
+                      {t("formLabel", lang)} {group.formNo}
+                    </span>
+                    <span style={{ fontFamily: "'Inter', sans-serif", fontSize: 11.5, color: COLORS.textFaint }}>
+                      {group.items.length} {t("itemsInFormLabel", lang)} · {totalQty} {t("units", lang)}
+                      {first.musteri ? ` · ${first.musteri}` : ""}
+                      {first.teslimTarihi ? ` · ${t("due", lang)} ${fmtDateShort(first.teslimTarihi)}` : ""}
+                    </span>
+                  </span>
+                  <ChevronLeft size={14} style={{
+                    transform: isCollapsed ? (dir === "rtl" ? "rotate(180deg)" : "rotate(0deg)") : "rotate(-90deg)",
+                    color: COLORS.textFaint, transition: "transform 0.15s ease", flexShrink: 0,
+                  }} />
+                </button>
+                {!isCollapsed && (
+                  <div style={{ display: "grid", gap: 8, padding: 10, background: COLORS.bg }}>
+                    {group.items.map(({ order: o, visibleIdx }) => renderOrderCard(o, visibleIdx))}
+                  </div>
+                )}
+              </div>
+            );
+          });
         })()}
       </div>
     </div>
