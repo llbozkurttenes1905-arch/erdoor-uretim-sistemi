@@ -1175,6 +1175,18 @@ function guessOrderDepartment(order) {
   return null;
 }
 
+// Sipariş başlığında gösterilecek kısa ürün adı: kullanıcı ürünü "PERVAZ DÜZ",
+// "KASA DÜZ 800 BASLIK" gibi ölçü/açıklama ekleyerek girebiliyor — bu satırlar
+// zaten renk/ölçü alanlarında ayrıca tutuluyor, o yüzden başlıkta sadece ürün
+// kategorisi ("PERVAZ" / "KASA") gösterilir. Diğer ürünler (ER modelleri,
+// aksesuarlar vb.) olduğu gibi kalır.
+function orderDisplayTitle(urun) {
+  const u = (urun || "").toUpperCase();
+  if (u.includes("PERVAZ")) return "PERVAZ";
+  if (u.includes("KASA")) return "KASA";
+  return urun;
+}
+
 // ---------------- Takvim/Plan yardımcıları ----------------
 function isoDate(d) {
   return d.toISOString().slice(0, 10);
@@ -5040,7 +5052,7 @@ function SiparislerPanel({ data, lang, dir }) {
                       {visibleIdx + 1}
                     </span>
                     <span style={{ fontFamily: "'IBM Plex Mono', monospace", fontSize: 12, color: COLORS.accentWarn }}>{o.id}</span>
-                    <span style={{ fontFamily: "'Inter', sans-serif", fontSize: 13.5, fontWeight: 600, color: COLORS.text }}>{o.urun}</span>
+                    <span style={{ fontFamily: "'Inter', sans-serif", fontSize: 13.5, fontWeight: 600, color: COLORS.text }}>{orderDisplayTitle(o.urun)}</span>
                     {o.formNo && (
                       <span style={{ fontFamily: "'IBM Plex Mono', monospace", fontSize: 10, color: COLORS.textFaint, border: `1px solid ${COLORS.border}`, borderRadius: 6, padding: "2px 6px" }}>
                         {t("formLabel", lang)} {o.formNo}
