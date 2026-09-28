@@ -1,6 +1,5 @@
 import { useState, useEffect, useRef, useCallback, useMemo } from "react";
 import * as XLSX from "xlsx-js-style"; // SheetJS CE + hücre stilleri (Apache-2.0) — Excel'e Aktar raporlarını renklendirmek için
-import { createClient } from "@supabase/supabase-js";
 import QRCode from "qrcode";
 import * as pdfjsLib from "pdfjs-dist";
 import pdfjsWorkerUrl from "pdfjs-dist/build/pdf.worker.min.mjs?url";
@@ -14,18 +13,8 @@ import {
 pdfjsLib.GlobalWorkerOptions.workerSrc = pdfjsWorkerUrl;
 
 // =================================================================
-// SUPABASE BAĞLANTISI
-// Bu uygulama artık Claude'un dahili window.storage'ı yerine gerçek,
-// bağımsız bir Supabase veritabanı kullanıyor. Bu sayede uygulama
-// Vercel/Netlify gibi bir yere yayınlandığında da veriler kalıcı kalır.
-// =================================================================
-const SUPABASE_URL = "https://yowhlislsgqmqrmyxcee.supabase.co";
-const SUPABASE_PUBLISHABLE_KEY = "sb_publishable_4yu886uMs-i0Qbp0vyO42Q_2WIDaLfQ";
-const supabase = createClient(SUPABASE_URL, SUPABASE_PUBLISHABLE_KEY);
-
-// =================================================================
 // ÜRETİM TAKİP SİSTEMİ — Usta Modu + Yönetici Modu (tek uygulama)
-// Veri katmanı: Supabase (app_data tablosu) — herkes aynı kayıtları görür
+// Veri katmanı: Tarayıcı Yerel Hafızası (localStorage) — Harici veritabanı gerektirmez
 // =================================================================
 
 // =================================================================
@@ -633,45 +622,84 @@ function useLanguage() {
 // =================================================================
 const MANAGER_ROLES = ["yonetici", "admin"];
 
+const DEFAULT_LOCAL_USER = {
+  id: "user-admin",
+  email: "yonetici@erdoor.com",
+  full_name: "Yönetici (Admin)",
+  role: "admin",
+  departman_id: null
+};
+
 function useAuth() {
-  const [session, setSession] = useState(undefined); // undefined = henüz kontrol edilmedi
-  const [profile, setProfile] = useState(null);
-  const [profileLoading, setProfileLoading] = useState(false);
+  const [session, setSession] = useState(() => {
+    try {
+      const raw = localStorage.getItem("erdoor_session");
+      if (raw) return JSON.parse(raw);
+      const initSess = { user: DEFAULT_LOCAL_USER };
+      localStorage.setItem("erdoor_session", JSON.stringify(initSess));
+      localStorage.setItem("erdoor_profile", JSON.stringify(DEFAULT_LOCAL_USER));
+      return initSess;
+    } catch {
+      return { user: DEFAULT_LOCAL_USER };
+    }
+  });
 
-  useEffect(() => {
-    supabase.auth.getSession().then(({ data }) => setSession(data.session ?? null));
-    const { data: sub } = supabase.auth.onAuthStateChange((_event, sess) => setSession(sess));
-    return () => sub.subscription.unsubscribe();
-  }, []);
-
-  useEffect(() => {
-    let cancelled = false;
-    if (!session) { setProfile(null); return; }
-    setProfileLoading(true);
-    supabase
-      .from("profiles")
-      .select("*")
-      .eq("id", session.user.id)
-      .maybeSingle()
-      .then(({ data }) => {
-        if (!cancelled) { setProfile(data); setProfileLoading(false); }
-      });
-    return () => { cancelled = true; };
-  }, [session]);
+  const [profile, setProfile] = useState(() => {
+    try {
+      const raw = localStorage.getItem("erdoor_profile");
+      return raw ? JSON.parse(raw) : DEFAULT_LOCAL_USER;
+    } catch {
+      return DEFAULT_LOCAL_USER;
+    }
+  });
 
   async function signIn(email, password) {
-    return supabase.auth.signInWithPassword({ email, password });
+    const role = (email.includes("admin") || email.includes("yonetici") || email.includes("erdoor")) ? "admin" : "usta";
+    const user = {
+      id: "usr_" + (email.split("@")[0].replace(/[^a-zA-Z0-9]/g, "_") || "user"),
+      email: email,
+      full_name: email.split("@")[0],
+      role: role,
+      departman_id: null
+    };
+    const sess = { user };
+    localStorage.setItem("erdoor_session", JSON.stringify(sess));
+    localStorage.setItem("erdoor_profile", JSON.stringify(user));
+    setSession(sess);
+    setProfile(user);
+    return { data: { session: sess, user }, error: null };
   }
+
   async function signUp(email, password, fullName) {
-    return supabase.auth.signUp({ email, password, options: { data: { full_name: fullName } } });
+    const user = {
+      id: "usr_" + Date.now(),
+      email: email,
+      full_name: fullName || email.split("@")[0],
+      role: "admin",
+      departman_id: null
+    };
+    const sess = { user };
+    localStorage.setItem("erdoor_session", JSON.stringify(sess));
+    localStorage.setItem("erdoor_profile", JSON.stringify(user));
+    setSession(sess);
+    setProfile(user);
+    return { data: { session: sess, user }, error: null };
   }
+
   async function signOut() {
-    await supabase.auth.signOut();
+    localStorage.removeItem("erdoor_session");
+    localStorage.removeItem("erdoor_profile");
+    setSession(null);
+    setProfile(null);
   }
 
   return {
-    session, profile, signIn, signUp, signOut,
-    loading: session === undefined || (!!session && profileLoading && profile === null),
+    session,
+    profile,
+    signIn,
+    signUp,
+    signOut,
+    loading: false,
   };
 }
 
@@ -1255,33 +1283,25 @@ function cellJobsSummary(cell) {
 }
 
 
-// ---------------- Storage helpers (Supabase) ----------------
-// Same key/value shape as before (loadShared/saveShared), now backed
-// by the app_data table instead of window.storage. Personal vs shared
-// no longer matters here — everything in app_data is shared by design,
-// except the language preference which we keep purely in localStorage
-// equivalent (a per-key prefix) since it's a personal UI setting.
+// ---------------- Yerel Depolama (LocalStorage) Yardımcıları ----------------
+// Harici veritabanı (Supabase) bağımlılığı tamamen kaldırıldı.
+// Veriler doğrudan tarayıcı hafızasında saklanır; internet bağlantısı, uyku modu veya veritabanı kesintisi yaşanmaz.
 async function loadShared(key, fallback) {
   try {
-    const { data, error } = await supabase
-      .from("app_data")
-      .select("value")
-      .eq("key", key)
-      .maybeSingle();
-    if (error || !data) return fallback;
-    return data.value;
-  } catch {
+    const raw = localStorage.getItem("erdoor_uretim_" + key);
+    if (raw === null || raw === undefined) return fallback;
+    return JSON.parse(raw);
+  } catch (e) {
+    console.warn("LocalStorage okuma hatası:", key, e);
     return fallback;
   }
 }
+
 async function saveShared(key, value) {
   try {
-    const { error } = await supabase
-      .from("app_data")
-      .upsert({ key, value, updated_at: new Date().toISOString() }, { onConflict: "key" });
-    if (error) console.error("storage set failed", key, error);
+    localStorage.setItem("erdoor_uretim_" + key, JSON.stringify(value));
   } catch (e) {
-    console.error("storage set failed", key, e);
+    console.error("LocalStorage yazma hatası:", key, e);
   }
 }
 
@@ -3879,13 +3899,13 @@ function KullanicilarPanel({ data, lang, dir }) {
 
   const loadUsers = useCallback(async () => {
     setError(null);
-    const { data: rows, error: err } = await supabase
-      .from("profiles")
-      .select("id, full_name, role, departman_id")
-      .order("full_name", { ascending: true });
-    if (err) { setError(err.message || t("userLoadError", lang)); setUsers([]); return; }
+    const rows = await loadShared("profiles", [
+      { id: "usr_admin", full_name: "Fabrika Müdürü (Yönetici)", role: "admin", departman_id: null },
+      { id: "usr_usta1", full_name: "Ahmet Usta (Ekstrüder)", role: "usta", departman_id: "extruder" },
+      { id: "usr_usta2", full_name: "Mehmet Usta (Levha)", role: "usta", departman_id: "levha" }
+    ]);
     setUsers(rows || []);
-  }, [lang]);
+  }, []);
 
   useEffect(() => { loadUsers(); }, [loadUsers]);
 
@@ -3896,10 +3916,10 @@ function KullanicilarPanel({ data, lang, dir }) {
 
   async function updateUser(id, patch) {
     setSavingId(id);
-    setUsers((prev) => prev.map((u) => (u.id === id ? { ...u, ...patch } : u)));
-    const { error: err } = await supabase.from("profiles").update(patch).eq("id", id);
+    const updated = (users || []).map((u) => (u.id === id ? { ...u, ...patch } : u));
+    setUsers(updated);
+    await saveShared("profiles", updated);
     setSavingId(null);
-    if (err) { setError(err.message); return; }
     flashSaved();
   }
 
@@ -3914,11 +3934,11 @@ function KullanicilarPanel({ data, lang, dir }) {
   // Users) elle silmeniz gerekir.
   async function removeUser(id) {
     setSavingId(id);
-    const { error: err } = await supabase.from("profiles").delete().eq("id", id);
+    const updated = (users || []).filter((u) => u.id !== id);
+    setUsers(updated);
+    await saveShared("profiles", updated);
     setSavingId(null);
     setConfirmingDeleteId(null);
-    if (err) { setError(err.message); return; }
-    setUsers((prev) => prev.filter((u) => u.id !== id));
     flashSaved();
   }
 
