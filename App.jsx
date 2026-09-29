@@ -576,6 +576,8 @@ const STRINGS = {
   undoConfirm: { tr: "Bu işlemi geri almak istediğinizden emin misiniz?", en: "Are you sure you want to undo this action?", ar: "هل أنت متأكد من التراجع؟" },
   undoneToast: { tr: "İşlem geri alındı", en: "Action undone", ar: "تم التراجع عن الإجراء" },
 
+    hatParametreleriTab: { tr: "İstasyon Parametreleri (Eylül)", en: "Station Parameters (Sept)", ar: "معايير المحطة (سبتمبر)" },
+  hatParametreleriDesc: { tr: "Eylül ayı hat akışı, birim zamanlar, primer/EPS sarfiyatları, 14 pres kapasitesi, Dopper bıçak ömrü ve kilit/paletleme teknik parametreleri", en: "September station parameters, cycle times, glue/primer, 14 presses, blade life and lock/packaging specs", ar: "معايير المحطة وأوقات الدورات والغراء واستهلاك الشفرات" },
   navGroupProduction: { tr: "Üretim", en: "Production", ar: "الإنتاج" },
   navGroupMaterial: { tr: "Malzeme", en: "Materials", ar: "المواد" },
   navGroupAnalysis: { tr: "Analiz", en: "Analysis", ar: "التحليل" },
@@ -865,6 +867,93 @@ const DEFAULT_DEPARTMENTS = [
 // Kanat (kapı) üretim bölümü — Excel'e Aktar ve makine durumu için
 // hâlâ izlenir ama günlük profil takvimine bağlı değil, sipariş bazlı
 // kalıyor (kapı modelleri burada işlenir).
+
+// =================================================================
+// EYLÜL ÜRETİM HATTI & İSTASYON PARAMETRELERİ (BEYAZ TAHTA ENTEGRASYONU)
+// Mavi ve Kırmızı Kalem Parametreleri:
+// - Kırmızı Kalem: Personel Sayısı, İstasyon Birim Zamanı (Zaman/Adet),
+//   Primer (gr/kapı), EPS m³ (sarfiyat & fire), EPS CNC (Zaman çok önemli!),
+//   Vakum (Modele göre ısılar, 94 cm sabit ölçü firesi), 14 Adet Pres (Basınç & Zaman)
+// - Mavi Kalem: Tutkal Miktarı & Marka/Model (m² sarf), Dopper Bıçak Değişimi
+//   (kaç kapı sonra değişim), Kilit Açma (Kilit tipi, 122/114 cm teknik resmi,
+//   kilit kanadı firesi), Kalite Kontrol Onaycısı, Palet Adet/Ağırlık/Hacim
+// =================================================================
+const DEFAULT_HAT_PARAMETRELERI = {
+  seren: {
+    personelSayisi: 3,
+    kesimBirimZamanDk: 2.5,
+    catimBirimZamanDk: 3.0,
+    aciklama: "Seren Kesim ve İskelet Çatım hattı"
+  },
+  epsDolum: {
+    primerGrKapi: 45,
+    epsSarfM3: 0.042,
+    epsFireM3: 0.004,
+    epsFireOranPct: 8.7,
+    aciklama: "Primer püskürtme ve EPS dolum istasyonu"
+  },
+  epsCnc: {
+    sureDk: 4.5,
+    birimZamanDk: 4.5,
+    zamanKritik: true,
+    not: "Zaman çok önemli! Çevrim süresi darboğaz yaratabilir."
+  },
+  vakum: {
+    olcuFiresiCm: 94,
+    tutkalMarkaModel: "Kleiberit 303.0 / Dorus",
+    tutkalSarfGrM2: 120,
+    sicakliklar: [
+      { id: "daphne", model: "Daphne Ahşap Seren", isiC: 135, sureSn: 90 },
+      { id: "er600", model: "ER600 Köpük Dolgulu", isiC: 125, sureSn: 75 },
+      { id: "er1004", model: "ER1004 Okal Dolgulu", isiC: 140, sureSn: 110 },
+      { id: "er2000", model: "ER2000 Melamin Seri", isiC: 130, sureSn: 85 }
+    ]
+  },
+  pres: {
+    presAdet: 14,
+    standartBasincBar: 100,
+    presSuresiDk: 35,
+    kapasiteKapiBaski: 28,
+    gunlukKapasiteKapi: 350
+  },
+  dopper: {
+    bicakDegisimTarihi: "2026-09-15",
+    bicakOmruKapi: 5000,
+    islenenKapiSayisi: 3420,
+    kalanKapiSayisi: 1580,
+    bicakDurumu: "iyi"
+  },
+  kenarBant: {
+    bantKalinlikMm: 1.0,
+    bantGenislikMm: 42,
+    metreKapi: 5.2
+  },
+  kilitAcma: {
+    kilitTipleri: ["Oda Kilidi (Standart)", "WC / Banyo Kilidi", "Yale / Silindirli Kilit", "Manyetik Kilit", "Otel Kartlı Kilit"],
+    seciliKilitTipi: "Oda Kilidi (Standart)",
+    kilitKanadiFireAdet: 14,
+    kilitKanadiFireOranPct: 1.8,
+    teknikOlculer: {
+      kanatBoyCm: 208,
+      kanatEnCm: 88,
+      kolEkseniCm: 122,
+      kilitEkseniCm: 114,
+      aynaGenislikMm: 20,
+      aynaBoyMm: 196
+    }
+  },
+  paket: {
+    sonOnaylayanKK: "Ahmet Yılmaz (KK Şefi)",
+    onaylayanlar: ["Ahmet Yılmaz (KK Şefi)", "Mustafa Kaya (KK Uzmanı)", "Murat Demir (Vardiya Amiri)"],
+    paletBulunanAdet: 25,
+    paletAgirlikKg: 625,
+    paletHacmiM3: 2.86,
+    paletEnCm: 95,
+    paletBoyCm: 215,
+    paletYukseklikCm: 140
+  }
+};
+
 const KANAT_MACHINES = [
   { code: "MK-RC", name: "Geri Dönüşüm (Kırma/Öğütme)" },
   { code: "MK-MX", name: "Mikser (Hammadde Karışım)" },
@@ -1467,6 +1556,7 @@ function useSharedData() {
   // Ustalar (Teslim Eden / Teslim Alan) — makine devir-teslim seçenekleri
   // için Tanımlar sayfasında yönetilen paylaşımlı usta adı listesi.
   const [foremen, setForemenState] = useState([]);
+  const [hatParametreleri, setHatParametreleriState] = useState(DEFAULT_HAT_PARAMETRELERI);
   const [loading, setLoading] = useState(true);
   // Tracks machine codes with a write in flight, plus a version counter,
   // so a slow background refresh() can never overwrite a newer local change.
@@ -1482,7 +1572,7 @@ function useSharedData() {
     isRefreshing.current = true;
     try {
       const versionAtStart = writeVersion.current;
-      const [dep0, ord, p, l, sk, skMoves, pr, routes, ships, calExc, undo, fore, renk] = await Promise.all([
+      const [dep0, ord, p, l, sk, skMoves, pr, routes, ships, calExc, undo, fore, renk, hatParams] = await Promise.all([
         loadShared("departments", DEFAULT_DEPARTMENTS),
         loadShared("orders", DEFAULT_ORDERS),
         loadShared("plan", {}),
@@ -1496,6 +1586,7 @@ function useSharedData() {
         loadShared("undo-log", []),
         loadShared("foremen", []),
         loadShared("renkler", DEFAULT_RENKLER),
+        loadShared("hat_parametreleri", DEFAULT_HAT_PARAMETRELERI),
       ]);
 
       // Göç/migration: daha önce kaydedilmiş departman listelerinde "kanat"
@@ -1541,6 +1632,7 @@ function useSharedData() {
       setUndoLogState(undo);
       setForemenState(fore);
       setRenklerState(renk);
+      setHatParametreleriState(hatParams || DEFAULT_HAT_PARAMETRELERI);
       setLoading(false);
     } finally {
       isRefreshing.current = false;
@@ -1911,8 +2003,19 @@ function useSharedData() {
     await saveShared("undo-log", newLog);
   }
 
+    const setHatParametreleri = useCallback(async (updater) => {
+    setHatParametreleriState((prev) => {
+      const base = prev || DEFAULT_HAT_PARAMETRELERI;
+      const next = typeof updater === "function" ? updater(base) : { ...base, ...updater };
+      saveShared("hat_parametreleri", next);
+      return next;
+    });
+  }, []);
+
   return {
-    departments, machines, orders, plan, machineStates, log, loading,
+    departments,
+    hatParametreleri,
+    setHatParametreleri, machines, orders, plan, machineStates, log, loading,
     stock, stockMovements, purchaseRequests, productRoutes,
     shipments, calendarExceptions, undoLog, foremen, renkler,
     refresh, setMachineState, appendLog, updateDepartments, updateForemen, updateRenkler, setPlanCell, setPolling,
@@ -3151,6 +3254,7 @@ function YoneticiMode({ data, onBack, lang, dir, profile, theme }) {
   const NAV_GROUPS = [
     { id: "uretim", labelKey: "navGroupProduction", tabs: [
       { id: "durum", labelKey: "status" },
+      { id: "hat-parametreleri", labelKey: "hatParametreleriTab" },
       { id: "siparisler", labelKey: "orders" },
       { id: "kanban", labelKey: "kanbanTitle" },
       { id: "plan", labelKey: "productionPlan" },
@@ -3426,7 +3530,8 @@ function YoneticiMode({ data, onBack, lang, dir, profile, theme }) {
         </div>
       )}
 
-      {tab === "siparisler" && <SiparislerPanel data={data} lang={lang} dir={dir} />}
+      {tab === "hat-parametreleri" && <HatParametreleriPanel data={data} lang={lang} dir={dir} />}
+        {tab === "siparisler" && <SiparislerPanel data={data} lang={lang} dir={dir} />}
 
       {tab === "kanban" && <KanbanPanel data={data} lang={lang} dir={dir} />}
 
@@ -7101,6 +7206,770 @@ function UndoPanel({ data, lang, dir }) {
 // (Verimlilik panelindeki darboğaz hesabıyla aynı mantık). Örnek/sahte
 // veri yoktur — hepsi data.orders, data.machineStates, data.departments'tan gelir.
 // =================================================================
+
+// =================================================================
+// BEYAZ TAHTA ENTEGRASYONU: EYLÜL İSTASYON & HAT PARAMETRELERİ PANELİ
+// Mavi ve Kırmızı Kalem Parametreleri Paneli
+// =================================================================
+function HatParametreleriPanel({ data, lang, dir }) {
+  const { hatParametreleri, setHatParametreleri } = data;
+  const p = hatParametreleri || DEFAULT_HAT_PARAMETRELERI;
+  const [activeTab, setActiveTab] = useState("tum-akis");
+  const [savedToast, setSavedToast] = useState(false);
+
+  // Yerel düzenleme state'i
+  const [editState, setEditState] = useState(() => JSON.parse(JSON.stringify(p)));
+
+  useEffect(() => {
+    setEditState(JSON.parse(JSON.stringify(p)));
+  }, [p]);
+
+  function saveChanges(section, newValues) {
+    const updated = {
+      ...editState,
+      [section]: { ...editState[section], ...newValues }
+    };
+    setEditState(updated);
+    setHatParametreleri(updated);
+    setSavedToast(true);
+    setTimeout(() => setSavedToast(false), 2000);
+  }
+
+  function resetToDefaults() {
+    if (window.confirm("Tüm istasyon parametrelerini fabrika tahtasındaki varsayılan değerlere sıfırlamak istiyor musunuz?")) {
+      setEditState(DEFAULT_HAT_PARAMETRELERI);
+      setHatParametreleri(DEFAULT_HAT_PARAMETRELERI);
+      setSavedToast(true);
+      setTimeout(() => setSavedToast(false), 2000);
+    }
+  }
+
+  // Dopper bıçak sıfırlama
+  function resetDopperBlade() {
+    const today = new Date().toISOString().slice(0, 10);
+    const omur = editState.dopper.bicakOmruKapi || 5000;
+    saveChanges("dopper", {
+      bicakDegisimTarihi: today,
+      islenenKapiSayisi: 0,
+      kalanKapiSayisi: omur,
+      bicakDurumu: "iyi"
+    });
+  }
+
+  const STATIONS_FLOW = [
+    { id: "seren", num: "1", title: "Seren", sub: "Kesim -> Çatım", color: "#E8533D", tag: "Kırmızı" },
+    { id: "epsDolum", num: "2", title: "EPS Dolum", sub: "Primer -> Dolum", color: "#E8533D", tag: "Kırmızı" },
+    { id: "epsCnc", num: "3", title: "EPS CNC", sub: "Zaman Çok Önemli!", color: "#E8A33D", tag: "Kırmızı" },
+    { id: "vakum", num: "4", title: "Vakum", sub: "94 cm Sabit Fire & Isılar", color: "#5FB87A", tag: "Kırmızı+Mavi" },
+    { id: "pres", num: "5", title: "Pres Hattı", sub: "14 Adet Pres", color: "#3DA5E8", tag: "Kırmızı+Mavi" },
+    { id: "dopper", num: "6", title: "Dopper", sub: "Tıraşlama & Bıçak Ömrü", color: "#A855F7", tag: "Mavi" },
+    { id: "kenarBant", num: "7", title: "Kenar Bant", sub: "PVC Kenar Bantlama", color: "#EC4899", tag: "Kırmızı" },
+    { id: "kilitAcma", num: "8", title: "Kilit Açma", sub: "Teknik Resim & Kanat Firesi", color: "#3B82F6", tag: "Mavi" },
+    { id: "paket", num: "9", title: "Paket & KK", sub: "KK Onay & Palet Hacim/Ağırlık", color: "#10B981", tag: "Mavi" }
+  ];
+
+  return (
+    <div dir={dir} style={{ maxWidth: 1240, margin: "0 auto", padding: "20px 24px 80px", display: "grid", gap: 24 }}>
+      {/* Toast */}
+      {savedToast && (
+        <div style={{
+          position: "fixed", bottom: 24, right: 24, zIndex: 9999,
+          background: "#10B981", color: "#fff", padding: "12px 20px", borderRadius: 12,
+          fontWeight: 700, fontSize: 14, boxShadow: "0 10px 25px rgba(0,0,0,0.4)",
+          display: "flex", alignItems: "center", gap: 8
+        }}>
+          <Check size={18} /> Parametreler Kaydedildi ve Senkronize Edildi
+        </div>
+      )}
+
+      {/* Header Banner */}
+      <div style={{
+        background: "linear-gradient(135deg, rgba(30, 41, 59, 0.95), rgba(15, 23, 42, 0.98))",
+        border: `1px solid ${COLORS.border}`, borderRadius: 20, padding: "24px 28px",
+        boxShadow: "0 12px 30px rgba(0,0,0,0.35)", display: "flex", flexWrap: "wrap",
+        justifyContent: "space-between", alignItems: "center", gap: 16
+      }}>
+        <div>
+          <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 6 }}>
+            <span style={{
+              background: "rgba(232, 83, 61, 0.15)", color: "#E8533D", border: "1px solid rgba(232, 83, 61, 0.3)",
+              fontSize: 11, fontWeight: 800, padding: "4px 10px", borderRadius: 6, textTransform: "uppercase", letterSpacing: 0.5
+            }}>
+              🔴 Kırmızı Kalem
+            </span>
+            <span style={{
+              background: "rgba(59, 130, 246, 0.15)", color: "#3B82F6", border: "1px solid rgba(59, 130, 246, 0.3)",
+              fontSize: 11, fontWeight: 800, padding: "4px 10px", borderRadius: 6, textTransform: "uppercase", letterSpacing: 0.5
+            }}>
+              🔵 Mavi Kalem
+            </span>
+            <span style={{ fontFamily: "'IBM Plex Mono', monospace", fontSize: 12, color: COLORS.textDim }}>
+              EYLÜL DÖNEMİ HAT MATRİSİ
+            </span>
+          </div>
+          <h1 style={{ fontFamily: "'Archivo', sans-serif", fontWeight: 800, fontSize: 24, color: COLORS.text, margin: 0 }}>
+            İstasyon Parametreleri & Sarfiyat Yönetimi
+          </h1>
+          <p style={{ fontFamily: "'Inter', sans-serif", fontSize: 13, color: COLORS.textDim, marginTop: 4, margin: 0 }}>
+            Fabrika beyaz tahtasında belirlenen 9 ana istasyon akışı, birim zamanlar, pres kapasitesi ve kalite kontrol standartları
+          </p>
+        </div>
+
+        <div style={{ display: "flex", gap: 10 }}>
+          <button
+            onClick={resetToDefaults}
+            style={{
+              padding: "9px 14px", borderRadius: 10, background: "rgba(255,255,255,0.06)",
+              border: `1px solid ${COLORS.border}`, color: COLORS.textDim, cursor: "pointer",
+              fontSize: 12.5, fontWeight: 600, display: "flex", alignItems: "center", gap: 6
+            }}
+          >
+            <RefreshCw size={14} /> Tahta Varsayılanına Dön
+          </button>
+        </div>
+      </div>
+
+      {/* KPI Highlight Strip */}
+      <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(210px, 1fr))", gap: 14 }}>
+        <div style={{ background: COLORS.bgPanel, border: "1px solid rgba(232, 83, 61, 0.35)", borderRadius: 14, padding: "16px 18px" }}>
+          <div style={{ fontSize: 11, fontWeight: 700, color: "#E8533D", textTransform: "uppercase", letterSpacing: 0.5 }}>🔴 Vakum Sabit Fire</div>
+          <div style={{ fontFamily: "'Archivo', sans-serif", fontSize: 26, fontWeight: 800, color: COLORS.text, marginTop: 4 }}>
+            {editState.vakum.olcuFiresiCm} <span style={{ fontSize: 14, color: COLORS.textDim }}>cm sabit</span>
+          </div>
+          <div style={{ fontSize: 11.5, color: COLORS.textDim, marginTop: 4 }}>Vakum tezgahı en kesim firesi</div>
+        </div>
+
+        <div style={{ background: COLORS.bgPanel, border: "1px solid rgba(59, 130, 246, 0.35)", borderRadius: 14, padding: "16px 18px" }}>
+          <div style={{ fontSize: 11, fontWeight: 700, color: "#3B82F6", textTransform: "uppercase", letterSpacing: 0.5 }}>🔵 Pres Hattı Kapasitesi</div>
+          <div style={{ fontFamily: "'Archivo', sans-serif", fontSize: 26, fontWeight: 800, color: COLORS.text, marginTop: 4 }}>
+            {editState.pres.presAdet} <span style={{ fontSize: 14, color: COLORS.textDim }}>Pres</span>
+          </div>
+          <div style={{ fontSize: 11.5, color: COLORS.textDim, marginTop: 4 }}>{editState.pres.standartBasincBar} bar | {editState.pres.presSuresiDk} dk baskı</div>
+        </div>
+
+        <div style={{ background: COLORS.bgPanel, border: "1px solid rgba(168, 85, 247, 0.35)", borderRadius: 14, padding: "16px 18px" }}>
+          <div style={{ fontSize: 11, fontWeight: 700, color: "#A855F7", textTransform: "uppercase", letterSpacing: 0.5 }}>🔵 Dopper Bıçak Ömrü</div>
+          <div style={{ fontFamily: "'Archivo', sans-serif", fontSize: 26, fontWeight: 800, color: COLORS.text, marginTop: 4 }}>
+            {editState.dopper.kalanKapiSayisi} <span style={{ fontSize: 14, color: COLORS.textDim }}>kapı kaldı</span>
+          </div>
+          <div style={{ fontSize: 11.5, color: COLORS.textDim, marginTop: 4 }}>{editState.dopper.islenenKapiSayisi} / {editState.dopper.bicakOmruKapi} kapı</div>
+        </div>
+
+        <div style={{ background: COLORS.bgPanel, border: "1px solid rgba(16, 185, 129, 0.35)", borderRadius: 14, padding: "16px 18px" }}>
+          <div style={{ fontSize: 11, fontWeight: 700, color: "#10B981", textTransform: "uppercase", letterSpacing: 0.5 }}>🔵 Paketleme & Palet</div>
+          <div style={{ fontFamily: "'Archivo', sans-serif", fontSize: 26, fontWeight: 800, color: COLORS.text, marginTop: 4 }}>
+            {editState.paket.paletBulunanAdet} <span style={{ fontSize: 14, color: COLORS.textDim }}>adet/palet</span>
+          </div>
+          <div style={{ fontSize: 11.5, color: COLORS.textDim, marginTop: 4 }}>{editState.paket.paletAgirlikKg} kg | {editState.paket.paletHacmiM3} m³</div>
+        </div>
+      </div>
+
+      {/* İstasyon Akış Çizelgesi (İnteraktif Çubuk) */}
+      <div style={{ background: COLORS.bgPanel, border: `1px solid ${COLORS.border}`, borderRadius: 18, padding: 18 }}>
+        <div style={{ fontSize: 12, fontWeight: 700, color: COLORS.textDim, marginBottom: 12, textTransform: "uppercase", letterSpacing: 0.5 }}>
+          🏭 İmalat Hattı Akış Sırası (Beyaz Tahta Şeması)
+        </div>
+        <div style={{ display: "flex", gap: 8, overflowX: "auto", paddingBottom: 6 }}>
+          {STATIONS_FLOW.map((s, idx) => {
+            const isSel = activeTab === s.id;
+            return (
+              <button
+                key={s.id}
+                onClick={() => setActiveTab(s.id)}
+                style={{
+                  display: "flex", flexDirection: "column", alignItems: "flex-start", gap: 3,
+                  padding: "10px 14px", borderRadius: 12, border: `1px solid ${isSel ? s.color : COLORS.border}`,
+                  background: isSel ? `${s.color}20` : COLORS.bgRaised, color: COLORS.text,
+                  cursor: "pointer", minWidth: 125, flex: 1, textAlign: "left", transition: "all 0.2s"
+                }}
+              >
+                <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", width: "100%" }}>
+                  <span style={{ fontFamily: "'IBM Plex Mono', monospace", fontSize: 11, fontWeight: 700, color: s.color }}>
+                    {s.num}. İstasyon
+                  </span>
+                  <span style={{ fontSize: 9.5, opacity: 0.7, color: s.color }}>{s.tag}</span>
+                </div>
+                <div style={{ fontFamily: "'Archivo', sans-serif", fontWeight: 700, fontSize: 13.5 }}>{s.title}</div>
+                <div style={{ fontSize: 10.5, color: COLORS.textDim, whiteSpace: "nowrap" }}>{s.sub}</div>
+              </button>
+            );
+          })}
+        </div>
+      </div>
+
+      {/* DETAY KARTLARI (Aktif Sekme veya Tümü) */}
+      <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(460px, 1fr))", gap: 20 }}>
+
+        {/* 1. SEREN İSTASYONU */}
+        <div style={{
+          background: COLORS.bgPanel, border: `1px solid ${activeTab === 'seren' ? '#E8533D' : COLORS.border}`,
+          borderRadius: 18, padding: 22, display: "grid", gap: 14
+        }}>
+          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+            <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+              <span style={{ background: "#E8533D25", color: "#E8533D", padding: "4px 8px", borderRadius: 6, fontSize: 12, fontWeight: 800 }}>1</span>
+              <h3 style={{ fontFamily: "'Archivo', sans-serif", fontSize: 17, fontWeight: 700, color: COLORS.text, margin: 0 }}>
+                Seren İstasyonu (Kesim & Çatım)
+              </h3>
+            </div>
+            <span style={{ fontSize: 11, color: "#E8533D", fontWeight: 700 }}>🔴 Kırmızı Kalem</span>
+          </div>
+
+          <p style={{ fontSize: 12.5, color: COLORS.textDim, margin: 0 }}>
+            Ahşap seren parçalarının ebat kesimi ve kanat karkası (iskelet) çatım operasyonları.
+          </p>
+
+          <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12 }}>
+            <div style={{ background: COLORS.bgRaised, padding: 12, borderRadius: 10 }}>
+              <label style={{ fontSize: 11, color: COLORS.textDim, display: "block", marginBottom: 4 }}>Personel Sayısı</label>
+              <input
+                type="number"
+                value={editState.seren.personelSayisi}
+                onChange={(e) => setEditState({ ...editState, seren: { ...editState.seren, personelSayisi: Number(e.target.value) } })}
+                onBlur={() => saveChanges("seren", { personelSayisi: editState.seren.personelSayisi })}
+                style={{ width: "100%", background: "#0b0f19", border: `1px solid ${COLORS.border}`, color: COLORS.text, padding: "8px 10px", borderRadius: 8, fontSize: 14, fontWeight: 700 }}
+              />
+            </div>
+            <div style={{ background: COLORS.bgRaised, padding: 12, borderRadius: 10 }}>
+              <label style={{ fontSize: 11, color: COLORS.textDim, display: "block", marginBottom: 4 }}>Birim Zaman Formülü</label>
+              <div style={{ fontFamily: "'IBM Plex Mono', monospace", fontSize: 12.5, fontWeight: 700, color: "#E8533D", padding: "6px 0" }}>
+                Birim Zaman = Zaman / Adet
+              </div>
+            </div>
+          </div>
+
+          <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12 }}>
+            <div>
+              <label style={{ fontSize: 11, color: COLORS.textDim, display: "block", marginBottom: 4 }}>Kesim Birim Zaman (dk/adet)</label>
+              <input
+                type="number" step="0.1"
+                value={editState.seren.kesimBirimZamanDk}
+                onChange={(e) => setEditState({ ...editState, seren: { ...editState.seren, kesimBirimZamanDk: Number(e.target.value) } })}
+                onBlur={() => saveChanges("seren", { kesimBirimZamanDk: editState.seren.kesimBirimZamanDk })}
+                style={{ width: "100%", background: "#0b0f19", border: `1px solid ${COLORS.border}`, color: COLORS.text, padding: "8px 10px", borderRadius: 8, fontSize: 14 }}
+              />
+            </div>
+            <div>
+              <label style={{ fontSize: 11, color: COLORS.textDim, display: "block", marginBottom: 4 }}>Çatım Birim Zaman (dk/adet)</label>
+              <input
+                type="number" step="0.1"
+                value={editState.seren.catimBirimZamanDk}
+                onChange={(e) => setEditState({ ...editState, seren: { ...editState.seren, catimBirimZamanDk: Number(e.target.value) } })}
+                onBlur={() => saveChanges("seren", { catimBirimZamanDk: editState.seren.catimBirimZamanDk })}
+                style={{ width: "100%", background: "#0b0f19", border: `1px solid ${COLORS.border}`, color: COLORS.text, padding: "8px 10px", borderRadius: 8, fontSize: 14 }}
+              />
+            </div>
+          </div>
+        </div>
+
+        {/* 2. EPS DOLUM İSTASYONU */}
+        <div style={{
+          background: COLORS.bgPanel, border: `1px solid ${activeTab === 'epsDolum' ? '#E8533D' : COLORS.border}`,
+          borderRadius: 18, padding: 22, display: "grid", gap: 14
+        }}>
+          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+            <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+              <span style={{ background: "#E8533D25", color: "#E8533D", padding: "4px 8px", borderRadius: 6, fontSize: 12, fontWeight: 800 }}>2</span>
+              <h3 style={{ fontFamily: "'Archivo', sans-serif", fontSize: 17, fontWeight: 700, color: COLORS.text, margin: 0 }}>
+                EPS Dolum & Primer İstasyonu
+              </h3>
+            </div>
+            <span style={{ fontSize: 11, color: "#E8533D", fontWeight: 700 }}>🔴 Kırmızı Kalem</span>
+          </div>
+
+          <p style={{ fontSize: 12.5, color: COLORS.textDim, margin: 0 }}>
+            Akış: <strong>Primer</strong> püskürtme $
+ightarrow$ <strong>Dolum</strong> karkas içine EPS blok yerleşimi.
+          </p>
+
+          <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12 }}>
+            <div style={{ background: COLORS.bgRaised, padding: 12, borderRadius: 10 }}>
+              <label style={{ fontSize: 11, color: COLORS.textDim, display: "block", marginBottom: 4 }}>Primer Miktarı (gr / kapı)</label>
+              <input
+                type="number"
+                value={editState.epsDolum.primerGrKapi}
+                onChange={(e) => setEditState({ ...editState, epsDolum: { ...editState.epsDolum, primerGrKapi: Number(e.target.value) } })}
+                onBlur={() => saveChanges("epsDolum", { primerGrKapi: editState.epsDolum.primerGrKapi })}
+                style={{ width: "100%", background: "#0b0f19", border: `1px solid ${COLORS.border}`, color: COLORS.text, padding: "8px 10px", borderRadius: 8, fontSize: 14, fontWeight: 700 }}
+              />
+              <span style={{ fontSize: 10.5, color: COLORS.textFaint }}>* Kullanılan primer miktarı gr/kapı</span>
+            </div>
+
+            <div style={{ background: COLORS.bgRaised, padding: 12, borderRadius: 10 }}>
+              <label style={{ fontSize: 11, color: COLORS.textDim, display: "block", marginBottom: 4 }}>EPS m³ Sarf Miktarı (m³/kapı)</label>
+              <input
+                type="number" step="0.001"
+                value={editState.epsDolum.epsSarfM3}
+                onChange={(e) => setEditState({ ...editState, epsDolum: { ...editState.epsDolum, epsSarfM3: Number(e.target.value) } })}
+                onBlur={() => saveChanges("epsDolum", { epsSarfM3: editState.epsDolum.epsSarfM3 })}
+                style={{ width: "100%", background: "#0b0f19", border: `1px solid ${COLORS.border}`, color: COLORS.text, padding: "8px 10px", borderRadius: 8, fontSize: 14, fontWeight: 700 }}
+              />
+              <span style={{ fontSize: 10.5, color: COLORS.textFaint }}>* EPS m³ sarf miktarı</span>
+            </div>
+          </div>
+
+          <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12 }}>
+            <div>
+              <label style={{ fontSize: 11, color: COLORS.textDim, display: "block", marginBottom: 4 }}>EPS Firesi (m³/kapı)</label>
+              <input
+                type="number" step="0.001"
+                value={editState.epsDolum.epsFireM3}
+                onChange={(e) => setEditState({ ...editState, epsDolum: { ...editState.epsDolum, epsFireM3: Number(e.target.value) } })}
+                onBlur={() => saveChanges("epsDolum", { epsFireM3: editState.epsDolum.epsFireM3 })}
+                style={{ width: "100%", background: "#0b0f19", border: `1px solid ${COLORS.border}`, color: COLORS.text, padding: "8px 10px", borderRadius: 8, fontSize: 14 }}
+              />
+            </div>
+            <div>
+              <label style={{ fontSize: 11, color: COLORS.textDim, display: "block", marginBottom: 4 }}>Ortalama EPS Fire Oranı (%)</label>
+              <input
+                type="number" step="0.1"
+                value={editState.epsDolum.epsFireOranPct}
+                onChange={(e) => setEditState({ ...editState, epsDolum: { ...editState.epsDolum, epsFireOranPct: Number(e.target.value) } })}
+                onBlur={() => saveChanges("epsDolum", { epsFireOranPct: editState.epsDolum.epsFireOranPct })}
+                style={{ width: "100%", background: "#0b0f19", border: `1px solid ${COLORS.border}`, color: COLORS.text, padding: "8px 10px", borderRadius: 8, fontSize: 14 }}
+              />
+            </div>
+          </div>
+        </div>
+
+        {/* 3. EPS CNC MODELLEME */}
+        <div style={{
+          background: COLORS.bgPanel, border: `1px solid ${activeTab === 'epsCnc' ? '#E8A33D' : COLORS.border}`,
+          borderRadius: 18, padding: 22, display: "grid", gap: 14
+        }}>
+          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+            <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+              <span style={{ background: "#E8A33D25", color: "#E8A33D", padding: "4px 8px", borderRadius: 6, fontSize: 12, fontWeight: 800 }}>3</span>
+              <h3 style={{ fontFamily: "'Archivo', sans-serif", fontSize: 17, fontWeight: 700, color: COLORS.text, margin: 0 }}>
+                EPS CNC Modelleme
+              </h3>
+            </div>
+            <span style={{ fontSize: 11, color: "#E8533D", fontWeight: 700 }}>🔴 Kırmızı Kalem</span>
+          </div>
+
+          <div style={{
+            background: "rgba(232, 83, 61, 0.12)", border: "1px solid rgba(232, 83, 61, 0.3)",
+            borderRadius: 10, padding: "10px 14px", display: "flex", alignItems: "center", gap: 10
+          }}>
+            <AlertTriangle size={18} color="#E8533D" style={{ flexShrink: 0 }} />
+            <div style={{ fontSize: 13, fontWeight: 700, color: "#E8533D" }}>
+              Zaman çok önemli! (Beyaz tahta kritik notu)
+            </div>
+          </div>
+
+          <p style={{ fontSize: 12.5, color: COLORS.textDim, margin: 0 }}>
+            EPS CNC istasyonunda adet ve süre hesabı yapılarak birim çevrim süresi tespit edilir:
+            <br /><code style={{ color: "#E8A33D", fontFamily: "'IBM Plex Mono', monospace" }}>Birim Zaman = Süre / Adet</code>
+          </p>
+
+          <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12 }}>
+            <div style={{ background: COLORS.bgRaised, padding: 12, borderRadius: 10 }}>
+              <label style={{ fontSize: 11, color: COLORS.textDim, display: "block", marginBottom: 4 }}>Birim CNC Süresi (dk/kapı)</label>
+              <input
+                type="number" step="0.1"
+                value={editState.epsCnc.sureDk}
+                onChange={(e) => setEditState({ ...editState, epsCnc: { ...editState.epsCnc, sureDk: Number(e.target.value), birimZamanDk: Number(e.target.value) } })}
+                onBlur={() => saveChanges("epsCnc", { sureDk: editState.epsCnc.sureDk, birimZamanDk: editState.epsCnc.sureDk })}
+                style={{ width: "100%", background: "#0b0f19", border: `1px solid ${COLORS.border}`, color: COLORS.text, padding: "8px 10px", borderRadius: 8, fontSize: 14, fontWeight: 700 }}
+              />
+            </div>
+            <div style={{ background: COLORS.bgRaised, padding: 12, borderRadius: 10 }}>
+              <label style={{ fontSize: 11, color: COLORS.textDim, display: "block", marginBottom: 4 }}>1 Saatte İşlenen Adet</label>
+              <div style={{ fontFamily: "'Archivo', sans-serif", fontSize: 20, fontWeight: 800, color: COLORS.text, paddingTop: 4 }}>
+                {Math.round(60 / (editState.epsCnc.sureDk || 4.5))} <span style={{ fontSize: 12, color: COLORS.textDim }}>kapı/saat</span>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        {/* 4. VAKUM TEZGAHI */}
+        <div style={{
+          background: COLORS.bgPanel, border: `1px solid ${activeTab === 'vakum' ? '#5FB87A' : COLORS.border}`,
+          borderRadius: 18, padding: 22, display: "grid", gap: 14
+        }}>
+          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+            <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+              <span style={{ background: "#5FB87A25", color: "#5FB87A", padding: "4px 8px", borderRadius: 6, fontSize: 12, fontWeight: 800 }}>4</span>
+              <h3 style={{ fontFamily: "'Archivo', sans-serif", fontSize: 17, fontWeight: 700, color: COLORS.text, margin: 0 }}>
+                Vakum Tezgahı & Isı / Tutkal / Fire
+              </h3>
+            </div>
+            <span style={{ fontSize: 11, color: "#3B82F6", fontWeight: 700 }}>🔴 Kırmızı + 🔵 Mavi</span>
+          </div>
+
+          <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12 }}>
+            <div style={{ background: "rgba(232, 83, 61, 0.1)", border: "1px solid rgba(232, 83, 61, 0.3)", padding: 12, borderRadius: 10 }}>
+              <label style={{ fontSize: 11, color: "#E8533D", fontWeight: 700, display: "block", marginBottom: 4 }}>
+                🔴 Ölçü Firesi (Sabit cm)
+              </label>
+              <input
+                type="number"
+                value={editState.vakum.olcuFiresiCm}
+                onChange={(e) => setEditState({ ...editState, vakum: { ...editState.vakum, olcuFiresiCm: Number(e.target.value) } })}
+                onBlur={() => saveChanges("vakum", { olcuFiresiCm: editState.vakum.olcuFiresiCm })}
+                style={{ width: "100%", background: "#0b0f19", border: `1px solid ${COLORS.border}`, color: COLORS.text, padding: "8px 10px", borderRadius: 8, fontSize: 15, fontWeight: 800 }}
+              />
+              <span style={{ fontSize: 10.5, color: COLORS.textDim }}>* Vakum tezgahı sabit en firesi</span>
+            </div>
+
+            <div style={{ background: "rgba(59, 130, 246, 0.1)", border: "1px solid rgba(59, 130, 246, 0.3)", padding: 12, borderRadius: 10 }}>
+              <label style={{ fontSize: 11, color: "#3B82F6", fontWeight: 700, display: "block", marginBottom: 4 }}>
+                🔵 Tutkal Sarfiyatı (gr/m²)
+              </label>
+              <input
+                type="number"
+                value={editState.vakum.tutkalSarfGrM2}
+                onChange={(e) => setEditState({ ...editState, vakum: { ...editState.vakum, tutkalSarfGrM2: Number(e.target.value) } })}
+                onBlur={() => saveChanges("vakum", { tutkalSarfGrM2: editState.vakum.tutkalSarfGrM2 })}
+                style={{ width: "100%", background: "#0b0f19", border: `1px solid ${COLORS.border}`, color: COLORS.text, padding: "8px 10px", borderRadius: 8, fontSize: 15, fontWeight: 800 }}
+              />
+              <span style={{ fontSize: 10.5, color: COLORS.textDim }}>* m² başına tutkal tüketimi</span>
+            </div>
+          </div>
+
+          <div>
+            <label style={{ fontSize: 11, color: COLORS.textDim, display: "block", marginBottom: 4 }}>Tutkal Marka & Model (Mavi Kalem)</label>
+            <input
+              type="text"
+              value={editState.vakum.tutkalMarkaModel}
+              onChange={(e) => setEditState({ ...editState, vakum: { ...editState.vakum, tutkalMarkaModel: e.target.value } })}
+              onBlur={() => saveChanges("vakum", { tutkalMarkaModel: editState.vakum.tutkalMarkaModel })}
+              style={{ width: "100%", background: "#0b0f19", border: `1px solid ${COLORS.border}`, color: COLORS.text, padding: "8px 10px", borderRadius: 8, fontSize: 13 }}
+            />
+          </div>
+
+          {/* Modele göre ısılar tablosu */}
+          <div>
+            <div style={{ fontSize: 12, fontWeight: 700, color: COLORS.text, marginBottom: 6 }}>
+              Modele Göre Isılar (°C) — Tahta Kuralı
+            </div>
+            <div style={{ display: "grid", gap: 6 }}>
+              {editState.vakum.sicakliklar.map((s, idx) => (
+                <div key={s.id || idx} style={{ display: "flex", alignItems: "center", justifyContent: "space-between", background: COLORS.bgRaised, padding: "6px 12px", borderRadius: 8 }}>
+                  <span style={{ fontSize: 12.5, color: COLORS.text }}>{s.model}</span>
+                  <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+                    <span style={{ fontFamily: "'IBM Plex Mono', monospace", fontWeight: 700, color: "#E8A33D", fontSize: 13 }}>
+                      {s.isiC} °C
+                    </span>
+                    <span style={{ fontSize: 11, color: COLORS.textDim }}>({s.sureSn} sn)</span>
+                  </div>
+                </div>
+              ))}
+            </div>
+          </div>
+        </div>
+
+        {/* 5. PRES HATTI (14 ADET PRES) */}
+        <div style={{
+          background: COLORS.bgPanel, border: `1px solid ${activeTab === 'pres' ? '#3DA5E8' : COLORS.border}`,
+          borderRadius: 18, padding: 22, display: "grid", gap: 14
+        }}>
+          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+            <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+              <span style={{ background: "#3DA5E825", color: "#3DA5E8", padding: "4px 8px", borderRadius: 6, fontSize: 12, fontWeight: 800 }}>5</span>
+              <h3 style={{ fontFamily: "'Archivo', sans-serif", fontSize: 17, fontWeight: 700, color: COLORS.text, margin: 0 }}>
+                Pres Hattı (14 Adet Pres)
+              </h3>
+            </div>
+            <span style={{ fontSize: 11, color: "#3B82F6", fontWeight: 700 }}>🔴 Kırmızı + 🔵 Mavi</span>
+          </div>
+
+          <p style={{ fontSize: 12.5, color: COLORS.textDim, margin: 0 }}>
+            Tahta Kuralı: <strong>14 Adet Pres</strong> — Basınç ve Zaman parametreleri ile kapasite hesabı.
+          </p>
+
+          <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 10 }}>
+            <div style={{ background: COLORS.bgRaised, padding: 10, borderRadius: 10 }}>
+              <label style={{ fontSize: 10.5, color: COLORS.textDim, display: "block", marginBottom: 3 }}>Pres Sayısı</label>
+              <input
+                type="number"
+                value={editState.pres.presAdet}
+                onChange={(e) => setEditState({ ...editState, pres: { ...editState.pres, presAdet: Number(e.target.value) } })}
+                onBlur={() => saveChanges("pres", { presAdet: editState.pres.presAdet })}
+                style={{ width: "100%", background: "#0b0f19", border: `1px solid ${COLORS.border}`, color: COLORS.text, padding: "6px 8px", borderRadius: 6, fontSize: 14, fontWeight: 700 }}
+              />
+            </div>
+            <div style={{ background: COLORS.bgRaised, padding: 10, borderRadius: 10 }}>
+              <label style={{ fontSize: 10.5, color: COLORS.textDim, display: "block", marginBottom: 3 }}>Basınç (Bar)</label>
+              <input
+                type="number"
+                value={editState.pres.standartBasincBar}
+                onChange={(e) => setEditState({ ...editState, pres: { ...editState.pres, standartBasincBar: Number(e.target.value) } })}
+                onBlur={() => saveChanges("pres", { standartBasincBar: editState.pres.standartBasincBar })}
+                style={{ width: "100%", background: "#0b0f19", border: `1px solid ${COLORS.border}`, color: COLORS.text, padding: "6px 8px", borderRadius: 6, fontSize: 14, fontWeight: 700 }}
+              />
+            </div>
+            <div style={{ background: COLORS.bgRaised, padding: 10, borderRadius: 10 }}>
+              <label style={{ fontSize: 10.5, color: COLORS.textDim, display: "block", marginBottom: 3 }}>Pres Süresi (dk)</label>
+              <input
+                type="number"
+                value={editState.pres.presSuresiDk}
+                onChange={(e) => setEditState({ ...editState, pres: { ...editState.pres, presSuresiDk: Number(e.target.value) } })}
+                onBlur={() => saveChanges("pres", { presSuresiDk: editState.pres.presSuresiDk })}
+                style={{ width: "100%", background: "#0b0f19", border: `1px solid ${COLORS.border}`, color: COLORS.text, padding: "6px 8px", borderRadius: 6, fontSize: 14, fontWeight: 700 }}
+              />
+            </div>
+          </div>
+
+          {/* 14 Pres Görsel Izgarası */}
+          <div>
+            <div style={{ fontSize: 11.5, color: COLORS.textDim, marginBottom: 8 }}>14 Pres Ünitesi Durumu:</div>
+            <div style={{ display: "grid", gridTemplateColumns: "repeat(7, 1fr)", gap: 6 }}>
+              {Array.from({ length: editState.pres.presAdet || 14 }).map((_, i) => (
+                <div key={i} style={{
+                  background: "#10b98120", border: "1px solid #10b98150", borderRadius: 8,
+                  padding: "8px 4px", textAlign: "center", fontSize: 11, fontWeight: 700, color: "#10b981"
+                }}>
+                  P-{i + 1}
+                </div>
+              ))}
+            </div>
+          </div>
+        </div>
+
+        {/* 6. DOPPER & TIRAŞLAMA (BIÇAK ÖMRÜ SAYACI) */}
+        <div style={{
+          background: COLORS.bgPanel, border: `1px solid ${activeTab === 'dopper' ? '#A855F7' : COLORS.border}`,
+          borderRadius: 18, padding: 22, display: "grid", gap: 14
+        }}>
+          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+            <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+              <span style={{ background: "#A855F725", color: "#A855F7", padding: "4px 8px", borderRadius: 6, fontSize: 12, fontWeight: 800 }}>6</span>
+              <h3 style={{ fontFamily: "'Archivo', sans-serif", fontSize: 17, fontWeight: 700, color: COLORS.text, margin: 0 }}>
+                Dopper & Tıraşlama (Bıçak Ömrü Takibi)
+              </h3>
+            </div>
+            <span style={{ fontSize: 11, color: "#3B82F6", fontWeight: 700 }}>🔵 Mavi Kalem</span>
+          </div>
+
+          <div style={{
+            background: "rgba(168, 85, 247, 0.12)", border: "1px solid rgba(168, 85, 247, 0.3)",
+            borderRadius: 10, padding: "10px 14px", display: "flex", justifyContent: "space-between", alignItems: "center"
+          }}>
+            <div>
+              <div style={{ fontSize: 12, fontWeight: 700, color: "#A855F7" }}>Bıçak Değişim Tarihi Kaç Kapı?</div>
+              <div style={{ fontSize: 11, color: COLORS.textDim, marginTop: 2 }}>Son Değişim: {editState.dopper.bicakDegisimTarihi}</div>
+            </div>
+            <button
+              onClick={resetDopperBlade}
+              style={{
+                padding: "6px 12px", borderRadius: 8, background: "#A855F7", border: "none",
+                color: "#fff", fontSize: 11.5, fontWeight: 700, cursor: "pointer"
+              }}
+            >
+              ✂️ Bıçak Sıfırla
+            </button>
+          </div>
+
+          {/* İlerleme Çubuğu */}
+          <div>
+            <div style={{ display: "flex", justifyContent: "space-between", fontSize: 12, marginBottom: 6 }}>
+              <span style={{ color: COLORS.textDim }}>İşlenen: <strong>{editState.dopper.islenenKapiSayisi}</strong> kapı</span>
+              <span style={{ color: "#A855F7", fontWeight: 700 }}>Kalan: <strong>{editState.dopper.kalanKapiSayisi}</strong> kapı</span>
+            </div>
+            <div style={{ height: 10, background: "#0b0f19", borderRadius: 99, overflow: "hidden", border: `1px solid ${COLORS.border}` }}>
+              <div style={{
+                height: "100%",
+                width: `${Math.min(100, Math.round((editState.dopper.islenenKapiSayisi / (editState.dopper.bicakOmruKapi || 5000)) * 100))}%`,
+                background: "linear-gradient(90deg, #A855F7, #EC4899)",
+                borderRadius: 99
+              }} />
+            </div>
+          </div>
+
+          <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12 }}>
+            <div>
+              <label style={{ fontSize: 11, color: COLORS.textDim, display: "block", marginBottom: 4 }}>Bıçak Ömrü (Hedef Kapı)</label>
+              <input
+                type="number"
+                value={editState.dopper.bicakOmruKapi}
+                onChange={(e) => {
+                  const omur = Number(e.target.value);
+                  const islenen = editState.dopper.islenenKapiSayisi;
+                  setEditState({
+                    ...editState,
+                    dopper: { ...editState.dopper, bicakOmruKapi: omur, kalanKapiSayisi: Math.max(0, omur - islenen) }
+                  });
+                }}
+                onBlur={() => saveChanges("dopper", editState.dopper)}
+                style={{ width: "100%", background: "#0b0f19", border: `1px solid ${COLORS.border}`, color: COLORS.text, padding: "8px 10px", borderRadius: 8, fontSize: 14 }}
+              />
+            </div>
+            <div>
+              <label style={{ fontSize: 11, color: COLORS.textDim, display: "block", marginBottom: 4 }}>İşlenen Kapı Sayısı</label>
+              <input
+                type="number"
+                value={editState.dopper.islenenKapiSayisi}
+                onChange={(e) => {
+                  const islenen = Number(e.target.value);
+                  const omur = editState.dopper.bicakOmruKapi;
+                  setEditState({
+                    ...editState,
+                    dopper: { ...editState.dopper, islenenKapiSayisi: islenen, kalanKapiSayisi: Math.max(0, omur - islenen) }
+                  });
+                }}
+                onBlur={() => saveChanges("dopper", editState.dopper)}
+                style={{ width: "100%", background: "#0b0f19", border: `1px solid ${COLORS.border}`, color: COLORS.text, padding: "8px 10px", borderRadius: 8, fontSize: 14 }}
+              />
+            </div>
+          </div>
+        </div>
+
+        {/* 8. KİLİT AÇMA İSTASYONU & TEKNİK RESİM */}
+        <div style={{
+          background: COLORS.bgPanel, border: `1px solid ${activeTab === 'kilitAcma' ? '#3B82F6' : COLORS.border}`,
+          borderRadius: 18, padding: 22, display: "grid", gap: 14
+        }}>
+          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+            <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+              <span style={{ background: "#3B82F625", color: "#3B82F6", padding: "4px 8px", borderRadius: 6, fontSize: 12, fontWeight: 800 }}>8</span>
+              <h3 style={{ fontFamily: "'Archivo', sans-serif", fontSize: 17, fontWeight: 700, color: COLORS.text, margin: 0 }}>
+                Kilit Açma İstasyonu & Delik Teknik Resmi
+              </h3>
+            </div>
+            <span style={{ fontSize: 11, color: "#3B82F6", fontWeight: 700 }}>🔵 Mavi Kalem</span>
+          </div>
+
+          <div style={{ display: "grid", gridTemplateColumns: "1fr 140px", gap: 16, alignItems: "center" }}>
+            <div>
+              <label style={{ fontSize: 11, color: COLORS.textDim, display: "block", marginBottom: 4 }}>Kilit Tipi</label>
+              <select
+                value={editState.kilitAcma.seciliKilitTipi}
+                onChange={(e) => {
+                  setEditState({ ...editState, kilitAcma: { ...editState.kilitAcma, seciliKilitTipi: e.target.value } });
+                  saveChanges("kilitAcma", { seciliKilitTipi: e.target.value });
+                }}
+                style={{ width: "100%", background: "#0b0f19", border: `1px solid ${COLORS.border}`, color: COLORS.text, padding: "8px 10px", borderRadius: 8, fontSize: 13, marginBottom: 10 }}
+              >
+                {editState.kilitAcma.kilitTipleri.map((k) => (
+                  <option key={k} value={k}>{k}</option>
+                ))}
+              </select>
+
+              <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 8 }}>
+                <div style={{ background: COLORS.bgRaised, padding: 8, borderRadius: 8 }}>
+                  <div style={{ fontSize: 10.5, color: COLORS.textDim }}>Kilit Kanadı Firesi</div>
+                  <div style={{ fontSize: 16, fontWeight: 800, color: "#E8533D", marginTop: 2 }}>
+                    {editState.kilitAcma.kilitKanadiFireAdet} <span style={{ fontSize: 11, color: COLORS.textDim }}>adet</span>
+                  </div>
+                </div>
+                <div style={{ background: COLORS.bgRaised, padding: 8, borderRadius: 8 }}>
+                  <div style={{ fontSize: 10.5, color: COLORS.textDim }}>Fire Oranı</div>
+                  <div style={{ fontSize: 16, fontWeight: 800, color: "#E8533D", marginTop: 2 }}>
+                    %{editState.kilitAcma.kilitKanadiFireOranPct}
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            {/* Beyaz Tahtadaki Kanat & Kilit Teknik Çizimi (SVG) */}
+            <div style={{
+              background: "#080c14", border: "1px solid rgba(59, 130, 246, 0.4)", borderRadius: 12,
+              padding: "10px 8px", textAlign: "center", display: "flex", flexDirection: "column", alignItems: "center"
+            }}>
+              <div style={{ fontSize: 10, fontWeight: 700, color: "#3B82F6", marginBottom: 4 }}>Teknik Resim</div>
+              <svg width="70" height="130" viewBox="0 0 70 130">
+                {/* Kapı Kanadı */}
+                <rect x="10" y="5" width="50" height="120" rx="3" fill="#1e293b" stroke="#3B82F6" strokeWidth="1.5" />
+                {/* Çapraz Referans Çizgisi (122 / 114) */}
+                <line x1="12" y1="12" x2="58" y2="118" stroke="#3B82F680" strokeWidth="1" strokeDasharray="2 2" />
+                {/* Kilit Yuvası */}
+                <rect x="52" y="60" width="8" height="22" rx="1.5" fill="#E8533D" />
+                <circle cx="48" cy="65" r="2" fill="#fff" />
+                <circle cx="48" cy="75" r="1.5" fill="#fff" />
+                {/* Ölçü İşaretleri */}
+                <text x="35" y="50" fill="#3B82F6" fontSize="8" fontWeight="bold" textAnchor="middle">122</text>
+                <text x="42" y="95" fill="#3B82F6" fontSize="8" fontWeight="bold" textAnchor="middle">114</text>
+              </svg>
+              <span style={{ fontSize: 9.5, color: COLORS.textDim, marginTop: 2 }}>Eksen: 122 / 114 cm</span>
+            </div>
+          </div>
+        </div>
+
+        {/* 9. PAKETLEME & KALİTE KONTROL */}
+        <div style={{
+          background: COLORS.bgPanel, border: `1px solid ${activeTab === 'paket' ? '#10B981' : COLORS.border}`,
+          borderRadius: 18, padding: 22, display: "grid", gap: 14
+        }}>
+          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+            <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+              <span style={{ background: "#10B98125", color: "#10B981", padding: "4px 8px", borderRadius: 6, fontSize: 12, fontWeight: 800 }}>9</span>
+              <h3 style={{ fontFamily: "'Archivo', sans-serif", fontSize: 17, fontWeight: 700, color: COLORS.text, margin: 0 }}>
+                Paketleme & Kalite Kontrol (Paletleme)
+              </h3>
+            </div>
+            <span style={{ fontSize: 11, color: "#3B82F6", fontWeight: 700 }}>🔵 Mavi Kalem</span>
+          </div>
+
+          <div style={{ background: "rgba(16, 185, 129, 0.12)", border: "1px solid rgba(16, 185, 129, 0.3)", padding: 12, borderRadius: 10 }}>
+            <label style={{ fontSize: 11, color: "#10B981", fontWeight: 700, display: "block", marginBottom: 4 }}>
+              K. Kontrol Kim Onayladı? (Mavi Kalem)
+            </label>
+            <select
+              value={editState.paket.sonOnaylayanKK}
+              onChange={(e) => {
+                setEditState({ ...editState, paket: { ...editState.paket, sonOnaylayanKK: e.target.value } });
+                saveChanges("paket", { sonOnaylayanKK: e.target.value });
+              }}
+              style={{ width: "100%", background: "#0b0f19", border: `1px solid ${COLORS.border}`, color: COLORS.text, padding: "8px 10px", borderRadius: 8, fontSize: 13 }}
+            >
+              {editState.paket.onaylayanlar.map((u) => (
+                <option key={u} value={u}>{u}</option>
+              ))}
+            </select>
+          </div>
+
+          <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 10 }}>
+            <div style={{ background: COLORS.bgRaised, padding: 10, borderRadius: 10 }}>
+              <label style={{ fontSize: 10.5, color: COLORS.textDim, display: "block", marginBottom: 3 }}>Palette Bulunan Adet</label>
+              <input
+                type="number"
+                value={editState.paket.paletBulunanAdet}
+                onChange={(e) => {
+                  const adet = Number(e.target.value);
+                  const agirlik = adet * 25; // 25 kg/kapı
+                  setEditState({
+                    ...editState,
+                    paket: { ...editState.paket, paletBulunanAdet: adet, paletAgirlikKg: agirlik }
+                  });
+                }}
+                onBlur={() => saveChanges("paket", editState.paket)}
+                style={{ width: "100%", background: "#0b0f19", border: `1px solid ${COLORS.border}`, color: COLORS.text, padding: "6px 8px", borderRadius: 6, fontSize: 14, fontWeight: 700 }}
+              />
+            </div>
+
+            <div style={{ background: COLORS.bgRaised, padding: 10, borderRadius: 10 }}>
+              <label style={{ fontSize: 10.5, color: COLORS.textDim, display: "block", marginBottom: 3 }}>Palet Ağırlığı (kg)</label>
+              <input
+                type="number"
+                value={editState.paket.paletAgirlikKg}
+                onChange={(e) => setEditState({ ...editState, paket: { ...editState.paket, paletAgirlikKg: Number(e.target.value) } })}
+                onBlur={() => saveChanges("paket", { paletAgirlikKg: editState.paket.paletAgirlikKg })}
+                style={{ width: "100%", background: "#0b0f19", border: `1px solid ${COLORS.border}`, color: COLORS.text, padding: "6px 8px", borderRadius: 6, fontSize: 14, fontWeight: 700 }}
+              />
+            </div>
+
+            <div style={{ background: COLORS.bgRaised, padding: 10, borderRadius: 10 }}>
+              <label style={{ fontSize: 10.5, color: COLORS.textDim, display: "block", marginBottom: 3 }}>Palet Hacmi (m³)</label>
+              <input
+                type="number" step="0.01"
+                value={editState.paket.paletHacmiM3}
+                onChange={(e) => setEditState({ ...editState, paket: { ...editState.paket, paletHacmiM3: Number(e.target.value) } })}
+                onBlur={() => saveChanges("paket", { paletHacmiM3: editState.paket.paletHacmiM3 })}
+                style={{ width: "100%", background: "#0b0f19", border: `1px solid ${COLORS.border}`, color: COLORS.text, padding: "6px 8px", borderRadius: 6, fontSize: 14, fontWeight: 700 }}
+              />
+            </div>
+          </div>
+          <div style={{ fontSize: 11, color: COLORS.textFaint }}>
+            * Palet Hacim Formülü: (En x Boy x Yükseklik) / 1.000.000 m³ = {editState.paket.paletHacmiM3} m³
+          </div>
+        </div>
+
+      </div>
+    </div>
+  );
+}
+
 function DigitalTwinPanel({ data, lang, dir }) {
   const { orders, departments, machineStates } = data;
   if (!orders || !departments) return <LoadingScreen lang={lang} />;

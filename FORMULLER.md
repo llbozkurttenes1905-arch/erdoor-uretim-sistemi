@@ -48,3 +48,55 @@ Gerçek Hız (adet/gün) =
 ## Henüz Eklenmeyenler (yeni veri girişi gerektirir)
 
 Daha önce konuştuğumuz OEE, FPY (İlk Seferde Doğru Üretim), Önleyici Bakım Takibi ve WIP Limiti gibi metrikler bu güncellemede **yok** — çünkü bunlar için sistemde henüz toplanmayan veriler gerekiyor (örn. ıskarta adedi, bakım geçmişi, ideal çevrim süresi, WIP tavanı tanımı). İstersen bir sonraki adımda bu veri alanlarını ekleyip bu metrikleri de gerçek hale getirebiliriz.
+
+
+---
+
+# Eylül Ayı İstasyon & Hat Takip Formülleri (Beyaz Tahta Entegrasyonu)
+
+Bu formüller, fabrikadaki üretim beyaz tahtasında **Kırmızı** ve **Mavi** renkli kalemlerle belirlenen standart parametrelerin dijital matematiksel modelidir:
+
+## 1. Bütün İstasyonlar İçin Birim Zaman (Kırmızı Kalem)
+Her istasyonda parçanın işlenme çevrim süresi:
+```
+Birim Zaman (dk/adet) = Toplam İstasyon Süresi / Üretim Adedi
+```
+
+## 2. EPS Dolum ve Primer Sarfiyatı (Kırmızı Kalem)
+- **Kullanılan Primer Miktarı:** `45 gr / kapı` (standart karkas püskürtme)
+- **EPS Blok Hacmi:** `0.042 m³ / kapı`
+- **EPS Firesi:** `EPS Sarfiyatı × Fire Oranı (%)`
+
+## 3. EPS CNC Modelleme (Kırmızı Kalem)
+- **Kritik Kural:** "Zaman çok önemli" — darboğaz analizi için çevrim süresi sürekli izlenir.
+- **Kapasite (adet/saat):** `60 / Birim Süre (dk)`
+
+## 4. Vakum Tezgahı & Ölçü Firesi (Kırmızı & Mavi Kalem)
+- **Sabit Ölçü Firesi:** `94 cm sabit` en firesi.
+- **Tutkal Tüketimi:** `Kapı Yüzey Alanı (m²) × 120 gr/m²` (Kleiberit / Dorus tutkal modeli).
+- **Model Isı Kataloğu:**
+  - Ahşap Seren: `135 °C` (90 sn)
+  - Köpük Dolgulu (ER600): `125 °C` (75 sn)
+  - Okal Dolgulu (ER1004): `140 °C` (110 sn)
+  - Melamin (ER2000): `130 °C` (85 sn)
+
+## 5. Pres Hattı Kapasitesi (14 Adet Pres) (Kırmızı & Mavi Kalem)
+- **Makine Sayısı:** 14 Pres
+- **Çalışma Basıncı:** 100 Bar
+- **Baskı Süresi:** 35 Dakika
+- **Baskı Başına Kapı:** `14 Pres × 2 Kapı = 28 Kapı / Baskı`
+- **Vardiya Kapasitesi:** `(Vardiya Dakikası / 35 dk) × 28 Kapı`
+
+## 6. Dopper & Tıraşlama Bıçak Ömrü Takibi (Mavi Kalem)
+- **Formül:** `Kalan Kapı Sayısı = Bıçak Ömrü (5.000 kapı) − İşlenen Kapı Sayısı`
+- Hedef limite ulaşıldığında sistem bıçak değişim uyarısı verir.
+
+## 7. Kilit Açma & Delik Eksenleri (Mavi Kalem)
+- **Teknik Çizim Eksenleri:** Kol ekseni `122 cm`, Kilit ekseni `114 cm`.
+- **Kilit Kanadı Firesi:** Açılan kilit yuvası hatası sonucu hurdaya ayrılan kanat adedi ve fire oranı.
+
+## 8. Paketleme & Palet Metrikleri (Mavi Kalem)
+- **Kalite Kontrol Onayı:** Onaylayan yetkili personelin kaydedilmesi.
+- **Palet Başına Adet:** Standart `25 adet kapı / palet`.
+- **Palet Hacmi:** `(En × Boy × Yükseklik) / 1.000.000 = 2.86 m³`.
+- **Palet Ağırlığı:** `Adet × Ortalama Kapı Ağırlığı (25 kg) = 625 kg`.
