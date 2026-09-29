@@ -32,25 +32,25 @@ pdfjsLib.GlobalWorkerOptions.workerSrc = pdfjsWorkerUrl;
 // panel, kenarlık, yazı ve "dim" (soluk dolgu) renkleri değişiyor.
 // =================================================================
 const DARK_COLORS = {
-  bg: "#14161A", bgPanel: "#1B1E23", bgRaised: "#22262C", border: "#2B2F35", borderSoft: "#23262B",
-  text: "#F1EEE6", textDim: "#9B9E9F", textFaint: "#65686B",
-  accentRun: "#4FA968", accentRunDim: "#17281D",
-  accentStop: "#D1503A", accentStopDim: "#2A1B17",
-  accentWarn: "#D99A3D", accentWarnDim: "#2A2316",
-  accentIdle: "#54585C",
-  brand: "#D70E16", brandDim: "#2B1315",
-  shadowCard: "0 1px 0 rgba(0,0,0,.4), 0 8px 24px -12px rgba(0,0,0,.5)",
+  bg: "#0E1116", bgPanel: "#161A22", bgRaised: "#1F2430", border: "#2A313E", borderSoft: "#1E242F",
+  text: "#F4F2EB", textDim: "#9EA4AE", textFaint: "#646B76",
+  accentRun: "#10B981", accentRunDim: "#064E3B35",
+  accentStop: "#E10613", accentStopDim: "#450A0A35",
+  accentWarn: "#F59E0B", accentWarnDim: "#78350F30",
+  accentIdle: "#525966",
+  brand: "#E10613", brandHover: "#B90510", brandDim: "rgba(225, 6, 19, 0.14)",
+  shadowCard: "0 2px 4px rgba(0,0,0,.3), 0 10px 28px -10px rgba(0,0,0,.5)",
 };
 
 const LIGHT_COLORS = {
   ...DARK_COLORS,
-  bg: "#F3F1EA", bgPanel: "#FFFFFF", bgRaised: "#FFFFFF", border: "#D6D0C0", borderSoft: "#EAE7DD",
-  text: "#1C1D1F", textDim: "#5A5D60", textFaint: "#8B8E90",
-  accentRunDim: "#E3F0E6",
-  accentStopDim: "#FAE6E0",
-  accentWarnDim: "#FAEED9",
-  brandDim: "#FBE2E3",
-  shadowCard: "0 1px 0 rgba(28,29,31,.04), 0 8px 20px -14px rgba(28,29,31,.18)",
+  bg: "#F7F5EE", bgPanel: "#FFFFFF", bgRaised: "#FFFFFF", border: "#D8D2C2", borderSoft: "#ECE8DD",
+  text: "#14171A", textDim: "#555A60", textFaint: "#888E94",
+  accentRunDim: "#D1FAE5",
+  accentStopDim: "#FEE2E2",
+  accentWarnDim: "#FEF3C7",
+  brandDim: "#FFE4E6",
+  shadowCard: "0 1px 0 rgba(20,23,26,.04), 0 8px 22px -12px rgba(20,23,26,.18)",
 };
 
 const COLORS = { ...DARK_COLORS };
@@ -752,7 +752,7 @@ function LoginScreen({ lang, dir, setLang, onSignIn, onSignUp, themeMode, onTogg
     <div dir={dir} style={{ minHeight: "100vh", background: COLORS.bg, display: "flex", alignItems: "center", justifyContent: "center", padding: 20 }}>
       <FontImports />
       <div style={{ width: "100%", maxWidth: 380 }}>
-        <ErdoorLogo height={52} style={{ marginBottom: 22 }} />
+        <ErgunbasLogo height={80} variant="card" style={{ marginBottom: 22 }} />
         <div style={{ display: "flex", justifyContent: "center", alignItems: "center", gap: 8, marginBottom: 26 }}>
           {LANGUAGES.map((l) => (
             <button key={l.code} onClick={() => setLang(l.code)} style={{
@@ -1379,12 +1379,74 @@ function SavedToast({ text, variant = "ok" }) {
 
 // ERDOOR marka logosu — dosya, projenin `public/` klasöründe `logo.png`
 // olarak durmalı (Vite statik dosyaları oradan `/logo.png` yoluyla sunar).
-function ErdoorLogo({ height = 40, style }) {
+function ErgunbasLogo({ height = 40, variant = "badge", showText = true, style }) {
+  if (variant === "badge") {
+    return (
+      <div
+        style={{
+          display: "inline-flex",
+          alignItems: "center",
+          gap: 10,
+          background: "#FFFFFF",
+          padding: "5px 12px",
+          borderRadius: 12,
+          boxShadow: "0 3px 12px rgba(0,0,0,0.12), 0 0 0 1px rgba(225,6,19,0.18)",
+          ...style,
+        }}
+      >
+        <img
+          src="/logo.png"
+          alt="ERGUNBAS Group"
+          style={{ height: height, width: "auto", display: "block", objectFit: "contain" }}
+        />
+        {showText && (
+          <div style={{ display: "flex", flexDirection: "column", textAlign: "left", lineHeight: 1.1 }}>
+            <span style={{ fontFamily: "'Archivo', sans-serif", fontWeight: 800, fontSize: Math.max(12, height * 0.4), color: "#14161a", letterSpacing: 0.5 }}>
+              ERGUNBAS
+            </span>
+            <span style={{ fontFamily: "'Inter', sans-serif", fontWeight: 700, fontSize: Math.max(9, height * 0.28), color: "#E10613", letterSpacing: 1.5, textTransform: "uppercase" }}>
+              Group
+            </span>
+          </div>
+        )}
+      </div>
+    );
+  }
+
+  if (variant === "card") {
+    return (
+      <div
+        style={{
+          display: "inline-flex",
+          flexDirection: "column",
+          alignItems: "center",
+          background: "#FFFFFF",
+          padding: "16px 26px",
+          borderRadius: 22,
+          boxShadow: "0 10px 32px rgba(0,0,0,0.2), 0 0 0 1.5px rgba(225,6,19,0.25)",
+          ...style,
+        }}
+      >
+        <img
+          src="/logo.png"
+          alt="ERGUNBAS Group"
+          style={{ height: height, width: "auto", display: "block", objectFit: "contain" }}
+        />
+      </div>
+    );
+  }
+
   return (
     <img
       src="/logo.png"
-      alt="ERDOOR"
-      style={{ height, display: "block", margin: "0 auto", ...style }}
+      alt="ERGUNBAS Group"
+      style={{ height, display: "block", objectFit: "contain", ...style }}
+    />
+  );
+}
+
+// Geriye dönük uyumluluk için alias
+const ErdoorLogo = ErgunbasLogo;}
       onError={(e) => { e.currentTarget.style.display = "none"; }}
     />
   );
@@ -2182,19 +2244,23 @@ function UstaMode({ data, onBack, lang, dir, profile, theme }) {
     <div dir={dir} style={{ minHeight: "100vh", background: COLORS.bg }}>
       <div style={{
         display: "flex", alignItems: "center", justifyContent: "space-between",
-        padding: "18px 20px", borderBottom: `1px solid ${COLORS.border}`, background: COLORS.bgPanel,
+        padding: "12px 20px", borderBottom: `1px solid ${COLORS.border}`, background: COLORS.bgPanel,
+        boxShadow: "0 2px 12px rgba(0,0,0,0.18)",
       }}>
-        <button
-          onClick={() => {
-            if (selectedOrderId) { setSelectedOrderId(null); return; }
-            if (selectedMachine) { setSelectedMachine(null); return; }
-            onBack();
-          }}
-          style={{ display: "flex", alignItems: "center", gap: 6, background: "none", border: "none", color: COLORS.textDim, fontFamily: "'Inter', sans-serif", fontSize: 14, cursor: "pointer", padding: 0 }}
-        >
-          <ChevronLeft size={16} style={backIcon} />
-          {selectedMachine ? selectedMachine.code : t("chooseMode", lang)}
-        </button>
+        <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
+          <button
+            onClick={() => {
+              if (selectedOrderId) { setSelectedOrderId(null); return; }
+              if (selectedMachine) { setSelectedMachine(null); return; }
+              onBack();
+            }}
+            style={{ display: "flex", alignItems: "center", gap: 6, background: COLORS.bgRaised, border: `1px solid ${COLORS.border}`, borderRadius: 10, padding: "7px 12px", color: COLORS.textDim, fontFamily: "'Inter', sans-serif", fontSize: 13.5, cursor: "pointer" }}
+          >
+            <ChevronLeft size={16} style={backIcon} />
+            {selectedMachine ? selectedMachine.code : t("chooseMode", lang)}
+          </button>
+          <ErgunbasLogo height={28} variant="badge" />
+        </div>
         <span style={{ display: "flex", alignItems: "center", gap: 12 }}>
           {activeForeman && (
             <button
@@ -3203,15 +3269,20 @@ function YoneticiMode({ data, onBack, lang, dir, profile, theme }) {
     <div dir={dir} style={{ minHeight: "100vh", background: COLORS.bg }}>
       <div style={{
         display: "flex", alignItems: "center", justifyContent: "space-between",
-        padding: "18px 20px 14px", borderBottom: `1px solid ${COLORS.border}`,
-        position: "sticky", top: 0, background: COLORS.bg, zIndex: 10,
+        padding: "12px 20px", borderBottom: `1px solid ${COLORS.border}`,
+        position: "sticky", top: 0, background: COLORS.bgPanel, zIndex: 10,
+        boxShadow: "0 2px 12px rgba(0,0,0,0.18)",
       }}>
-        <button
-          onClick={() => setSidebarOpen(true)}
-          style={{ display: "flex", alignItems: "center", gap: 6, background: COLORS.bgPanel, border: `1px solid ${COLORS.border}`, color: COLORS.text, cursor: "pointer", padding: "8px 10px", borderRadius: 10 }}
-        >
-          <Menu size={15} />
-        </button>
+        <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
+          <button
+            onClick={() => setSidebarOpen(true)}
+            style={{ display: "flex", alignItems: "center", gap: 6, background: COLORS.bgRaised, border: `1px solid ${COLORS.border}`, color: COLORS.text, cursor: "pointer", padding: "8px 10px", borderRadius: 10 }}
+            title="Menüyü Aç"
+          >
+            <Menu size={15} />
+          </button>
+          <ErgunbasLogo height={30} variant="badge" />
+        </div>
         <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
           <button onClick={onBack} style={{ display: "flex", alignItems: "center", gap: 6, background: "none", border: "none", color: COLORS.textDim, fontFamily: "'Inter', sans-serif", fontSize: 13, cursor: "pointer", padding: 0 }}>
             <ChevronLeft size={15} style={backIcon} /> {t("chooseMode", lang)}
@@ -3245,7 +3316,7 @@ function YoneticiMode({ data, onBack, lang, dir, profile, theme }) {
             overflowY: "auto", WebkitOverflowScrolling: "touch", paddingBottom: "max(20px, env(safe-area-inset-bottom))",
           }}>
             <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", padding: "0 8px 16px" }}>
-              <ErdoorLogo height={22} style={{ margin: 0 }} />
+              <ErgunbasLogo height={26} variant="badge" style={{ margin: 0 }} />
               <button onClick={() => setSidebarOpen(false)} style={{ background: "none", border: "none", color: COLORS.textFaint, cursor: "pointer", display: "flex" }}><X size={16} /></button>
             </div>
             {NAV_GROUPS.map((group) => {
@@ -7316,7 +7387,32 @@ function KanbanPanel({ data, lang, dir }) {
 
 function LoadingScreen({ lang = "tr" }) {
   return (
-    <div style={{ minHeight: "100vh", background: COLORS.bg, display: "flex", alignItems: "center", justifyContent: "center" }}>
+    <div style={{ minHeight: "100vh", background: COLORS.bg, display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", gap: 20 }}>
+      <FontImports />
+      <ErgunbasLogo height={80} variant="card" />
+      <div style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: 10, marginTop: 10 }}>
+        <div style={{ fontFamily: "'Archivo', sans-serif", fontWeight: 800, fontSize: 17, color: COLORS.text, letterSpacing: 0.5 }}>
+          ERGÜNBAŞ GROUP
+        </div>
+        <div style={{ fontFamily: "'Inter', sans-serif", fontSize: 13, color: COLORS.textDim }}>
+          {t("loading", lang)}
+        </div>
+        <div style={{ width: 150, height: 4, background: COLORS.bgRaised, borderRadius: 99, overflow: "hidden", marginTop: 4 }}>
+          <div style={{
+            height: "100%", width: "50%", background: COLORS.brand, borderRadius: 99,
+            animation: "ergunbas-pulse 1.3s infinite ease-in-out"
+          }} />
+        </div>
+      </div>
+      <style>{`
+        @keyframes ergunbas-pulse {
+          0% { transform: translateX(-100%); }
+          100% { transform: translateX(200%); }
+        }
+      `}</style>
+    </div>
+  );
+}}>
       <FontImports />
       <div style={{ display: "flex", alignItems: "center", gap: 10, color: COLORS.textDim, fontFamily: "'Inter', sans-serif", fontSize: 14 }}>
         <RefreshCw size={16} className="spin" /> {t("loading", lang)}
@@ -7333,9 +7429,14 @@ function LoadingScreen({ lang = "tr" }) {
 function ModeSelect({ onSelect, lang, setLang, dir, profile, onSignOut, themeMode, onToggleTheme }) {
   const isManager = MANAGER_ROLES.includes(profile?.role);
   return (
-    <div dir={dir} style={{ minHeight: "100vh", background: COLORS.bg, display: "flex", alignItems: "center", justifyContent: "center", padding: 20 }}>
-      <div style={{ width: "100%", maxWidth: 420 }}>
-        <ErdoorLogo height={56} style={{ marginBottom: 24 }} />
+    <div dir={dir} style={{ minHeight: "100vh", background: COLORS.bg, display: "flex", alignItems: "center", justifyContent: "center", padding: "30px 20px" }}>
+      <FontImports />
+      <div style={{ width: "100%", maxWidth: 440, display: "flex", flexDirection: "column", alignItems: "center" }}>
+        
+        {/* ERGUNBAS Corporate Logo */}
+        <ErgunbasLogo height={85} variant="card" style={{ marginBottom: 24 }} />
+
+        {/* Dil Seçimi ve Tema Butonu */}
         <div style={{ display: "flex", justifyContent: "center", alignItems: "center", gap: 8, marginBottom: 26 }}>
           {LANGUAGES.map((l) => (
             <button
@@ -7354,51 +7455,57 @@ function ModeSelect({ onSelect, lang, setLang, dir, profile, onSignOut, themeMod
           ))}
           <ThemeToggle mode={themeMode} onToggle={onToggleTheme} />
         </div>
-        <div style={{ textAlign: "center", marginBottom: 30 }}>
-          <div style={{ fontFamily: "'IBM Plex Mono', monospace", fontSize: 12, color: COLORS.textFaint, letterSpacing: 3, textTransform: "uppercase" }}>
-            {t("appTitle", lang)}
+
+        {/* Başlık ve Kurumsal Tanıtım */}
+        <div style={{ textAlign: "center", marginBottom: 28 }}>
+          <div style={{
+            display: "inline-block", background: COLORS.brandDim, color: COLORS.brand,
+            border: `1px solid ${COLORS.brand}40`, padding: "4px 14px", borderRadius: 20,
+            fontFamily: "'IBM Plex Mono', monospace", fontSize: 11, fontWeight: 700, letterSpacing: 2,
+            textTransform: "uppercase", marginBottom: 10
+          }}>
+            ERGÜNBAŞ GROUP • ÜRETİM YÖNETİMİ
           </div>
-          <div style={{ fontFamily: "'Archivo', sans-serif", fontWeight: 800, fontSize: 26, color: COLORS.text, marginTop: 6 }}>
+          <div style={{ fontFamily: "'Archivo', sans-serif", fontWeight: 800, fontSize: 26, color: COLORS.text }}>
             {t("howLogin", lang)}
           </div>
           {profile && (
             <div style={{ fontFamily: "'Inter', sans-serif", fontSize: 12.5, color: COLORS.textFaint, marginTop: 8 }}>
-              {t("signedInAs", lang)}: {profile.full_name || profile.id}
+              {t("signedInAs", lang)}: <strong style={{ color: COLORS.text }}>{profile.full_name || profile.id}</strong>
             </div>
           )}
         </div>
-        <div style={{ display: "grid", gap: 14 }}>
-          <BigButton onClick={() => onSelect("usta")} style={{ padding: "26px 20px", display: "flex", alignItems: "center", gap: 16 }}>
-            <Users size={28} color={COLORS.accentRun} />
-            <span style={{ display: "flex", flexDirection: "column", alignItems: dir === "rtl" ? "flex-end" : "flex-start" }}>
-              <span style={{ fontSize: 18 }}>{t("operatorMode", lang)}</span>
-              <span style={{ fontFamily: "'Inter', sans-serif", fontWeight: 400, fontSize: 13, color: COLORS.textDim }}>{t("operatorModeDesc", lang)}</span>
+
+        {/* Mod Seçim Kartları */}
+        <div style={{ width: "100%", display: "grid", gap: 14 }}>
+          <BigButton onClick={() => onSelect("usta")} style={{ padding: "22px 20px", display: "flex", alignItems: "center", gap: 16 }}>
+            <div style={{ width: 48, height: 48, borderRadius: 12, background: COLORS.accentRunDim, display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>
+              <Users size={26} color={COLORS.accentRun} />
+            </div>
+            <span style={{ display: "flex", flexDirection: "column", alignItems: dir === "rtl" ? "flex-end" : "flex-start", flex: 1 }}>
+              <span style={{ fontSize: 17, fontWeight: 700 }}>{t("operatorMode", lang)}</span>
+              <span style={{ fontFamily: "'Inter', sans-serif", fontWeight: 400, fontSize: 12.5, color: COLORS.textDim }}>{t("operatorModeDesc", lang)}</span>
             </span>
           </BigButton>
+
           <BigButton
             onClick={() => isManager && onSelect("yonetici")}
             disabled={!isManager}
-            style={{ padding: "26px 20px", display: "flex", alignItems: "center", gap: 16 }}
+            style={{ padding: "22px 20px", display: "flex", alignItems: "center", gap: 16 }}
           >
-            <Monitor size={28} color={COLORS.accentWarn} />
-            <span style={{ display: "flex", flexDirection: "column", alignItems: dir === "rtl" ? "flex-end" : "flex-start" }}>
-              <span style={{ fontSize: 18 }}>{t("managerMode", lang)}</span>
-              <span style={{ fontFamily: "'Inter', sans-serif", fontWeight: 400, fontSize: 13, color: COLORS.textDim }}>
-                {isManager ? t("managerModeDesc", lang) : t("noManagerAccess", lang)}
-              </span>
+            <div style={{ width: 48, height: 48, borderRadius: 12, background: COLORS.brandDim, display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>
+              <Monitor size={26} color={COLORS.brand} />
+            </div>
+            <span style={{ display: "flex", flexDirection: "column", alignItems: dir === "rtl" ? "flex-end" : "flex-start", flex: 1 }}>
+              <span style={{ fontSize: 17, fontWeight: 700 }}>{t("managerMode", lang)}</span>
+              <span style={{ fontFamily: "'Inter', sans-serif", fontWeight: 400, fontSize: 12.5, color: COLORS.textDim }}>{t("managerModeDesc", lang)}</span>
             </span>
           </BigButton>
         </div>
-        <div style={{ textAlign: "center", marginTop: 22, fontFamily: "'Inter', sans-serif", fontSize: 12, color: COLORS.textFaint }}>
-          {t("sharedNote", lang)}
-        </div>
-        <div style={{ textAlign: "center", marginTop: 18 }}>
-          <button
-            onClick={onSignOut}
-            style={{ background: "none", border: "none", color: COLORS.textFaint, fontFamily: "'Inter', sans-serif", fontSize: 12.5, cursor: "pointer", textDecoration: "underline" }}
-          >
-            {t("signOut", lang)}
-          </button>
+
+        {/* Kurumsal Alt Bilgi */}
+        <div style={{ marginTop: 32, textAlign: "center", fontSize: 11.5, color: COLORS.textFaint, fontFamily: "'Inter', sans-serif" }}>
+          ERGÜNBAŞ Group • Erdoor Kompozit Kapı & Profil Tesisleri
         </div>
       </div>
     </div>

@@ -26,6 +26,9 @@ app.all("/api/parse-order", async (req, res) => {
 });
 
 // Serve compiled static files from Vite build (dist)
+// Serve public static assets (logo, favicon etc.)
+app.use(express.static(path.join(__dirname, "public")));
+
 const distPath = path.join(__dirname, "dist");
 app.use(express.static(distPath));
 
