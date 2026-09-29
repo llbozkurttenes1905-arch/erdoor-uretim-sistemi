@@ -784,6 +784,32 @@ function LoginScreen({ lang, dir, setLang, onSignIn, onSignUp, themeMode, onTogg
           <BigButton variant="brand" disabled={busy} style={{ padding: "14px 20px", justifyContent: "center" }}>
             {isSignUp ? t("signUp", lang) : t("signIn", lang)}
           </BigButton>
+          {!isSignUp && (
+            <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 8, marginTop: 4 }}>
+              <button
+                type="button"
+                onClick={() => { setEmail("yonetici@erdoor.com"); setPassword("123456"); }}
+                style={{
+                  padding: "8px 10px", borderRadius: 8, background: COLORS.brandDim,
+                  border: `1px solid ${COLORS.brand}40`, color: COLORS.brand,
+                  fontFamily: "'Inter', sans-serif", fontSize: 11.5, fontWeight: 700, cursor: "pointer"
+                }}
+              >
+                👑 Yönetici Doldur
+              </button>
+              <button
+                type="button"
+                onClick={() => { setEmail("usta@erdoor.com"); setPassword("123456"); }}
+                style={{
+                  padding: "8px 10px", borderRadius: 8, background: COLORS.accentRunDim,
+                  border: `1px solid ${COLORS.accentRun}40`, color: COLORS.accentRun,
+                  fontFamily: "'Inter', sans-serif", fontSize: 11.5, fontWeight: 700, cursor: "pointer"
+                }}
+              >
+                🔧 Usta Doldur
+              </button>
+            </div>
+          )}
         </form>
         <div style={{ textAlign: "center", marginTop: 18 }}>
           <button
